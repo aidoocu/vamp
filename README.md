@@ -1,186 +1,21 @@
 # VAMP  - Virtual Address Mapping Protocol
 
-El objetivo es integrar dispositivos nRF24L01+ (y chips similares) directamente en redes IP y aplicaciones, creando una abstracción donde cada nodo físico tiene un **gemelo digital** en la red que actúa como su representante.
+El objetivo es integrar dispositivos nRF24L01+ (y chips similares) directamente en redes IP y aplicaciones. Partimos de que los payload que manejan estos dispositivos (32 bytes en nRF24L01+) son insuficientes para suportar cualquier tipo de encabezados. Estos dispositivos dependen completamente de una entidad intermediaria en todos los niveles del stack de red para comunicarse a con una entidad en la red IP.
+Creando una abstracción donde cada nodo físico tiene un **gemelo digital** en un gateway que actúa como su representante se puede lograr una comunicación semi-transparente entre el nodo y el extremo IP a nivel de aplicación donde el GW funciona como un NAT.
 
-## Gemelo digital
-
-### Nodo como Gemelo Digital (Digital Twin)
-
-``` text
-[Nodo RF] ←→ [Gateway] ←→ [Gemelo Digital] ←→ [Aplicación IP]
-  Hardware    Bridge RF     Virtual Node      HTTP/TCP/IP
-```
-
-### Tabla de Mapeo Multi-nivel en Gateway
-
-El gateway mantiene una tabla de asociación que vincula cada nodo RF con su gemelo digital:
+## Arquitectura
 
 ``` text
-┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
-│   Nodo RF       │  Gemelo Digital │   Red Virtual   │  Endpoint App   │
-├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
-│ RF_ID: 0x1A2B3C │ IP: 10.0.1.101  │ VLAN: sensors   │ api.farm.com    │
-│ RF_ID: 0x4D5E6F │ IP: 10.0.1.102  │ VLAN: actuators │ ctrl.farm.com   │
-│ RF_ID: 0x7A8B9C │ IP: 10.0.2.101  │ VLAN: mobile    │ track.fleet.com │
-└─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+[Nodo VAMP] ←→ [VAMP Bridge] ←→ [IP Service]
+  RF/VAMP      VAMP/IP Stack      IP Stack
+
 ```
 
-### Niveles de Abstracción
-
-#### Nivel 1: Identidad Física (nRF24L01+)
-
-- **ID único del hardware**: Dirección MAC de 5 bytes del chip RF
-- **Protocolo**: VAMP sobre nRF24L01+
-- **Alcance**: Red de área local RF (LAN-RF)
-
-#### Nivel 2: Identidad Virtual (Gemelo Digital)
-
-- **IP virtual asignado**: Dirección IP única en subnet virtual
-- **Protocolo**: TCP/IP estándar
-- **Alcance**: Red virtual gestionada por gateway
-
-#### Nivel 3: Identidad de Aplicación (Endpoint)
-
-- **Servicio final**: URL/dominio de la aplicación destino
-- **Protocolo**: HTTP/HTTPS, MQTT, CoAP, etc.
-- **Alcance**: Internet/WAN
-
-### Funcionamiento del Sistema NAT-like
-
-#### Desde la Perspectiva del Nodo
-
-``` text
-Nodo sensor → "Envío datos al Gateway" (solo conoce ID del GW)
-              ↓
-          [No conoce IP, no conoce endpoint final]
-```
-
-#### Desde la Perspectiva del Gateway
-
-``` text
-Recibe: [RF_ID: 0x1A2B3C] + [datos: temp=23°C]
-        ↓
-Consulta tabla: RF_ID → IP virtual 10.0.1.101 → api.farm.com/sensors
-        ↓
-Crea sesión: Gemelo(10.0.1.101) → api.farm.com
-        ↓
-Envía: POST api.farm.com/sensors {"node_ip": "10.0.1.101", "temp": 23}
-```
-
-#### Desde la Perspectiva de la Aplicación
-
-``` text
-Aplicación ve: "El sensor 10.0.1.101 reportó temperatura 23°C"
-               ↓
-           [No sabe que es un nRF24L01+, ve solo IP]
-```
-
-### Ventajas del Gemelo Digital
-
-#### 1. **Transparencia Bidireccional**
-
-- **Nodo**: Solo conoce al gateway, no necesita saber de IPs o endpoints
-- **Aplicación**: Ve nodos como dispositivos IP normales
-- **Gateway**: Maneja toda la traducción y mapeo
-
-#### 2. **Integración Natural con Infraestructura IP**
-
-- Cada nodo RF aparece como un dispositivo IP real
-- Compatible con herramientas de monitoreo de red existentes
-- Soporte para VLANs, QoS, firewalls estándar
-
-#### 3. **Escalabilidad de Red**
-
-- Subnets virtuales para diferentes tipos de nodos
-- Asignación dinámica de IPs virtuales
-- Enrutamiento inteligente basado en tipo de dispositivo
-
-#### 4. **Gestión Centralizada**
-
-- Tabla de mapeo única en gateway
-- Políticas de red por VLAN/subnet
-- Logs y auditoría unificados
-
-### Casos de Uso
-
-#### Escenario 1: Granja Inteligente
-
-``` text
-Sensores de campo (nRF24L01+) → Gateway rural → Internet → Sistema de gestión agrícola
-RF IDs: 0x001, 0x002, 0x003   →   IPs: 10.0.1.x   →         api.farm.com
-```
-
-#### Escenario 2: IoT Industrial
-
-``` text
-Sensores de fábrica → Gateway industrial → Red corporativa → ERP industrial
-RF IDs: 0x100-0x1FF →  IPs: 192.168.10.x →              → erp.company.com
-```
-
-#### Escenario 3: Ciudad Inteligente
-
-``` text
-Sensores urbanos → Gateways distribuidos → Red municipal → Plataforma smart city
-RF IDs: variados →    IPs: 172.16.x.x    →              → city.platform.gov
-```
-
-### Implementación del Concepto
-
-#### Gateway como NAT Virtual
-
-El gateway actúa como un **NAT (Network Address Translation)** especializado:
-
-1. **Traducción de Protocolos**: VAMP ↔ TCP/IP
-2. **Mapeo de Direcciones**: RF_ID ↔ IP virtual
-3. **Gestión de Sesiones**: Mantiene estado de conexiones activas
-4. **Enrutamiento Inteligente**: Dirige tráfico según políticas definidas
-
-#### Tabla de Estado de Conexiones
-
-``` text
-┌─────────────┬─────────────┬─────────────┬─────────────┬────────────────┐
-│   RF_ID     │  IP Virtual │   Estado    │  Última Act │  Endpoint      │
-├─────────────┼─────────────┼─────────────┼─────────────┼────────────────┤
-│  0x1A2B3C   │ 10.0.1.101  │   ACTIVO    │  14:23:45   │ api.farm.com   │
-│  0x4D5E6F   │ 10.0.1.102  │  INACTIVO   │  12:15:30   │ ctrl.farm.com  │
-│  0x7A8B9C   │ 10.0.2.101  │   ACTIVO    │  14:24:01   │ track.fleet.com│
-└─────────────┴─────────────┴─────────────┴─────────────┴────────────────┘
-```
-
-### Beneficios de la Arquitectura
-
-#### Para Desarrolladores de Aplicaciones
-
-- **Simplicidad**: Tratan nodos RF como dispositivos IP normales
-- **Compatibilidad**: Usan herramientas y librerías IP estándar
-- **Escalabilidad**: Agregan nodos sin cambiar código de aplicación
-
-#### Para Administradores de Red
-
-- **Visibilidad**: Monitoreo unificado de dispositivos RF e IP
-- **Control**: Políticas de red estándar aplicables a nodos RF
-- **Mantenimiento**: Gestión centralizada desde gateway
-
-#### Para Dispositivos RF
-
-- **Simplicidad**: Solo necesitan implementar protocolo VAMP básico
-- **Eficiencia**: No requieren stack TCP/IP completo
-- **Autonomía**: Funcionan independientemente de infraestructura IP
-
-Esta arquitectura de gemelo digital crea un puente transparente entre el mundo RF de baja potencia y las aplicaciones IP modernas, permitiendo integración sin fisuras de dispositivos IoT simples en infraestructuras complejas.
-
-## Solución Propuesta: Arquitectura Multi-nivel con VAMP Bridge
-
-### Arquitectura
-
-``` text
-[Nodo VAMP] ←→ [Gateway VAMP] ←→ [VAMP Bridge] ←→ [IP Service]
-   RF/VAMP        RF/VAMP         VAMP/IP        HTTP/TCP/IP
-```
+Solo tenemos dos roles:
 
 | Rol         | Descripción                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------ |
-| **Nodo**    | Dispositivo sin identidad preconfigurada, busca asociarse. Puede ser motes, sensores, etc. |
+| **Nodo**    | Dispositivo con/sin identidad preconfigurada, busca asociarse. Puede ser motes, sensores...|
 | **Gateway** | Nodo central que gestiona las asociaciones, mapea cada nodo a una dirección lógica.        |
 
 ## Protocolo VAMP
@@ -192,62 +27,6 @@ Se utiliza un solo byte tanto para identificar el tipo de mensaje como para el t
 
 - Si es 0, es un mensaje de datos, y el resto de bits para el tamaño del mensaje (0-32).
 - Si es 1, es un mensaje de comando, y el resto de bits se utilizan para identificar el comando en concreto. A partir de saber el comando, se puede saber el tratamiento para el resto del mensaje.
-
-## Ejemplo de Formato de Mensajes
-
-### Mensaje de Datos (Bit 7 = 0)
-
-```text
-Byte 0: 0x05 = 00000101 (binario)
-        |      |
-        |      └─ Tamaño: 5 bytes de datos
-        └─ Tipo: 0 (mensaje de datos)
-
-Payload completo: [0x05] [0x12] [0x34] [0x56] [0x78] [0x9A]
-                    ^      ^────── 5 bytes de datos ──────^
-                    │
-                    └─ Pseudoencabezado
-```
-
-### Mensaje de Comando (Bit 7 = 1)
-
-```text
-Byte 0: 0x81 = 10000001 (binario)
-        |      |
-        |      └─ Comando ID: 0x01 (JOIN_REQ)
-        └─ Tipo: 1 (mensaje de comando)
-
-Payload completo: [0x81] [datos adicionales según comando]
-                    ^
-                    └─ Pseudoencabezado con comando JOIN_REQ
-```
-
-### Comandos Disponibles
-
-| Comando   | Valor | Descripción                          |
-|-----------|-------|--------------------------------------|
-| JOIN_REQ  | 0x81  | Solicitud de unión a la red          |
-| JOIN_ACK  | 0x82  | Confirmación de unión                |
-| PING      | 0x83  | Mensaje de verificación de conexión  |
-| PONG      | 0x84  | Respuesta a mensaje PING             |
-
-### Ejemplo de Flujo de Asociación
-
-```text
-1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
-2. Gateway → Nodo: [0x82] [ID_GATEWAY] (JOIN_ACK con ID del gateway)
-3. Nodo → Gateway (directo): [0x03] [0x20] [0x25] [0x30] (Datos de sensores: temp=32°C, hum=37%, luz=48%)
-```
-
-**Proceso detallado:**
-
-- **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID para que el gateway pueda registrarlo
-- **Paso 2**: El gateway responde con JOIN_ACK incluyendo su ID para que el nodo pueda comunicarse directamente con él
-- **Paso 3**: Una vez establecida la asociación, el nodo envía datos directamente al gateway usando su ID
-
-## Formato de Mensajes VAMP
-
-### Estructura General
 
 ```text
  0                   1                   2                   3
@@ -279,7 +58,7 @@ Payload completo: [0x81] [datos adicionales según comando]
   - Si T=0: Tamaño del payload de datos (0-127 bytes)
   - Si T=1: Identificador del comando (0-127)
 
-### Mensajes de Datos (T=0)
+### Mensajes de Datos (T = 0 / Bit 7 = 0)
 
 ```text
  0                   1                   2                   3
@@ -291,7 +70,43 @@ Payload completo: [0x81] [datos adicionales según comando]
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-### Mensajes de Comando (T=1)
+#### Ejemplo de mensaje de datos
+
+```text
+Byte 0: 0x05 = 00000101 (binario)
+        |      |
+        |      └─ Tamaño: 5 bytes de datos
+        └─ Tipo: 0 (mensaje de datos)
+
+Payload completo: [0x05] [0x12] [0x34] [0x56] [0x78] [0x9A]
+                    ^      ^────── 5 bytes de datos ──────^
+                    │
+                    └─ Pseudoencabezado
+```
+
+### Mensajes de Comando (T=1 / Bit 7 = 1)
+
+#### Ejemplo mensaje de comando ()
+
+```text
+Byte 0: 0x81 = 10000001 (binario)
+        |      |
+        |      └─ Comando ID: 0x01 (JOIN_REQ)
+        └─ Tipo: 1 (mensaje de comando)
+
+Payload completo: [0x81] [datos adicionales según comando]
+                    ^
+                    └─ Pseudoencabezado con comando JOIN_REQ
+```
+
+#### Comandos Disponibles
+
+| Comando   | Valor | Descripción                          |
+|-----------|-------|--------------------------------------|
+| JOIN_REQ  | 0x81  | Solicitud de unión a la red          |
+| JOIN_ACK  | 0x82  | Confirmación de unión                |
+| PING      | 0x83  | Mensaje de verificación de conexión  |
+| PONG      | 0x84  | Respuesta a mensaje PING             |
 
 #### JOIN_REQ (0x81)
 
@@ -329,11 +144,505 @@ Payload completo: [0x81] [datos adicionales según comando]
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-### Limitaciones
+## Nodo como Extremo de Puerto NAT
 
-- Tamaño máximo del payload: 32 bytes (limitación del nRF24L01)
-- Tamaño del ID de nodo/gateway: 5 bytes (compatible con nRF24L01)
-- Comandos disponibles: 0-127 (7 bits)
+### Implementación del Concepto
+
+#### Gateway como NAT por Puerto
+
+El gateway actúa como un **NAT (Network Address Translation)** por puerto:
+
+1. **Traducción de Protocolos**: VAMP ↔ TCP/UDP
+2. **Mapeo de Puertos**: RF_ID ↔ Puerto virtual
+3. **Gestión de Sesiones**: Mantiene estado de conexiones activas
+4. **Enrutamiento Bidireccional**: Permite comunicación iniciada desde cualquier extremo
+
+#### Tabla de Estado de Conexiones
+
+``` text
+┌─────────────┬─────────────┬─────────────┬─────────────┬────────────────┐
+│   RF_ID     │   Puerto    │   Estado    │  Última Act │  Endpoint      │
+├─────────────┼─────────────┼─────────────┼─────────────┼────────────────┤
+│  0x1A2B3C   │    8001     │   ACTIVO    │  14:23:45   │ api.farm.com   │
+│  0x4D5E6F   │    8002     │  INACTIVO   │  12:15:30   │ ctrl.farm.com  │
+│  0x7A8B9C   │    8003     │   ACTIVO    │  14:24:01   │ track.fleet.com│
+└─────────────┴─────────────┴─────────────┴─────────────┴────────────────┘
+```
+
+### Niveles de Abstracción
+
+#### Nivel 1: Identidad Física (nRF24L01+)
+
+- **ID único del hardware**: Dirección MAC de 5 bytes del chip RF
+- **Protocolo**: VAMP sobre nRF24L01+
+- **Alcance**: Red de área local RF (LAN-RF)
+
+#### Nivel 2: Identidad Virtual (Puerto Gateway)
+
+- **Puerto virtual asignado**: Puerto único en el gateway NAT
+- **Protocolo**: UDP/TCP sobre IP del gateway
+- **Alcance**: Red virtual gestionada por gateway
+
+#### Nivel 3: Identidad de Aplicación (Endpoint)
+
+- **Servicio final**: URL/dominio de la aplicación destino
+- **Protocolo**: HTTP/HTTPS, MQTT, CoAP, etc.
+- **Alcance**: Internet/WAN
+
+### Funcionamiento del Sistema NAT-like
+
+#### Desde la Perspectiva del Nodo
+
+``` text
+Nodo sensor → "Envío datos al Gateway" (solo conoce ID del GW)
+              ↓
+          [No conoce puertos, no conoce endpoint final]
+```
+
+#### Desde la Perspectiva del Gateway
+
+``` text
+Recibe: [RF_ID: 0x1A2B3C] + [datos: temp=23°C]
+        ↓
+Consulta tabla: RF_ID → Puerto 8001 → api.farm.com/sensors
+        ↓
+Crea mapeo NAT: Gateway:8001 ↔ api.farm.com
+        ↓
+Envía: POST api.farm.com/sensors {"gateway_port": 8001, "temp": 23}
+```
+
+#### Desde la Perspectiva de la Aplicación
+
+``` text
+Aplicación ve: "El sensor en gateway_ip:8001 reportó temperatura 23°C"
+               ↓
+           [Para responder: envía a gateway_ip:8001]
+```
+
+#### Comunicación Bidireccional
+
+``` text
+Aplicación → Gateway:8001 → Consulta tabla → RF_ID: 0x1A2B3C → Nodo
+```
+
+### Ventajas del Sistema NAT por Puerto
+
+#### 1. **Transparencia Bidireccional**
+
+- **Nodo**: Solo conoce al gateway, no necesita saber de puertos o endpoints
+- **Aplicación**: Ve nodos como puertos específicos del gateway
+- **Gateway**: Maneja toda la traducción y mapeo NAT
+
+#### 2. **Comunicación Bidireccional Nativa**
+
+- Cada nodo RF aparece como un puerto específico en el gateway
+- Aplicaciones pueden iniciar comunicación enviando a gateway:puerto
+- Gateway traduce automáticamente puerto → RF_ID
+- Soporte nativo para request/response patterns
+
+#### 3. **Eficiencia de Red**
+
+- Sin necesidad de IPs virtuales o subnets
+- Mapeo directo puerto ↔ RF_ID
+- Menor overhead en gateway
+- Escalabilidad limitada solo por rango de puertos
+
+#### 4. **Gestión Simplificada**
+
+- Tabla de mapeo simple: RF_ID ↔ Puerto
+- Identificación única por puerto
+- Logs y debugging más directos
+
+### Casos de Uso
+
+#### Escenario 1: Granja Inteligente
+
+``` text
+Sensores de campo (nRF24L01+) → Gateway rural → Internet → Sistema de gestión agrícola
+RF IDs: 0x001, 0x002, 0x003   →   Puertos: 8001, 8002, 8003   →   api.farm.com
+```
+
+**Comunicación bidireccional:**
+
+- Sensor → Gateway:8001 → api.farm.com/sensors (datos de temperatura)
+- api.farm.com → Gateway:8001 → Sensor (comando de calibración)
+
+#### Escenario 2: IoT Industrial
+
+``` text
+Sensores de fábrica → Gateway industrial → Red corporativa → ERP industrial
+RF IDs: 0x100-0x1FF →  Puertos: 8100-8199 →              → erp.company.com
+```
+
+**Control remoto:**
+
+- Aplicación → Gateway:8150 → Actuador (comando de activación)
+- Actuador → Gateway:8150 → Aplicación (confirmación de estado)
+
+#### Escenario 3: Ciudad Inteligente
+
+``` text
+Sensores urbanos → Gateways distribuidos → Red municipal → Plataforma smart city
+RF IDs: variados →    Puertos: 8000-9999    →              → city.platform.gov
+```
+
+### Beneficios de la Arquitectura
+
+#### Para Desarrolladores de Aplicaciones
+
+- **Simplicidad**: Tratan nodos RF como puertos específicos del gateway
+- **Comunicación Bidireccional**: Pueden iniciar comunicación hacia gateway:puerto
+- **Escalabilidad**: Agregan nodos sin cambiar código de aplicación
+- **Debugging**: Identificación directa por puerto
+
+#### Para Administradores de Red
+
+- **Visibilidad**: Monitoreo unificado por puerto
+- **Control**: Políticas de firewall por puerto
+- **Mantenimiento**: Gestión simple de mapeo puerto↔RF_ID
+- **Escalabilidad**: Hasta 65535 puertos por gateway
+
+#### Para Dispositivos RF
+
+- **Simplicidad**: Solo necesitan implementar protocolo VAMP básico
+- **Eficiencia**: No requieren conocimiento de puertos o IPs
+- **Autonomía**: Funcionan independientemente de infraestructura IP
+- **Bidireccionalidad**: Pueden recibir comandos desde aplicaciones
+
+Esta arquitectura NAT por puerto crea un mapeo directo y eficiente entre el mundo RF y las aplicaciones IP, permitiendo comunicación bidireccional transparente sin la complejidad de IPs virtuales.
+
+## Gestión de Tabla NAT por Ente Central
+
+### Arquitectura del Sistema
+
+```text
+[Nodo RF] ←→ [Gateway] ←→ [Ente Central] ←→ [Servicio(s)]
+                             ↓
+                        [Federación]
+                      ┌─────────────────┐
+                      │ Ente Central A  │ (empresa-x.com)
+                      │ Ente Central B  │ (empresa-y.com)  
+                      │ Ente Central C  │ (empresa-z.com)
+                      └─────────────────┘
+```
+
+### Protocolo HTTP/REST Gateway ↔ Ente Central
+
+#### Inicialización del Gateway
+
+```http
+POST /api/v1/gateway/register
+Content-Type: application/json
+
+{
+  "gateway_id": "GW_123",
+  "location": "farm_sector_a",
+  "capabilities": ["HTTP", "MQTT", "CoAP"],
+  "max_nodes": 100
+}
+```
+
+#### Obtención de Tabla Inicial
+
+```http
+GET /api/v1/gateway/GW_123/mappings
+Authorization: Bearer <gateway_token>
+
+Response:
+{
+  "gateway_id": "GW_123",
+  "version": "1.2.3",
+  "timestamp": "2025-07-17T10:30:00Z",
+  "mappings": [
+    {
+      "rf_id": "0x1A2B3C",
+      "port": 8001,
+      "endpoints": [
+        {
+          "url": "api.farm.com/sensors",
+          "protocol": "HTTP",
+          "priority": 1,
+          "permissions": {
+            "read": true,
+            "write": false
+          }
+        },
+        {
+          "url": "alert.farm.com/notifications",
+          "protocol": "HTTP", 
+          "priority": 2,
+          "permissions": {
+            "read": true,
+            "write": true
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Actualizaciones Dinámicas (Polling)
+
+```http
+GET /api/v1/gateway/GW_123/mappings/updates?since=2025-07-17T10:30:00Z
+Authorization: Bearer <gateway_token>
+
+Response:
+{
+  "has_updates": true,
+  "updates": [
+    {
+      "action": "ADD",
+      "mapping": {
+        "rf_id": "0x4D5E6F",
+        "port": 8002,
+        "endpoints": [...]
+      }
+    },
+    {
+      "action": "MODIFY",
+      "rf_id": "0x1A2B3C",
+      "changes": {
+        "endpoints[0].permissions.write": true
+      }
+    },
+    {
+      "action": "DELETE",
+      "rf_id": "0x7A8B9C"
+    }
+  ]
+}
+```
+
+### Formato de Tabla con Permisos
+
+```json
+{
+  "gateway_id": "GW_123",
+  "version": "1.2.3",
+  "timestamp": "2025-07-17T10:30:00Z",
+  "mappings": [
+    {
+      "rf_id": "0x1A2B3C",
+      "port": 8001,
+      "node_type": "sensor",
+      "description": "Sensor temperatura campo A",
+      "endpoints": [
+        {
+          "service_id": "farm_monitoring",
+          "url": "api.farm.com/sensors",
+          "protocol": "HTTP",
+          "priority": 1,
+          "permissions": {
+            "read": true,
+            "write": false,
+            "admin": false
+          },
+          "rate_limit": {
+            "requests_per_minute": 60,
+            "burst": 10
+          }
+        },
+        {
+          "service_id": "alert_system", 
+          "url": "alert.farm.com/notifications",
+          "protocol": "HTTP",
+          "priority": 2,
+          "permissions": {
+            "read": true,
+            "write": true,
+            "admin": false
+          },
+          "rate_limit": {
+            "requests_per_minute": 30,
+            "burst": 5
+          }
+        },
+        {
+          "service_id": "maintenance_service",
+          "url": "maint.farm.com/diagnostics", 
+          "protocol": "HTTP",
+          "priority": 3,
+          "permissions": {
+            "read": true,
+            "write": true,
+            "admin": true
+          },
+          "rate_limit": {
+            "requests_per_minute": 10,
+            "burst": 2
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Tipos de Permisos
+
+| Permiso | Descripción | Operaciones Permitidas |
+|---------|-------------|----------------------|
+| **read** | Lectura de datos del nodo | Recibir datos del nodo |
+| **write** | Escritura hacia el nodo | Enviar comandos al nodo |
+| **admin** | Administración del nodo | Configurar, resetear, actualizar firmware |
+
+### Federación de Entes Centrales
+
+#### Descubrimiento Inter-Federación
+
+```http
+GET /api/v1/federation/discover/node/0x1A2B3C
+Authorization: Bearer <federation_token>
+
+Response:
+{
+  "found": true,
+  "authority": "empresa-x.com",
+  "endpoint": "https://vamp.empresa-x.com/api/v1",
+  "delegation_possible": true
+}
+```
+
+#### Delegación de Autoridad
+
+```http
+POST /api/v1/federation/delegate
+Content-Type: application/json
+Authorization: Bearer <federation_token>
+
+{
+  "node_id": "0x1A2B3C",
+  "delegate_to": "GW_456",
+  "permissions": {
+    "read": true,
+    "write": false,
+    "admin": false
+  },
+  "duration": "24h"
+}
+```
+
+## Asociación a la Red
+
+```text
+1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
+2. Gateway → Ente Central: Consulta mapeo para RF_ID
+3. Ente Central → Gateway: Respuesta con puerto y endpoints
+4. Gateway → Nodo: [0x82] [ID_GATEWAY] (JOIN_ACK con ID del gateway)
+5. Nodo → Gateway (directo): [0x03] [0x20] [0x25] [0x30] (Datos de sensores)
+6. Gateway → Endpoints: Distribuye datos según permisos
+```
+
+**Proceso detallado:**
+
+- **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID
+- **Paso 2**: Gateway consulta al Ente Central si tiene mapeo para ese RF_ID
+- **Paso 3**: Ente Central responde con puerto asignado y lista de endpoints autorizados
+- **Paso 4**: Gateway responde JOIN_ACK al nodo con su ID
+- **Paso 5**: Nodo envía datos directamente al gateway
+- **Paso 6**: Gateway distribuye datos a endpoints según permisos configurados
+
+### Manejo de Permisos en Comunicación Bidireccional
+
+#### Flujo de Datos: Nodo → Servicios (READ)
+
+```text
+Nodo 0x1A2B3C → Gateway:8001 → Datos de temperatura
+                                ↓
+Gateway consulta permisos:
+├── farm_monitoring (read: ✓) → api.farm.com/sensors
+├── alert_system (read: ✓) → alert.farm.com/notifications  
+└── maintenance_service (read: ✓) → maint.farm.com/diagnostics
+```
+
+#### Flujo de Comandos: Servicios → Nodo (WRITE)
+
+```text
+Comando de calibración → Gateway:8001
+                        ↓
+Gateway verifica permisos:
+├── farm_monitoring (write: ✗) → Comando RECHAZADO
+├── alert_system (write: ✓) → Comando PERMITIDO
+└── maintenance_service (write: ✓) → Comando PERMITIDO
+                        ↓
+Gateway → Nodo 0x1A2B3C (solo si hay permisos write)
+```
+
+#### Flujo de Administración: Servicios → Nodo (ADMIN)
+
+```text
+Comando de reset → Gateway:8001
+                  ↓
+Gateway verifica permisos:
+├── farm_monitoring (admin: ✗) → Comando RECHAZADO
+├── alert_system (admin: ✗) → Comando RECHAZADO
+└── maintenance_service (admin: ✓) → Comando PERMITIDO
+                  ↓
+Gateway → Nodo 0x1A2B3C (solo maintenance_service)
+```
+
+### Implementación de Rate Limiting
+
+```text
+Servicio intenta enviar comando:
+├── Verificar permisos (write/admin)
+├── Consultar rate limit del servicio
+├── Si dentro del límite: procesar
+└── Si excede límite: HTTP 429 (Too Many Requests)
+```
+
+### Casos de Uso de Permisos
+
+#### Escenario 1: Sensor de Temperatura
+
+```json
+{
+  "rf_id": "0x1A2B3C",
+  "port": 8001,
+  "endpoints": [
+    {
+      "service_id": "monitoring_dashboard",
+      "permissions": {"read": true, "write": false, "admin": false},
+      "description": "Solo lectura para dashboard"
+    },
+    {
+      "service_id": "alert_system", 
+      "permissions": {"read": true, "write": true, "admin": false},
+      "description": "Lectura + comandos de configuración"
+    },
+    {
+      "service_id": "maintenance_team",
+      "permissions": {"read": true, "write": true, "admin": true},
+      "description": "Acceso completo para mantenimiento"
+    }
+  ]
+}
+```
+
+#### Escenario 2: Actuador Crítico
+
+```json
+{
+  "rf_id": "0x4D5E6F",
+  "port": 8002,
+  "endpoints": [
+    {
+      "service_id": "safety_system",
+      "permissions": {"read": true, "write": true, "admin": true},
+      "priority": 1,
+      "description": "Sistema de seguridad - prioridad máxima"
+    },
+    {
+      "service_id": "production_control",
+      "permissions": {"read": true, "write": true, "admin": false},
+      "priority": 2,
+      "description": "Control de producción - sin admin"
+    }
+  ]
+}
+```
 
 ## Manejo de Pérdida de Conexión con Gateway
 
@@ -376,14 +685,6 @@ Envío → Fallo → Contador = 3 → Reset conexión → Re-join → Reintento
 
 - **`vamp_force_rejoin()`**: Permite forzar un re-join manual
 - **`vamp_is_joined()`**: Verifica si está conectado a un gateway
-
-## TODO
-
-Mecanismo para dirección final:
-
-En realidad el mote no se quiere comunicar con el gateway, se quiere comunicar con un extremo, que está detrás de un IP o un dominio. De alguna manera, el gateway es solo eso, un gateway. Las posibilidades son:
-
-- Que el gateway lo sepa todo en realidad. O sea, el nodo es tan restringido que toda la gestión de salto, a donde va el mensaje etc lo controla el gateway y el nodo solo "conoce" al gateway. Aquí el problema es el GW: supongamos que el nodo cae en el área de cobertura de 3 entidades, pero el nodo "pertenece" a la entidad X que tiene como endpoint la dirección Y. La solución es que solo el/los GW que tenga registrado ese nodo responderá a la petición de JOIN.
 
 ## Manejo de Nodos Huérfanos
 
