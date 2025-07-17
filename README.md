@@ -2,8 +2,11 @@
 
 El objetivo es integrar dispositivos nRF24L01+ (y chips similares) directamente en redes IP y aplicaciones, creando una abstracción donde cada nodo físico tiene un **gemelo digital** en la red que actúa como su representante.
 
+## Gemelo digital
+
 ### Nodo como Gemelo Digital (Digital Twin)
-```
+
+``` text
 [Nodo RF] ←→ [Gateway] ←→ [Gemelo Digital] ←→ [Aplicación IP]
   Hardware    Bridge RF     Virtual Node      HTTP/TCP/IP
 ```
@@ -12,7 +15,7 @@ El objetivo es integrar dispositivos nRF24L01+ (y chips similares) directamente 
 
 El gateway mantiene una tabla de asociación que vincula cada nodo RF con su gemelo digital:
 
-```
+``` text
 ┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
 │   Nodo RF       │  Gemelo Digital │   Red Virtual   │  Endpoint App   │
 ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
@@ -25,31 +28,36 @@ El gateway mantiene una tabla de asociación que vincula cada nodo RF con su gem
 ### Niveles de Abstracción
 
 #### Nivel 1: Identidad Física (nRF24L01+)
+
 - **ID único del hardware**: Dirección MAC de 5 bytes del chip RF
 - **Protocolo**: VAMP sobre nRF24L01+
 - **Alcance**: Red de área local RF (LAN-RF)
 
 #### Nivel 2: Identidad Virtual (Gemelo Digital)
+
 - **IP virtual asignado**: Dirección IP única en subnet virtual
 - **Protocolo**: TCP/IP estándar
 - **Alcance**: Red virtual gestionada por gateway
 
 #### Nivel 3: Identidad de Aplicación (Endpoint)
+
 - **Servicio final**: URL/dominio de la aplicación destino
 - **Protocolo**: HTTP/HTTPS, MQTT, CoAP, etc.
 - **Alcance**: Internet/WAN
 
 ### Funcionamiento del Sistema NAT-like
 
-#### Desde la Perspectiva del Nodo:
-```
+#### Desde la Perspectiva del Nodo
+
+``` text
 Nodo sensor → "Envío datos al Gateway" (solo conoce ID del GW)
               ↓
           [No conoce IP, no conoce endpoint final]
 ```
 
-#### Desde la Perspectiva del Gateway:
-```
+#### Desde la Perspectiva del Gateway
+
+``` text
 Recibe: [RF_ID: 0x1A2B3C] + [datos: temp=23°C]
         ↓
 Consulta tabla: RF_ID → IP virtual 10.0.1.101 → api.farm.com/sensors
@@ -59,8 +67,9 @@ Crea sesión: Gemelo(10.0.1.101) → api.farm.com
 Envía: POST api.farm.com/sensors {"node_ip": "10.0.1.101", "temp": 23}
 ```
 
-#### Desde la Perspectiva de la Aplicación:
-```
+#### Desde la Perspectiva de la Aplicación
+
+``` text
 Aplicación ve: "El sensor 10.0.1.101 reportó temperatura 23°C"
                ↓
            [No sabe que es un nRF24L01+, ve solo IP]
@@ -69,21 +78,25 @@ Aplicación ve: "El sensor 10.0.1.101 reportó temperatura 23°C"
 ### Ventajas del Gemelo Digital
 
 #### 1. **Transparencia Bidireccional**
+
 - **Nodo**: Solo conoce al gateway, no necesita saber de IPs o endpoints
 - **Aplicación**: Ve nodos como dispositivos IP normales
 - **Gateway**: Maneja toda la traducción y mapeo
 
 #### 2. **Integración Natural con Infraestructura IP**
+
 - Cada nodo RF aparece como un dispositivo IP real
 - Compatible con herramientas de monitoreo de red existentes
 - Soporte para VLANs, QoS, firewalls estándar
 
 #### 3. **Escalabilidad de Red**
+
 - Subnets virtuales para diferentes tipos de nodos
 - Asignación dinámica de IPs virtuales
 - Enrutamiento inteligente basado en tipo de dispositivo
 
 #### 4. **Gestión Centralizada**
+
 - Tabla de mapeo única en gateway
 - Políticas de red por VLAN/subnet
 - Logs y auditoría unificados
@@ -91,19 +104,22 @@ Aplicación ve: "El sensor 10.0.1.101 reportó temperatura 23°C"
 ### Casos de Uso
 
 #### Escenario 1: Granja Inteligente
-```
+
+``` text
 Sensores de campo (nRF24L01+) → Gateway rural → Internet → Sistema de gestión agrícola
 RF IDs: 0x001, 0x002, 0x003   →   IPs: 10.0.1.x   →         api.farm.com
 ```
 
 #### Escenario 2: IoT Industrial
-```
+
+``` text
 Sensores de fábrica → Gateway industrial → Red corporativa → ERP industrial
 RF IDs: 0x100-0x1FF →  IPs: 192.168.10.x →              → erp.company.com
 ```
 
 #### Escenario 3: Ciudad Inteligente
-```
+
+``` text
 Sensores urbanos → Gateways distribuidos → Red municipal → Plataforma smart city
 RF IDs: variados →    IPs: 172.16.x.x    →              → city.platform.gov
 ```
@@ -111,6 +127,7 @@ RF IDs: variados →    IPs: 172.16.x.x    →              → city.platform.go
 ### Implementación del Concepto
 
 #### Gateway como NAT Virtual
+
 El gateway actúa como un **NAT (Network Address Translation)** especializado:
 
 1. **Traducción de Protocolos**: VAMP ↔ TCP/IP
@@ -119,7 +136,8 @@ El gateway actúa como un **NAT (Network Address Translation)** especializado:
 4. **Enrutamiento Inteligente**: Dirige tráfico según políticas definidas
 
 #### Tabla de Estado de Conexiones
-```
+
+``` text
 ┌─────────────┬─────────────┬─────────────┬─────────────┬────────────────┐
 │   RF_ID     │  IP Virtual │   Estado    │  Última Act │  Endpoint      │
 ├─────────────┼─────────────┼─────────────┼─────────────┼────────────────┤
@@ -131,17 +149,20 @@ El gateway actúa como un **NAT (Network Address Translation)** especializado:
 
 ### Beneficios de la Arquitectura
 
-#### Para Desarrolladores de Aplicaciones:
+#### Para Desarrolladores de Aplicaciones
+
 - **Simplicidad**: Tratan nodos RF como dispositivos IP normales
 - **Compatibilidad**: Usan herramientas y librerías IP estándar
 - **Escalabilidad**: Agregan nodos sin cambiar código de aplicación
 
-#### Para Administradores de Red:
+#### Para Administradores de Red
+
 - **Visibilidad**: Monitoreo unificado de dispositivos RF e IP
 - **Control**: Políticas de red estándar aplicables a nodos RF
 - **Mantenimiento**: Gestión centralizada desde gateway
 
-#### Para Dispositivos RF:
+#### Para Dispositivos RF
+
 - **Simplicidad**: Solo necesitan implementar protocolo VAMP básico
 - **Eficiencia**: No requieren stack TCP/IP completo
 - **Autonomía**: Funcionan independientemente de infraestructura IP
@@ -151,7 +172,8 @@ Esta arquitectura de gemelo digital crea un puente transparente entre el mundo R
 ## Solución Propuesta: Arquitectura Multi-nivel con VAMP Bridge
 
 ### Arquitectura
-```
+
+``` text
 [Nodo VAMP] ←→ [Gateway VAMP] ←→ [VAMP Bridge] ←→ [IP Service]
    RF/VAMP        RF/VAMP         VAMP/IP        HTTP/TCP/IP
 ```
@@ -442,4 +464,3 @@ Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 ```
 
 Esta solución permite que cualquier nodo se comunique con su endpoint final a través de cualquier gateway disponible, resolviendo el problema de los nodos huérfanos de manera escalable.
-
