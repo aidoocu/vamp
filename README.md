@@ -11,12 +11,13 @@ Creando una abstracción donde cada nodo físico tiene un **gemelo digital** en 
 
 ```
 
-Solo tenemos dos roles:
+Tenemos tres roles:
 
 | Rol         | Descripción                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------ |
 | **Nodo**    | Dispositivo con/sin identidad preconfigurada, busca asociarse. Puede ser motes, sensores...|
 | **Gateway** | Nodo central que gestiona las asociaciones, mapea cada nodo a una dirección lógica.        |
+| **VAMP Registry** | Entidad central federada que genera y mantiene las tablas de mapeo RF_ID↔Puerto↔Endpoint con control de permisos. |
 
 ## Protocolo VAMP
 
