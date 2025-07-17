@@ -120,13 +120,13 @@ El gateway actúa como un **NAT (Network Address Translation)** especializado:
 
 #### Tabla de Estado de Conexiones
 ```
-┌─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
-│   RF_ID     │  IP Virtual │   Estado    │  Última Act │  Endpoint   │
-├─────────────┼─────────────┼─────────────┼─────────────┼─────────────┤
-│  0x1A2B3C   │ 10.0.1.101  │   ACTIVO    │  14:23:45   │ api.farm.com│
-│  0x4D5E6F   │ 10.0.1.102  │  INACTIVO   │  12:15:30   │ ctrl.farm.com│
+┌─────────────┬─────────────┬─────────────┬─────────────┬────────────────┐
+│   RF_ID     │  IP Virtual │   Estado    │  Última Act │  Endpoint      │
+├─────────────┼─────────────┼─────────────┼─────────────┼────────────────┤
+│  0x1A2B3C   │ 10.0.1.101  │   ACTIVO    │  14:23:45   │ api.farm.com   │
+│  0x4D5E6F   │ 10.0.1.102  │  INACTIVO   │  12:15:30   │ ctrl.farm.com  │
 │  0x7A8B9C   │ 10.0.2.101  │   ACTIVO    │  14:24:01   │ track.fleet.com│
-└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+└─────────────┴─────────────┴─────────────┴─────────────┴────────────────┘
 ```
 
 ### Beneficios de la Arquitectura
@@ -154,25 +154,28 @@ Esta arquitectura de gemelo digital crea un puente transparente entre el mundo R
 ```
 [Nodo VAMP] ←→ [Gateway VAMP] ←→ [VAMP Bridge] ←→ [IP Service]
    RF/VAMP        RF/VAMP         VAMP/IP        HTTP/TCP/IP
-
+```
 
 | Rol         | Descripción                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------ |
 | **Nodo**    | Dispositivo sin identidad preconfigurada, busca asociarse. Puede ser motes, sensores, etc. |
 | **Gateway** | Nodo central que gestiona las asociaciones, mapea cada nodo a una dirección lógica.        |
 
+## Protocolo VAMP
 
-El protocolo contiene un pseudoencabezado de un solo byte que convina el tipo de mensaje con el largo del mismo.
-Hay dos tipos de mensajes, el de datos y el de comandos
+El protocolo contiene un pseudoencabezado de un solo byte que combina el tipo de mensaje con el largo del mismo.
+Hay dos tipos de mensajes: el de datos y el de comandos.
 
-Se utiliza un solo byte para tanto identificar el tipo de mensaje como para el tamaño del mensaje teniendo en cuenta que el tamaño máximo del payload es de 32 bytes, entonce solo se necesita 6 bits para el tamaño. Solo tienen tamaño (0-32) los mensaje que contengan datos, por lo que se utilizan el bit mas significativo del byte para identificar el tipo de mensaje (datos/comandos). 
- - Si es 0, es un mensaje de datos, y el resto de bits para el tamaño del mensaje (0-32).
- - Si es 1, es un mensaje de comando, y el resto de bits se utilizan para identificar el comando en concreto. A partir de saber el comando, se uede saber el tratamiento para el resto del mensaje.
+Se utiliza un solo byte tanto para identificar el tipo de mensaje como para el tamaño del mensaje. Teniendo en cuenta que el tamaño máximo del payload es de 32 bytes, entonces solo se necesitan 6 bits para el tamaño. Solo tienen tamaño (0-32) los mensajes que contengan datos, por lo que se utiliza el bit más significativo del byte para identificar el tipo de mensaje (datos/comandos):
+
+- Si es 0, es un mensaje de datos, y el resto de bits para el tamaño del mensaje (0-32).
+- Si es 1, es un mensaje de comando, y el resto de bits se utilizan para identificar el comando en concreto. A partir de saber el comando, se puede saber el tratamiento para el resto del mensaje.
 
 ## Ejemplo de Formato de Mensajes
 
 ### Mensaje de Datos (Bit 7 = 0)
-```
+
+```text
 Byte 0: 0x05 = 00000101 (binario)
         |      |
         |      └─ Tamaño: 5 bytes de datos
@@ -185,7 +188,8 @@ Payload completo: [0x05] [0x12] [0x34] [0x56] [0x78] [0x9A]
 ```
 
 ### Mensaje de Comando (Bit 7 = 1)
-```
+
+```text
 Byte 0: 0x81 = 10000001 (binario)
         |      |
         |      └─ Comando ID: 0x01 (JOIN_REQ)
@@ -197,6 +201,7 @@ Payload completo: [0x81] [datos adicionales según comando]
 ```
 
 ### Comandos Disponibles
+
 | Comando   | Valor | Descripción                          |
 |-----------|-------|--------------------------------------|
 | JOIN_REQ  | 0x81  | Solicitud de unión a la red          |
@@ -205,13 +210,15 @@ Payload completo: [0x81] [datos adicionales según comando]
 | PONG      | 0x84  | Respuesta a mensaje PING             |
 
 ### Ejemplo de Flujo de Asociación
-```
+
+```text
 1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
 2. Gateway → Nodo: [0x82] [ID_GATEWAY] (JOIN_ACK con ID del gateway)
 3. Nodo → Gateway (directo): [0x03] [0x20] [0x25] [0x30] (Datos de sensores: temp=32°C, hum=37%, luz=48%)
 ```
 
 **Proceso detallado:**
+
 - **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID para que el gateway pueda registrarlo
 - **Paso 2**: El gateway responde con JOIN_ACK incluyendo su ID para que el nodo pueda comunicarse directamente con él
 - **Paso 3**: Una vez establecida la asociación, el nodo envía datos directamente al gateway usando su ID
@@ -220,13 +227,13 @@ Payload completo: [0x81] [datos adicionales según comando]
 
 ### Estructura General
 
-```
+```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|T|    Tamaño/Comando ID      |            Datos              |
+|T|    Tamaño/Comando ID      |            Datos                |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                         Datos (cont.)                        |
+|                         Datos (cont.)                         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                             ...                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -234,7 +241,7 @@ Payload completo: [0x81] [datos adicionales según comando]
 
 ### Pseudoencabezado (Byte 0)
 
-```
+```text
  0   1   2   3   4   5   6   7
 +---+---+---+---+---+---+---+---+
 | T |     Tamaño/Comando ID     |
@@ -242,6 +249,7 @@ Payload completo: [0x81] [datos adicionales según comando]
 ```
 
 **Campos:**
+
 - **T (Tipo)**: 1 bit
   - 0 = Mensaje de datos
   - 1 = Mensaje de comando
@@ -251,52 +259,56 @@ Payload completo: [0x81] [datos adicionales según comando]
 
 ### Mensajes de Datos (T=0)
 
-```
+```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0|    Tamaño (0-127)         |         Datos de Payload       |
+|0|    Tamaño (0-127)         |         Datos de Payload        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Datos de Payload (cont.)                  |
+|                    Datos de Payload (cont.)                   |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
 ### Mensajes de Comando (T=1)
 
 #### JOIN_REQ (0x81)
-```
+
+```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|1|0 0 0 0 0 0 1|                ID del Nodo                   |
+|1|0 0 0 0 0 0 1|                ID del Nodo                    |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |           ID del Nodo (cont.)           |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
 #### JOIN_ACK (0x82)
-```
+
+```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|1|0 0 0 0 0 1 0|               ID del Gateway                 |
+|1|0 0 0 0 0 1 0|               ID del Gateway                  |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |          ID del Gateway (cont.)         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
 #### PING (0x83) / PONG (0x84)
-```
+
+```text
  0                   1
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |1|0 0 0 0 0 1 1|   Timestamp   |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|    Timestamp (cont.)         |
+|     Timestamp (cont.)         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
 ### Limitaciones
+
 - Tamaño máximo del payload: 32 bytes (limitación del nRF24L01)
 - Tamaño del ID de nodo/gateway: 5 bytes (compatible con nRF24L01)
 - Comandos disponibles: 0-127 (7 bits)
@@ -304,6 +316,7 @@ Payload completo: [0x81] [datos adicionales según comando]
 ## Manejo de Pérdida de Conexión con Gateway
 
 ### Detección de Fallos
+
 El protocolo VAMP implementa un mecanismo de detección automática de pérdida de conexión con el gateway:
 
 - **Contador de fallos**: Se mantiene un contador de envíos fallidos consecutivos
@@ -311,6 +324,7 @@ El protocolo VAMP implementa un mecanismo de detección automática de pérdida 
 - **Reseteo automático**: El contador se resetea con cada envío exitoso
 
 ### Recuperación Automática
+
 Cuando se detecta pérdida de conexión (fallos >= umbral):
 
 1. **Reset de conexión**: La dirección del gateway se resetea a broadcast (`0xFF, 0xFF, 0xFF, 0xFF, 0xFF`)
@@ -328,7 +342,8 @@ Cuando se detecta pérdida de conexión (fallos >= umbral):
 | Múltiples gateways | Primer gateway que responda | Se conecta al gateway más rápido en responder |
 
 ### Flujo de Recuperación
-```
+
+```text
 Envío → Éxito → Continuar (contador = 0)
 Envío → Fallo → Incrementar contador (1)
 Envío → Fallo → Incrementar contador (2)
@@ -336,22 +351,26 @@ Envío → Fallo → Contador = 3 → Reset conexión → Re-join → Reintento
 ```
 
 ### Funciones Adicionales
+
 - **`vamp_force_rejoin()`**: Permite forzar un re-join manual
 - **`vamp_is_joined()`**: Verifica si está conectado a un gateway
 
+## TODO
 
-# TODO
-Mecanismo para direccion final
-  en realidad el mote no se quiere comunicar con el gateway, se quiere  comunicar con un extremo, que esta detras de un IP o un dominio asi que de alguna manera y el gateway es solo eso, un gateway. las posibildades son:
-  - que el gateway lo sepa todo en realidad. o sea, el nodo es tan restrigido que toda la gestion de salto, a donde va el mensaje etc lo controla el gateway y el nodo solo "conoce" al gateway. Aqui el problema es el GW: supongamos que el nodo cae en el area de covertura de un 3 entidades, pero el nodo "pertenece" a la entidad x que tiene como endpoint la direccion y. La solucion es que solo el/los GW que tenga registrado ese nodo respondera a la peticion de JOIN.
+Mecanismo para dirección final:
 
+En realidad el mote no se quiere comunicar con el gateway, se quiere comunicar con un extremo, que está detrás de un IP o un dominio. De alguna manera, el gateway es solo eso, un gateway. Las posibilidades son:
 
-### Manejo de Nodos Huérfanos
+- Que el gateway lo sepa todo en realidad. O sea, el nodo es tan restringido que toda la gestión de salto, a donde va el mensaje etc lo controla el gateway y el nodo solo "conoce" al gateway. Aquí el problema es el GW: supongamos que el nodo cae en el área de cobertura de 3 entidades, pero el nodo "pertenece" a la entidad X que tiene como endpoint la dirección Y. La solución es que solo el/los GW que tenga registrado ese nodo responderá a la petición de JOIN.
+
+## Manejo de Nodos Huérfanos
+
 **Problema**: Nodo cae en cobertura de 3 gateways, pero "pertenece" a entidad X con endpoint Y. Si ningún gateway local tiene registrado ese nodo, queda huérfano.
 
 **Solución**: Gateway Proxy con Descubrimiento Distribuido
 
-#### Nuevos Comandos VAMP
+### Nuevos Comandos VAMP
+
 ```cpp
 #define ENDPOINT_REG     0x89  // Registro de endpoint en nodo
 #define ENDPOINT_ACK     0x8A  // Confirmación de endpoint
@@ -360,11 +379,11 @@ Mecanismo para direccion final
 #define TEMP_ADOPTION    0x8D  // Adopción temporal
 ```
 
+### Flujo de Manejo de Huérfanos
 
-#### Flujo de Manejo de Huérfanos
+#### Escenario 1: Nodo con Endpoint Registrado
 
-##### Escenario 1: Nodo con Endpoint Registrado
-```
+```text
 Nodo A (endpoint: api.empresa-x.com) → Broadcast: JOIN_REQ
 ├── Gateway 1 (empresa-y): No tiene registro → Query otros gateways
 ├── Gateway 2 (empresa-z): No tiene registro → Query otros gateways  
@@ -373,8 +392,9 @@ Nodo A (endpoint: api.empresa-x.com) → Broadcast: JOIN_REQ
 Resultado: Nodo A se conecta a Gateway 3 (su propietario)
 ```
 
-##### Escenario 2: Nodo Huérfano Puro
-```
+#### Escenario 2: Nodo Huérfano Puro
+
+```text
 Nodo B (endpoint: api.empresa-w.com) → Broadcast: JOIN_REQ
 ├── Gateway 1: No registrado → Query otros gateways → Sin respuesta
 ├── Gateway 2: No registrado → Query otros gateways → Sin respuesta
@@ -387,8 +407,9 @@ Flujo de recuperación:
 4. Gateway 1 actúa como proxy para Nodo B
 ```
 
-##### Escenario 3: Descubrimiento Distribuido
-```
+#### Escenario 3: Descubrimiento Distribuido
+
+```text
 Nodo C (endpoint: api.empresa-x.com) → Broadcast: JOIN_REQ
 ├── Gateway A: No registrado → Query red de gateways
 │   └── Gateway A → Gateway X: GATEWAY_QUERY(node_id=C)
@@ -398,8 +419,7 @@ Nodo C (endpoint: api.empresa-x.com) → Broadcast: JOIN_REQ
 Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 ```
 
-
-#### Ventajas de Esta Solución
+### Ventajas de Esta Solución
 
 1. **Transparencia**: El nodo solo necesita registrar su endpoint una vez
 2. **Escalabilidad**: Gateways pueden hacer proxy sin conocer todos los nodos
@@ -407,9 +427,9 @@ Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 4. **Flexibilidad**: Soporte para diferentes protocolos (HTTP, MQTT, CoAP)
 5. **Eficiencia**: Cache distribuido evita consultas repetitivas
 
-#### Ejemplo Completo de Flujo
+### Ejemplo Completo de Flujo
 
-```
+```text
 1. Nodo sensor temperatura → vamp_register_endpoint("api.factory.com/temp", HTTP)
 2. Nodo se mueve a área con gateways de diferentes empresas
 3. Nodo → Broadcast: JOIN_REQ
@@ -421,5 +441,5 @@ Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 9. VAMP Bridge → api.factory.com: POST /temp (HTTP)
 ```
 
-Esta solución permite que cualquier nodo se comunique con su endpoint final a través de cualquier gateway disponible, resolviendo el problema de los nodos huérfanos de manera escalable
+Esta solución permite que cualquier nodo se comunique con su endpoint final a través de cualquier gateway disponible, resolviendo el problema de los nodos huérfanos de manera escalable.
 
