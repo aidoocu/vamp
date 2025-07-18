@@ -24,16 +24,16 @@ Tenemos tres roles:
 El protocolo contiene un pseudoencabezado de un solo byte que combina el tipo de mensaje con el largo del mismo.
 Hay dos tipos de mensajes: el de datos y el de comandos.
 
-Se utiliza un solo byte tanto para identificar el tipo de mensaje como para el tamaño del mensaje. Teniendo en cuenta que el tamaño máximo del payload es de 32 bytes, entonces solo se necesitan 6 bits para el tamaño. Solo tienen tamaño (0-32) los mensajes que contengan datos, por lo que se utiliza el bit más significativo del byte para identificar el tipo de mensaje (datos/comandos):
+Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 
-- Si es 0, es un mensaje de datos, y el resto de bits para el tamaño del mensaje (0-32).
-- Si es 1, es un mensaje de comando, y el resto de bits se utilizan para identificar el comando en concreto. A partir de saber el comando, se puede saber el tratamiento para el resto del mensaje.
+- **Byte 0**: Tipo de mensaje + tamaño de payload (como antes)
+- **Byte 1**: ID compacto (verificación + índice) - solo en mensajes de datos
 
 ```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|T|    Tamaño/Comando ID      |            Datos                |
+|T|   Tamaño/Comando ID     |    ID Compacto    |     Datos     |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                         Datos (cont.)                         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -41,13 +41,115 @@ Se utiliza un solo byte tanto para identificar el tipo de mensaje como para el t
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-### Pseudoencabezado (Byte 0)
+### Pseudoencabezado
 
+**Byte 0 (Tipo + Tamaño/Comando)**:
 ```text
  0   1   2   3   4   5   6   7
 +---+---+---+---+---+---+---+---+
 | T |     Tamaño/Comando ID     |
 +---+---+---+---+---+---+---+---+
+```
+
+**Byte 1 (ID Compacto - solo datos)**:
+```text
+ 0   1   2   3   4   5   6   7
++---+---+---+---+---+---+---+---+
+|  Verificación |    Índice     |
+|   (3 bits)    |   (5 bits)    |
++---+---+---+---+---+---+---+---+
+```
+
+## Sistema de Identificación Compacta
+
+VAMP utiliza un sistema eficiente de identificación que permite acceso directo a la tabla de dispositivos y verificación de consistencia usando solo **1 byte adicional** en el payload.
+
+### Estructura del ID Compacto
+
+```text
+Byte de ID (8 bits):
+ 7   6   5   4   3   2   1   0
++---+---+---+---+---+---+---+---+
+|  Verificación |    Índice     |
+|   (3 bits)    |   (5 bits)    |
++---+---+---+---+---+---+---+---+
+```
+
+- **Bits 7-5**: Número de verificación (0-7)
+- **Bits 4-0**: Índice en tabla (0-31)
+
+### Formato del Puerto NAT
+
+El puerto NAT se genera automáticamente:
+
+```text
+Puerto = 8000 + (Verificación << 5) + Índice
+```
+
+**Ejemplo**:
+
+- ID Byte = 0xA5 (10100101)
+- Verificación = 5 (bits 7-5)
+- Índice = 5 (bits 4-0)
+- Puerto = 8000 + (5 × 32) + 5 = 8165
+
+### Protocolo de Datos con ID
+
+```text
+Mensaje de datos (pseudoencabezado de 2 bytes):
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0|    Tamaño Payload       |    ID Compacto    |     Datos     |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                         Datos (cont.)                         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+**Ejemplo completo**:
+
+- Byte 0: `0x05` = Datos, 5 bytes de payload
+- Byte 1: `0xA5` = Verificación 5, Índice 5
+- Bytes 2-6: Datos del sensor
+
+### Ventajas del Sistema
+
+1. **Eficiencia extrema**: Solo 1 byte adicional por mensaje
+2. **Acceso directo**: `tabla[índice & 0x1F]` sin búsquedas
+3. **Verificación**: Detecta reutilización de índices (probabilidad de error: 12.5%)
+4. **Compatibilidad NAT**: Puertos en rango válido (8000-8255)
+5. **Escalabilidad**: Hasta 32 dispositivos por gateway
+
+### Proceso de Validación
+
+```c
+// Extraer campos del mensaje de datos
+uint8_t tipo_tamaño = payload[0];
+uint8_t id_byte = payload[1];
+uint8_t* datos = &payload[2];
+
+// Verificar tipo de mensaje
+if (tipo_tamaño & 0x80) {
+    // Es comando, no datos
+    return false;
+}
+
+// Extraer tamaño y validar
+uint8_t tamaño_total = tipo_tamaño & 0x7F;
+uint8_t tamaño_datos = tamaño_total - 1; // Restar ID compacto
+
+// Validar ID compacto
+uint8_t indice = id_byte & 0x1F;        // Extraer índice
+uint8_t verificacion = id_byte >> 5;     // Extraer verificación
+
+if (tabla[indice].verification == verificacion) {
+    // ID válido, procesar mensaje
+    uint16_t puerto = 8000 + (verificacion << 5) + indice;
+    procesar_datos(datos, tamaño_datos, puerto);
+} else {
+    // ID inválido, rechazar o re-asignar
+    enviar_error_al_nodo(id_byte);
+}
 ```
 
 **Campos:**
@@ -65,9 +167,9 @@ Se utiliza un solo byte tanto para identificar el tipo de mensaje como para el t
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0|    Tamaño (0-127)         |         Datos de Payload        |
+|0|   Tamaño (0-127)        |    ID Compacto    |     Datos     |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Datos de Payload (cont.)                   |
+|                         Datos (cont.)                         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
@@ -79,15 +181,25 @@ Byte 0: 0x05 = 00000101 (binario)
         |      └─ Tamaño: 5 bytes de datos
         └─ Tipo: 0 (mensaje de datos)
 
-Payload completo: [0x05] [0x12] [0x34] [0x56] [0x78] [0x9A]
-                    ^      ^────── 5 bytes de datos ──────^
-                    │
-                    └─ Pseudoencabezado
+Byte 1: 0xA5 = 10100101 (binario)
+        |   |  |     |
+        |   |  └─────┴─ Índice: 5 (tabla[5])
+        └───┴─ Verificación: 5
+
+Payload completo: [0x05] [0xA5] [0x12] [0x34] [0x56] [0x78]
+                    ^      ^      ^──── 4 bytes de datos ────^
+                    │      │
+                    │      └─ ID Compacto (verification=5, index=5)
+                    └─ Pseudoencabezado (datos, tamaño=5)
 ```
+
+**Nota**: El tamaño incluye el ID compacto + datos reales
 
 ### Mensajes de Comando (T=1 / Bit 7 = 1)
 
-#### Ejemplo mensaje de comando ()
+**Nota**: Los comandos no usan ID compacto en el byte 1, van directamente los datos del comando.
+
+#### Ejemplo mensaje de comando
 
 ```text
 Byte 0: 0x81 = 10000001 (binario)
@@ -95,8 +207,9 @@ Byte 0: 0x81 = 10000001 (binario)
         |      └─ Comando ID: 0x01 (JOIN_REQ)
         └─ Tipo: 1 (mensaje de comando)
 
-Payload completo: [0x81] [datos adicionales según comando]
-                    ^
+Payload completo: [0x81] [datos del comando...]
+                    ^      ^
+                    │      └─ Datos específicos del comando
                     └─ Pseudoencabezado con comando JOIN_REQ
 ```
 
@@ -127,11 +240,17 @@ Payload completo: [0x81] [datos adicionales según comando]
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|1|0 0 0 0 0 1 0|               ID del Gateway                  |
+|1|0 0 0 0 0 1 0|    ID Compacto    |     ID del Gateway        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |          ID del Gateway (cont.)         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
+
+**Campos**:
+
+- **Byte 0**: `0x82` (comando JOIN_ACK)
+- **Byte 1**: ID compacto asignado (verificación + índice)
+- **Bytes 2-6**: ID del gateway (5 bytes)
 
 #### PING (0x83) / PONG (0x84)
 
@@ -160,15 +279,21 @@ El gateway actúa como un **NAT (Network Address Translation)** por puerto:
 
 #### Tabla de Estado de Conexiones
 
-``` text
-┌─────────────┬─────────────┬─────────────┬─────────────┬────────────────┐
-│   RF_ID     │   Puerto    │   Estado    │  Última Act │  Endpoint      │
-├─────────────┼─────────────┼─────────────┼─────────────┼────────────────┤
-│  0x1A2B3C   │    8001     │   ACTIVO    │  14:23:45   │ api.farm.com   │
-│  0x4D5E6F   │    8002     │  INACTIVO   │  12:15:30   │ ctrl.farm.com  │
-│  0x7A8B9C   │    8003     │   ACTIVO    │  14:24:01   │ track.fleet.com│
-└─────────────┴─────────────┴─────────────┴─────────────┴────────────────┘
+```text
+┌─────────────┬─────────┬─────────────┬─────────────┬─────────────┬────────────────┐
+│   RF_ID     │ Índice  │ Verificac.  │   Puerto    │   Estado    │  Endpoint      │
+├─────────────┼─────────┼─────────────┼─────────────┼─────────────┼────────────────┤
+│  0x1A2B3C   │   01    │     5       │    8165     │   ACTIVO    │ api.farm.com   │
+│  0x4D5E6F   │   02    │     3       │    8098     │  INACTIVO   │ ctrl.farm.com  │
+│  0x7A8B9C   │   03    │     7       │    8227     │   ACTIVO    │ track.fleet.com│
+└─────────────┴─────────┴─────────────┴─────────────┴─────────────┴────────────────┘
 ```
+
+**Cálculo de puertos**:
+
+- Dispositivo 1: Puerto = 8000 + (5 << 5) + 1 = 8000 + 160 + 1 = 8161
+- Dispositivo 2: Puerto = 8000 + (3 << 5) + 2 = 8000 + 96 + 2 = 8098  
+- Dispositivo 3: Puerto = 8000 + (7 << 5) + 3 = 8000 + 224 + 3 = 8227
 
 ### Niveles de Abstracción
 
@@ -531,9 +656,9 @@ Authorization: Bearer <federation_token>
 1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
 2. Gateway → Ente Central: Consulta mapeo para RF_ID
 3. Ente Central → Gateway: Respuesta con puerto y endpoints
-4. Gateway → Nodo: [0x82] [ID_GATEWAY] (JOIN_ACK con ID del gateway)
-5. Nodo → Gateway (directo): [0x03] [0x20] [0x25] [0x30] (Datos de sensores)
-6. Gateway → Endpoints: Distribuye datos según permisos
+4. Gateway → Nodo: [0x82] [ID_COMPACTO] [ID_GATEWAY] (JOIN_ACK con ID compacto + ID del gateway)
+5. Nodo → Gateway (directo): [0x04] [ID_COMPACTO] [0x20] [0x25] [0x30] (Datos con ID compacto)
+6. Gateway → Endpoints: Distribuye datos según permisos usando puerto calculado
 ```
 
 **Proceso detallado:**
@@ -541,9 +666,9 @@ Authorization: Bearer <federation_token>
 - **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID
 - **Paso 2**: Gateway consulta al Ente Central si tiene mapeo para ese RF_ID
 - **Paso 3**: Ente Central responde con puerto asignado y lista de endpoints autorizados
-- **Paso 4**: Gateway responde JOIN_ACK al nodo con su ID
-- **Paso 5**: Nodo envía datos directamente al gateway
-- **Paso 6**: Gateway distribuye datos a endpoints según permisos configurados
+- **Paso 4**: Gateway genera ID compacto (verificación + índice) y responde JOIN_ACK al nodo
+- **Paso 5**: Nodo envía datos incluyendo su ID compacto en el byte 1
+- **Paso 6**: Gateway valida ID compacto, calcula puerto y distribuye datos a endpoints
 
 ### Manejo de Permisos en Comunicación Bidireccional
 
