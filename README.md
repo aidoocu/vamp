@@ -3,6 +3,9 @@
 El objetivo es integrar dispositivos nRF24L01+ (y chips similares) directamente en redes IP y aplicaciones. Partimos de que los payload que manejan estos dispositivos (32 bytes en nRF24L01+) son insuficientes para suportar cualquier tipo de encabezados. Estos dispositivos dependen completamente de una entidad intermediaria en todos los niveles del stack de red para comunicarse a con una entidad en la red IP.
 Creando una abstracción donde cada nodo físico tiene un **gemelo digital** en un gateway que actúa como su representante se puede lograr una comunicación semi-transparente entre el nodo y el extremo IP a nivel de aplicación donde el GW funciona como un NAT.
 
+> [!IMPORTANT]
+> ⚠️ TODO!!! Hay que arreglar las representaciones de los frames que no son correctas
+
 ## Arquitectura
 
 ``` text
