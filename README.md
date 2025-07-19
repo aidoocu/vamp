@@ -47,6 +47,7 @@ Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 ### Pseudoencabezado
 
 **Byte 0 (Tipo + Tamaño/Comando)**:
+
 ```text
  0   1   2   3   4   5   6   7
 +---+---+---+---+---+---+---+---+
@@ -55,6 +56,7 @@ Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 ```
 
 **Byte 1 (ID Compacto - solo datos)**:
+
 ```text
  0   1   2   3   4   5   6   7
 +---+---+---+---+---+---+---+---+
