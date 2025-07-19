@@ -896,3 +896,121 @@ Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 ```
 
 Esta solución permite que cualquier nodo se comunique con su endpoint final a través de cualquier gateway disponible, resolviendo el problema de los nodos huérfanos de manera escalable.
+
+## Sistema de Comunicación Abstracto
+
+VAMP implementa un sistema de comunicación abstracto que permite usar diferentes capas de transporte sin modificar la lógica del protocolo central.
+
+### Abstracción de Transporte
+
+```text
+┌─────────────────────────────────────────┐
+│            Aplicación VAMP              │
+├─────────────────────────────────────────┤
+│         Protocolo VAMP Core             │
+├─────────────────────────────────────────┤
+│        Abstracción de Callbacks         │
+├─────────────────┬───────────────────────┤
+│   Internet      │        WSN            │
+│  (HTTP/MQTT/    │   (RF/LoRa/BLE/       │
+│   WebSocket)    │    Zigbee/etc)        │
+└─────────────────┴───────────────────────┘
+```
+
+### Callbacks de Comunicación
+
+VAMP utiliza dos tipos de callbacks para separar completamente el protocolo del transporte:
+
+#### **1. Internet Callback** (`vamp_internet_callback_t`)
+```cpp
+typedef bool (*vamp_internet_callback_t)(const char* endpoint, uint8_t method, char* data, size_t data_size);
+```
+
+**Propósito**: Comunicación con servicios en Internet (VREG, APIs REST, MQTT brokers, etc.)
+
+**Métodos soportados**:
+- `VAMP_ASK` (0): Equivale a GET/SUBSCRIBE/READ
+- `VAMP_TELL` (1): Equivale a POST/PUBLISH/WRITE
+
+**Implementaciones típicas**:
+- **HTTP/HTTPS**: Para APIs REST
+- **MQTT**: Para brokers IoT
+- **WebSocket**: Para comunicación en tiempo real
+- **CoAP**: Para dispositivos IoT ligeros
+
+#### **2. WSN Callback** (`vamp_wsn_callback_t`) 
+```cpp
+typedef bool (*vamp_wsn_callback_t)(const char* rf_id, uint8_t mode, uint8_t* data, size_t len);
+```
+
+**Propósito**: Comunicación con dispositivos en la red de sensores inalámbricos
+
+**Implementaciones típicas**:
+- **NRF24L01+**: Radio 2.4GHz
+- **LoRa**: Comunicación de largo alcance
+- **BLE**: Bluetooth Low Energy
+- **Zigbee**: Malla de dispositivos IoT
+- **ESP-NOW**: Comunicación directa ESP
+
+### Ejemplo de Inicialización
+
+```cpp
+// Funciones de callback implementadas por el usuario
+bool wifi_https_comm(const char* endpoint, uint8_t method, char* data, size_t data_size);
+bool nrf_comm(const char* rf_id, uint8_t mode, uint8_t* data, size_t len);
+
+void setup() {
+    // Inicializar VAMP con callbacks específicos de la plataforma
+    vamp_gw_init(
+        wifi_https_comm,              // Internet callback (HTTP/HTTPS)
+        nrf_comm,                     // WSN callback (NRF24L01)
+        "vreg.example.com/sync",      // Endpoint VREG
+        "VAM_GW_01"                   // ID del gateway
+    );
+}
+```
+
+### Ventajas de la Abstracción
+
+1. **Portabilidad**: El mismo código VAMP funciona en ESP8266, ESP32, Arduino, Raspberry Pi, etc.
+2. **Flexibilidad**: Cambiar de HTTP a MQTT solo requiere cambiar el callback
+3. **Testing**: Fácil implementar mocks para testing
+4. **Optimización**: Cada plataforma puede optimizar su implementación de transporte
+5. **Escalabilidad**: Agregar nuevos transportes no afecta el código central
+
+### Flujo de Comunicación
+
+#### **Sincronización con VREG**:
+```text
+1. VAMP genera request: {"action":"gateway_sync","gateway_id":"VAM_GW_01","last_update":"..."}
+2. Llama internet_callback(endpoint, VAMP_TELL, request_data, size)
+3. Internet callback traduce a HTTP POST/MQTT PUBLISH/etc
+4. VREG responde con CSV/JSON de cambios
+5. VAMP procesa respuesta y actualiza tabla local
+```
+
+#### **Comunicación con dispositivos**:
+```text
+1. Dispositivo envía: [TIPO][ID_COMPACTO][DATOS...]
+2. WSN callback recibe datos via RF/LoRa/BLE
+3. VAMP procesa mensaje y extrae ID compacto
+4. VAMP reenvía a aplicación via Internet callback
+```
+
+### Independencia del Transporte
+
+VAMP **NO** conoce ni depende de:
+- ❌ Detalles de HTTP (headers, códigos de estado, etc.)
+- ❌ Topics MQTT específicos
+- ❌ Frecuencias de radio
+- ❌ Configuración de antenas
+- ❌ Certificados SSL/TLS
+
+VAMP **SÍ** maneja:
+- ✅ Protocolo de mensajes interno
+- ✅ Tabla de dispositivos y mapeo NAT
+- ✅ Timeouts y reintentos
+- ✅ Parsing de respuestas VREG
+- ✅ Validación de IDs compactos
+
+Esta separación permite que VAMP sea una biblioteca verdaderamente portable y reutilizable.

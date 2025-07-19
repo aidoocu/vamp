@@ -12,6 +12,11 @@ static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];
 /* Fecha de la última actualización de la tabla en UTC */
 static char last_table_update[] = {VAMP_TABLE_INIT_TSMP};
 
+/* URL del servidor VREG */
+static char vamp_vreg_resource[VAMP_ENDPOINT_MAX_LEN];
+/* ID del gateway */
+static char vamp_gw_id[VAMP_GW_ID_MAX_LEN];
+
 // Contadores globales
 static uint8_t vamp_device_count = 0;
 
@@ -19,27 +24,15 @@ static uint8_t vamp_device_count = 0;
 
 /* Callback para comunicación http */
 
-static vamp_http_callback_t vreg_comm_callback = NULL;
-static vamp_radio_callback_t vreg_radio_callback = NULL;
-
-/** @brief Register VREG communication callback
- * 
- * @param comm_cb Callback function for http communication
- * @param comm_radio Callback function for radio radio communication
- */
-void vamp_set_callbacks(vamp_http_callback_t comm_cb, vamp_radio_callback_t comm_radio) {
-  vreg_comm_callback = comm_cb;
-  vreg_radio_callback = comm_radio;
-  Serial.println("Callbacks comm registrado");
-}
-
+static vamp_internet_callback_t internet_comm_callback = NULL;
+static vamp_wsn_callback_t wsn_comm_callback = NULL;
 
 
 /* ======================== Inicialización ======================== */
 
-/** @brief Initialize VAMP module
+/** @brief Initialize VAMP Gateway module
  * 
- * This function initializes the VAMP module, setting up the necessary callbacks
+ * This function initializes the VAMP Gateway module, setting up the necessary callbacks
  * for HTTP and radio communication, and updating the VAMP table with the provided
  * VREG URL and gateway ID.
  * 
@@ -48,18 +41,32 @@ void vamp_set_callbacks(vamp_http_callback_t comm_cb, vamp_radio_callback_t comm
  * @param vamp_vreg_url VREG server URL
  * @param vamp_gw_id Gateway ID string
  */
-void vamp_init(vamp_http_callback_t vamp_http_callback, vamp_radio_callback_t vamp_radio_callback, const char * vamp_vreg_url, const char * vamp_gw_id) {
+void vamp_gw_init(vamp_internet_callback_t internet_callback, vamp_wsn_callback_t wsn_callback, const char * vamp_vreg, const char * vamp_gw) {
 
-    /* Register the callbacks for HTTP and radio communication */
-    vamp_set_callbacks(vamp_http_callback, vamp_radio_callback);
+	/* Verificar que los parámetros son válidos */
+	if (vamp_vreg == NULL || vamp_gw == NULL || 
+	    strlen(vamp_vreg) >= VAMP_ENDPOINT_MAX_LEN || 
+	    strlen(vamp_gw) >= VAMP_GW_ID_MAX_LEN) {
 
-    /* Inicializando las tablas */
-    vamp_table_update(vamp_vreg_url, vamp_gw_id);
+		vamp_vreg_resource[0] = '\0'; // Limpiar recurso
+		vamp_gw_id[0] = '\0'; // Limpiar ID de gateway
+		
+		Serial.println("Parámetros no válidos");
 
-    return;
+		return;
+	}
+	sprintf(vamp_vreg_resource, "%s", vamp_vreg);
+	sprintf(vamp_gw_id, "%s", vamp_gw);
+
+	internet_comm_callback = internet_callback;
+	wsn_comm_callback = wsn_callback;
+	Serial.println("Callbacks comm registrados");
+
+	/* Inicializando las tablas */
+	vamp_table_update();
+
+	return;
 }
-
-
 
 
 // ======================== FUNCIONES VAMP TABLES ========================
@@ -70,59 +77,71 @@ bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id);
 bool vamp_process_sync_response(const char* csv_data);
 
 // Inicializar todas las tablas VAMP con sincronización VREG
-void vamp_table_update(const char* vreg_endpoint, const char* gateway_id) {
+void vamp_table_update() {
 
-    // Ver cuando se actualizó la tabla por última vez
-    if(!strcmp(last_table_update, VAMP_TABLE_INIT_TSMP)) {
-        // La tabla no ha sido inicializada
-        Serial.println("Tabla VAMP no inicializada, inicializando...");
+	// Verificar si los parámetros son válidos
+	if (vamp_vreg_resource == NULL || vamp_gw_id == NULL) {
+		Serial.println("Parámetros no válidos");
+		return;
+	}
 
-        // Inicializar tabla unificada VAMP
-        // Solo necesitamos verificar/setear el status - el resto se inicializa cuando se asigna
-        for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-            vamp_table[i].status = VAMP_STATUS_FREE;
-        }
-        
-        // Resetear contadores
-        vamp_device_count = 0;
-        
-        Serial.println("Tabla VAMP inicializada localmente");
-    }
+	// Ver cuando se actualizó la tabla por última vez
+	if(!strcmp(last_table_update, VAMP_TABLE_INIT_TSMP)) {
+		// La tabla no ha sido inicializada
+		Serial.println("Tabla VAMP no inicializada, inicializando...");
+
+		// Inicializar tabla unificada VAMP
+		// Solo necesitamos verificar/setear el status, el resto se inicializa cuando se asigna
+		for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
+			vamp_table[i].status = VAMP_STATUS_FREE;
+		}
+		
+		// Resetear contadores
+		//vamp_device_count = 0;
+		
+		Serial.println("Tabla VAMP inicializada localmente");
+	}
     
-    // Intentar sincronizar con VREG si hay callback y parámetros
-    if (vreg_comm_callback != NULL && gateway_id != NULL && vreg_endpoint != NULL) {
-        Serial.println("Sincronizando tabla VAMP con servidor VREG...");
-        
-        // Generar request de sincronización
-        char sync_request[128];
-        snprintf(sync_request, sizeof(sync_request), "VAMP_SYNC,%s,%s", gateway_id, last_table_update);
-        
-        // Buffer para respuesta - usar el mismo buffer para request y response
-        char request_response_buffer[1024];
-        strcpy(request_response_buffer, sync_request);
-        
-        // Enviar request usando POST y recibir respuesta
-        if (vreg_comm_callback(vreg_endpoint, VAMP_HTTP_POST, request_response_buffer, sizeof(request_response_buffer))) {
-            // El buffer ahora contiene la respuesta CSV
-            if (vamp_process_sync_response(request_response_buffer)) {
-                Serial.println("Sincronización VREG completada exitosamente");
-            } else {
-                Serial.println("Error procesando respuesta VREG");
-            }
-        } else {
-            Serial.println("Error comunicándose con servidor VREG");
-        }
-    } else {
-        // Si no hay callback pero la tabla necesita inicialización, usar timestamp actual
-        if (!strcmp(last_table_update, VAMP_TABLE_INIT_TSMP)) {
-            strcpy(last_table_update, "2025-07-18T00:00:00Z");
-        }
-        
-        if (gateway_id != NULL || vreg_endpoint != NULL) {
-            Serial.println("Callback VREG no registrado - sincronización omitida");
-        }
-    }
-}// Obtener identificador de dispositivo por RF_ID
+	Serial.println("Sincronizando tabla VAMP con servidor VREG...");
+	
+	// Generar request de sincronización, usar el mismo buffer para request y response
+	char request_response_buffer[1024];
+
+	// formamos la cadena de sincronización como un comando
+	// el formato es: "VAMP_SYNC --gateway gateway_id --last_time last_update"
+	snprintf(request_response_buffer, sizeof(request_response_buffer), 
+		"%s --gateway %s --last_time %s", VAMP_GATEWAY_SYNC, vamp_gw_id, last_table_update);
+
+	// Enviar request usando POST y recibir respuesta
+	if (internet_comm_callback(vamp_vreg_resource, VAMP_HTTP_POST, request_response_buffer, sizeof(request_response_buffer))) {
+		
+		// El buffer ahora contiene la respuesta CSV
+		// primero hay que ver si el VREG ha respondido con un error o si no hay datos porque esta acutualizado
+		if (strncmp(request_response_buffer, "UPDATED", 7) == 0) {
+			Serial.println("Tabla VAMP ya está actualizada, no hay nuevos datos");
+			return;
+		}
+		if (strncmp(request_response_buffer, "ERROR:", 6) == 0) {
+			Serial.printf("Error en la sincronización VREG: %s\n", request_response_buffer + 6);
+			return;
+		}
+
+		// Procesar la respuesta CSV
+		if (vamp_process_sync_response(request_response_buffer)) {
+			Serial.println("Sincronización VREG completada exitosamente");
+		} else {
+			Serial.println("Error procesando respuesta VREG");
+		}
+	} else {
+		Serial.println("Error comunicándose con servidor VREG");
+	}
+	return;
+
+}
+
+
+
+// Obtener identificador de dispositivo por RF_ID
 bool vamp_get_device_id(const uint8_t* rf_id, char* identifier) {
   for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
     if (vamp_table[i].status == VAMP_STATUS_ACTIVE && 
@@ -173,10 +192,8 @@ uint8_t vamp_generate_id_byte(const uint8_t* rf_id) {
       // Asignar entrada
       memcpy(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN);
       vamp_table[i].port = VAMP_MAKE_PORT(verification, i);
-      vamp_table[i].join_time = millis();
       vamp_table[i].last_activity = millis();
       vamp_table[i].status = VAMP_STATUS_ACTIVE;
-      vamp_table[i].retry_count = 0;
       vamp_device_count++;
       
       return VAMP_MAKE_ID_BYTE(verification, i);
@@ -431,10 +448,8 @@ bool vamp_process_sync_response(const char* csv_data) {
           if (vamp_table[i].status == VAMP_STATUS_FREE) {
             memcpy(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN);
             vamp_table[i].port = port;
-            vamp_table[i].join_time = millis();
             vamp_table[i].last_activity = millis();
             vamp_table[i].status = VAMP_STATUS_ACTIVE;
-            vamp_table[i].retry_count = 0;
             vamp_device_count++;
             break;
           }

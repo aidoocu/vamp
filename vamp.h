@@ -28,19 +28,52 @@
 #define VAMP_MAX_PAYLOAD_SIZE 32
 #endif // VAMP_MAX_PAYLOAD_SIZE
 
+#ifndef VAMP_ENDPOINT_MAX_LEN
+#define VAMP_ENDPOINT_MAX_LEN 64
+#endif // VAMP_ENDPOINT_MAX_LEN
+
+#ifndef VAMP_GW_ID_MAX_LEN
+#define VAMP_GW_ID_MAX_LEN 16
+#endif // VAMP_GW_ID_MAX_LEN
+
 /* Dirección de broadcast para VAMP */
 #define VAMP_BROADCAST_ADDR {0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 // ======================== ESTRUCTURAS VAMP ========================
 
-// Estructura unificada para entrada VAMP (NAT + Device)
+/* La tabla VAMP se utiliza para almacenar información sobre los dispositivos en la red,
+ * incluyendo su estado, dirección RF y otra información relevante. Esta tabla es
+ * fundamental para el funcionamiento del gateway VAMP y su interacción con los
+ * dispositivos.
+ * Tiene la siguiente estructura:
+ * | Puerto |  Estado  |  Tipo    |  Dirección RF  |  Resource          | timestamp             |
+ * |--------|----------|----------|----------------|--------------------|-----------------------|
+ * | 8128   | Libre    | Fijo     | 01:23:45:67:89 | dev1.org/local     | 2025-07-18T00:00:00Z  |
+ * | 8161   | Activo   | Dinámico | AA:BB:CC:DD:EE | my.io/sense/temp   | 2025-07-18T01:00:00Z  |
+ * | 8226   | Inactivo | Auto     | 10:20:30:40:50 | tiny.net/hot       | 2025-07-18T02:00:00Z  |
+ * | 8035   | Libre    | Fijo     | DE:AD:BE:EF:00 | hot.dog/ups        | 2025-07-18T03:00:00Z  |
+ *
+ * Los puerto se forman para buscar compatibilidad (aparente) con NAT a partir de un prefijo
+ * (el 8) + número de verificación de 3 bits (0-7) y un índice de dispositivo de 5 bits (0-31).
+ * Por ejemplo, el puerto 8161 al corresponde 8 + 161 (0b10100001) donde el número de verificación
+ * es 5 (0b101) y un índice de dispositivo de 1 (0b00001).
+ * Se utiliza un prefijo de 8 para evitar conflictos con puertos reservados y asegurar que
+ * los puertos generados no se superpongan con otros servicios.
+ * El indice de dispositivo se utiliza para localizar el dispositivo en la tabla VAMP sin tener que
+ * buscar.
+ * El numero de verificación se utiliza para poder reutilizar los indices. Interfaces como la
+ * nRF24 no exponen su dirección RF al receptor y enviarla en el payload es demasiado costoso.
+ * En este caso con el número de verificación (3 bits) + índice (5 bit) se puede identificar 
+ * el dispositivo con solo un byte de ID compacto.
+ */
 typedef struct {
-  uint8_t rf_id[VAMP_ADDR_LEN];    // RF_ID del dispositivo (5 bytes)
-  uint16_t port;                   // Puerto NAT calculado (8000 + verification * 32 + index)
-  uint32_t last_activity;          // Timestamp de última actividad
-  uint32_t join_time;              // Timestamp de cuando se unió
-  uint8_t status;                  // Estado: 0=libre, 1=activo, 2=timeout
-  uint8_t retry_count;             // Número de reintentos de comunicación
+  uint16_t port;                                    // Puerto NAT calculado (8000 + verification * 32 + index)
+  uint8_t status;                                   // Estado: 0=libre, 1=activo, 2=timeout
+  uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto
+  uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
+  char endpoint_resource[VAMP_ENDPOINT_MAX_LEN];    // URL del endpoint del dispositivo
+  uint32_t last_activity;                           // Timestamp de última actividad
+  //uint32_t join_time;                             // Timestamp de cuando se unió
 } vamp_entry_t;
 
 // Configuración de tablas y direccionamiento
@@ -68,7 +101,7 @@ typedef struct {
 #define VAMP_STATUS_ACTIVE 1         // Dispositivo activo
 #define VAMP_STATUS_TIMEOUT 2        // Dispositivo en timeout 
 
-/** Message types (datos/comandos)
+/** Client Message types (datos/comandos)
  * Se utiliza un solo byte para tanto identificar el tipo de mensaje como 
  * para el tamaño del mensaje teniendo en cuenta que el tamaño máximo del 
  * payload es de 32 bytes, entonce solo se necesita 6 bits para el tamaño
@@ -82,8 +115,31 @@ typedef struct {
  *    puede saber el tratamiento para el resto del mensaje.
 */
 #define VAMP_DATA       0x00
+#define VAMP_CMD_MASK   0x80          // Máscara para identificar comando (bit más significativo)
 #define VAMP_JOIN_REQ   0x81
 #define VAMP_JOIN_ACK   0x82
+#define VAMP_PING       0x83
+#define VAMP_PONG       0x84
+
+/** VREG Command types
+* Estos comandos se utilizan para la comunicación con el VREG (Virtual REGistry).
+*/
+#define VAMP_GATEWAY_SYNC  	"gateway_sync"	// Sincronización con el VREG
+#define VAMP_VREG_UPDATE 	"vreg_update"   // Actualización de estado del dispositivo
+
+/** Métodos VAMP
+ *
+ * Estos métodos se utilizan para unificar la comunicación entre el gateway,
+ * los dispositivos, el registro VAMP y los recursos de los dispositivos.
+ * Se utilizan solo para servir como una traducción de los métodos de transporte
+ * que se utilizan en la comunicación:
+ *  - VAMP_ASK: Método de petición, utilizado para solicitar información o recursos.
+ *              Equivalente a HTTP GET, MQTT SUBSCRIBE o radio READ.
+ *  - VAMP_TELL: Método de respuesta, utilizado para enviar información o recursos.
+ *              Equivalente a HTTP POST, MQTT PUBLISH o radio WRITE.
+ */
+#define VAMP_ASK 0
+#define VAMP_TELL 1
 
 /* Fecha de la última actualización de la tabla en UTC */
 #define VAMP_TABLE_INIT_TSMP "2020-01-01T00:00:00Z"
@@ -109,7 +165,7 @@ typedef struct {
  * @param data_size Size of data buffer
  * @return bool true on success, false on failure
  */
-typedef bool (* vamp_http_callback_t)(const char * endpoint_url, uint8_t method, char * data, size_t data_size);
+typedef bool (* vamp_internet_callback_t)(const char * endpoint_url, uint8_t method, char * data, size_t data_size);
 
 
 /** @brief Callback function type for radio communication
@@ -123,7 +179,7 @@ typedef bool (* vamp_http_callback_t)(const char * endpoint_url, uint8_t method,
  * @param len Length of data buffer
  * @return bool true on success, false on failure
  */
-typedef bool (* vamp_radio_callback_t)(const char * rf_id, uint8_t mode, uint8_t * data, size_t len);
+typedef bool (* vamp_wsn_callback_t)(const char * rf_id, uint8_t mode, uint8_t * data, size_t len);
 
 /* Aqui ponemos el callback para la otra interfase */
 
@@ -132,7 +188,7 @@ typedef bool (* vamp_radio_callback_t)(const char * rf_id, uint8_t mode, uint8_t
  * 
  * @param comm_cb Callback function for VREG communication
  */
-void vamp_set_callbacks(vamp_http_callback_t comm_cb);
+void vamp_set_callbacks(vamp_internet_callback_t comm_cb, vamp_wsn_callback_t radio_cb);
 
 
 /** 
@@ -142,7 +198,7 @@ void vamp_set_callbacks(vamp_http_callback_t comm_cb);
  * @param vamp_vreg_url VREG server URL
  * @param vamp_gw_id Gateway ID string
  */
-void vamp_init(vamp_http_callback_t vamp_http_callback, vamp_radio_callback_t vamp_radio_callback, const char * vamp_vreg_url, const char * vamp_gw_id);
+void vamp_gw_init(vamp_internet_callback_t vamp_http_callback, vamp_wsn_callback_t vamp_radio_callback, const char * vamp_vreg_url, const char * vamp_gw_id);
 
 // Si se se quiere validar si un mensaje es de tipo VAMP
 //bool is_vamp_message(const uint8_t *data, size_t length);
@@ -241,9 +297,7 @@ void vamp_clear_entry(int index);
 
 /** @brief Update/Initialize VAMP tables with optional VREG synchronization
  * 
- * @param gateway_id Gateway identifier for VREG sync (NULL for local-only init)
- * @param vreg_endpoint VREG server endpoint URL (NULL to skip sync)
  */
-void vamp_table_update(const char* vreg_endpoint, const char* gateway_id);
+void vamp_table_update(void);
 
 #endif // _VAMP_H_
