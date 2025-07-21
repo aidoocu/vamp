@@ -4,7 +4,7 @@
  * 
  * 
  */
-#include "vamp.h"
+#include "vamp_gw.h"
 
 // Tabla unificada VAMP (NAT + Device + Session)
 static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];
@@ -18,9 +18,9 @@ static char vamp_vreg_resource[VAMP_ENDPOINT_MAX_LEN];
 static char vamp_gw_id[VAMP_GW_ID_MAX_LEN];
 
 // Contadores globales
-static uint8_t vamp_device_count = 0;
+//static uint8_t vamp_device_count = 0;
 
-/* ======================== CALLBACKS ======================== */
+/* ========================== Callbacks =========================== */
 
 /* Callback para comunicación http */
 
@@ -30,18 +30,8 @@ static vamp_wsn_callback_t wsn_comm_callback = NULL;
 
 /* ======================== Inicialización ======================== */
 
-/** @brief Initialize VAMP Gateway module
- * 
- * This function initializes the VAMP Gateway module, setting up the necessary callbacks
- * for HTTP and radio communication, and updating the VAMP table with the provided
- * VREG URL and gateway ID.
- * 
- * @param vamp_http_callback Callback function for HTTP communication with VREG
- * @param vamp_radio_callback Callback function for radio communication
- * @param vamp_vreg_url VREG server URL
- * @param vamp_gw_id Gateway ID string
- */
-void vamp_gw_init(vamp_internet_callback_t internet_callback, vamp_wsn_callback_t wsn_callback, const char * vamp_vreg, const char * vamp_gw) {
+/** @brief Initialize VAMP Gateway module */
+void vamp_local_gw_init(vamp_internet_callback_t internet_callback, vamp_wsn_callback_t wsn_callback, const char * vamp_vreg, const char * vamp_gw) {
 
 	/* Verificar que los parámetros son válidos */
 	if (vamp_vreg == NULL || vamp_gw == NULL || 
@@ -62,19 +52,12 @@ void vamp_gw_init(vamp_internet_callback_t internet_callback, vamp_wsn_callback_
 	wsn_comm_callback = wsn_callback;
 	Serial.println("Callbacks comm registrados");
 
-	/* Inicializando las tablas */
-	vamp_table_update();
-
 	return;
 }
 
 
 // ======================== FUNCIONES VAMP TABLES ========================
 
-// Declaraciones forward para funciones auxiliares
-char* parse_csv_field(char** line_ptr);
-bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id);
-bool vamp_process_sync_response(const char* csv_data);
 
 // Inicializar todas las tablas VAMP con sincronización VREG
 void vamp_table_update() {
@@ -93,7 +76,7 @@ void vamp_table_update() {
 		// Inicializar tabla unificada VAMP
 		// Solo necesitamos verificar/setear el status, el resto se inicializa cuando se asigna
 		for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-			vamp_table[i].status = VAMP_STATUS_FREE;
+			vamp_table[i].status = VAMP_DEV_STATUS_FREE;
 		}
 		
 		// Resetear contadores
@@ -110,28 +93,47 @@ void vamp_table_update() {
 	// formamos la cadena de sincronización como un comando
 	// el formato es: "VAMP_SYNC --gateway gateway_id --last_time last_update"
 	snprintf(request_response_buffer, sizeof(request_response_buffer), 
-		"%s --gateway %s --last_time %s", VAMP_GATEWAY_SYNC, vamp_gw_id, last_table_update);
+		"%s --gateway %s --last_time %s", VAMP_GW_SYNC_REQ, vamp_gw_id, last_table_update);
 
-	// Enviar request usando POST y recibir respuesta
-	if (internet_comm_callback(vamp_vreg_resource, VAMP_HTTP_POST, request_response_buffer, sizeof(request_response_buffer))) {
-		
-		// El buffer ahora contiene la respuesta CSV
-		// primero hay que ver si el VREG ha respondido con un error o si no hay datos porque esta acutualizado
-		if (strncmp(request_response_buffer, "UPDATED", 7) == 0) {
+	// Enviar request usando TELL y recibir respuesta
+	if (internet_comm_callback(vamp_vreg_resource, VAMP_TELL, request_response_buffer, sizeof(request_response_buffer))) {
+
+		/* Primero hay que revisar se la respuesta es válida, mirando si contiene el prefijo esperado */
+		if (!strstr(request_response_buffer, VAMP_VREG_SYNC_RESP)){
+			Serial.println("No se recibió respuesta válida del VREG");
+			return;
+		}
+		/* Si la tabla ya está actualizada, no hay nada más que hacer */
+		if (strstr(request_response_buffer, VAMP_VREG_SYNC_UPDATED)){
 			Serial.println("Tabla VAMP ya está actualizada, no hay nuevos datos");
 			return;
 		}
-		if (strncmp(request_response_buffer, "ERROR:", 6) == 0) {
-			Serial.printf("Error en la sincronización VREG: %s\n", request_response_buffer + 6);
+
+		if (strstr(request_response_buffer, VAMP_VREG_SYNC_ERROR)){
+			Serial.printf("Error en la sincronización VREG: %s\n", request_response_buffer);
 			return;
 		}
 
 		// Procesar la respuesta CSV
-		if (vamp_process_sync_response(request_response_buffer)) {
-			Serial.println("Sincronización VREG completada exitosamente");
-		} else {
-			Serial.println("Error procesando respuesta VREG");
+		char* csv_data = strstr(request_response_buffer, VAMP_VREG_SYNC_OK);
+		if (csv_data) {
+
+			/* Mover el puntero al inicio de los datos CSV,
+			+1 para saltar el espacio después del prefijo */
+			csv_data = csv_data + strlen(VAMP_VREG_SYNC_OK) + 1;
+
+			/* Extraer los datos CSV de la respuesta */
+			if (vamp_process_sync_response(csv_data)) {
+				Serial.println("Sincronización VREG completada exitosamente");
+			} else {
+				Serial.println("Error procesando respuesta VREG");
+			}
+			return;
 		}
+
+		/* Si llegamos aquí, la respuesta no es válida */
+		Serial.println("no --data en respuesta VREG");
+
 	} else {
 		Serial.println("Error comunicándose con servidor VREG");
 	}
@@ -141,212 +143,154 @@ void vamp_table_update() {
 
 
 
-// Obtener identificador de dispositivo por RF_ID
-bool vamp_get_device_id(const uint8_t* rf_id, char* identifier) {
-  for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-    if (vamp_table[i].status == VAMP_STATUS_ACTIVE && 
-        memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0) {
-      // Crear identificador: índice (formato: XX)
-      snprintf(identifier, 8, "%02d", i);
-      return true;
-    }
-  }
-  return false; // No encontrado
-}
 
-// Obtener identificador de dispositivo por índice de tabla
-bool vamp_get_device_id_by_index(int table_index, char* identifier) {
-  if (table_index < 0 || table_index >= VAMP_MAX_DEVICES) {
-    return false;
-  }
-  
-  if (vamp_table[table_index].status == VAMP_STATUS_FREE) {
-    return false;
-  }
-  
-  // Crear identificador: índice (formato: XX)
-  snprintf(identifier, 8, "%02d", table_index);
-  return true;
-}
+
+
+
+
+
+
+
+
+
+
+
 
 // ======================== FUNCIONES ID COMPACTO ========================
 
-// Generar byte de ID compacto (verification + index) para un RF_ID
-uint8_t vamp_generate_id_byte(const uint8_t* rf_id) {
-  // Buscar dispositivo existente
+/* Generar byte de ID compacto (verification + index) para un RF_ID */
+uint8_t vamp_generate_id_byte(const uint8_t table_index) {
+
+	/** Generar verificación del puerto a partir del numero que ya este
+		en el slot del indice para evitar que sea el mismo */
+	uint8_t check_bits = VAMP_GET_VERIFICATION(vamp_table[table_index].port);
+	check_bits++; // Aumentar para evitar que sea el mismo
+
+	// Generar ID byte: 3 bits de verificación + 5 bits de índice
+	return (VAMP_MAKE_ID_BYTE(check_bits, table_index));
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* Funciones de tabla */
+
+/* Buscar dispositivo por RF_ID */
+uint8_t vamp_find_device(const uint8_t * rf_id) {
   for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-    if (vamp_table[i].status == VAMP_STATUS_ACTIVE && 
-        memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0) {
-      // Extraer verificación del puerto existente
-      uint8_t verification = VAMP_GET_VERIFICATION((vamp_table[i].port - VAMP_PORT_BASE) >> 5);
-      return VAMP_MAKE_ID_BYTE(verification, i);
+    if (memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0) {
+      return i;
     }
   }
-  
-  // Buscar slot libre
-  for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-    if (vamp_table[i].status == VAMP_STATUS_FREE) {
-      // Generar número de verificación aleatorio (1-7, evitar 0)
-      uint8_t verification = (millis() % 7) + 1;
-      
-      // Asignar entrada
-      memcpy(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN);
-      vamp_table[i].port = VAMP_MAKE_PORT(verification, i);
-      vamp_table[i].last_activity = millis();
-      vamp_table[i].status = VAMP_STATUS_ACTIVE;
-      vamp_device_count++;
-      
-      return VAMP_MAKE_ID_BYTE(verification, i);
-    }
-  }
-  
-  return 0xFF; // Error: no hay slots libres
+  return VAMP_MAX_DEVICES; // No encontrado
 }
 
-// Validar byte de ID compacto contra RF_ID
-bool vamp_validate_id_byte(uint8_t id_byte, const uint8_t* rf_id) {
-  uint8_t index = VAMP_GET_INDEX(id_byte);
-  uint8_t verification = VAMP_GET_VERIFICATION(id_byte);
-  
-  if (index >= VAMP_MAX_DEVICES) {
-    return false;
-  }
-  
-  // Verificar que el slot esté activo
-  if (vamp_table[index].status != VAMP_STATUS_ACTIVE) {
-    return false;
-  }
-  
-  // Verificar número de verificación comparando con puerto
-  uint8_t port_verification = VAMP_GET_VERIFICATION((vamp_table[index].port - VAMP_PORT_BASE) >> 5);
-  if (port_verification != verification) {
-    return false;
-  }
-  
-  // Verificar RF_ID
-  if (memcmp(vamp_table[index].rf_id, rf_id, VAMP_ADDR_LEN) != 0) {
-    return false;
-  }
-  
-  return true;
-}
-
-// Obtener puerto NAT por byte de ID
-uint16_t vamp_get_port_by_id_byte(uint8_t id_byte) {
-  uint8_t index = VAMP_GET_INDEX(id_byte);
-  uint8_t verification = VAMP_GET_VERIFICATION(id_byte);
-  
-  if (index >= VAMP_MAX_DEVICES || 
-      vamp_table[index].status != VAMP_STATUS_ACTIVE) {
-    return 0; // Puerto inválido
-  }
-  
-  // Verificar que la verificación coincida con el puerto almacenado
-  uint8_t port_verification = VAMP_GET_VERIFICATION((vamp_table[index].port - VAMP_PORT_BASE) >> 5);
-  if (port_verification != verification) {
-    return 0; // Puerto inválido
-  }
-  
-  return vamp_table[index].port;
-}
-
-// Buscar dispositivo por byte de ID
-vamp_entry_t* vamp_find_device_by_id_byte(uint8_t id_byte) {
-  uint8_t index = VAMP_GET_INDEX(id_byte);
-  uint8_t verification = VAMP_GET_VERIFICATION(id_byte);
-  
-  if (index >= VAMP_MAX_DEVICES) {
-    return NULL;
-  }
-  
-  if (vamp_table[index].status == VAMP_STATUS_ACTIVE) {
-    // Verificar que la verificación coincida con el puerto almacenado
-    uint8_t port_verification = VAMP_GET_VERIFICATION((vamp_table[index].port - VAMP_PORT_BASE) >> 5);
-    if (port_verification == verification) {
-      return &vamp_table[index];
-    }
-  }
-  
-  return NULL;
-}
-
-// Asignar índice de tabla a RF_ID
-uint8_t vamp_assign_device_index(const uint8_t* rf_id) {
-  // Usar la nueva función de generación de ID compacto
-  uint8_t id_byte = vamp_generate_id_byte(rf_id);
-  
-  if (id_byte == 0xFF) {
-    return 255; // No hay slots libres
-  }
-  
-  return VAMP_GET_INDEX(id_byte);
-}
-
-// Agregar dispositivo a la tabla
-bool vamp_add_device(const uint8_t* rf_id) {
-  // Verificar si ya existe
-  vamp_entry_t* existing = vamp_find_device(rf_id);
-  if (existing != NULL) {
-    // Actualizar dispositivo existente
-    existing->last_activity = millis();
-    existing->status = VAMP_STATUS_ACTIVE;
-    return true;
-  }
-  
-  // Generar ID compacto para nuevo dispositivo
-  uint8_t id_byte = vamp_generate_id_byte(rf_id);
-  return (id_byte != 0xFF);
-}
-
-// Remover dispositivo de la tabla
-bool vamp_remove_device(const uint8_t* rf_id) {
-  for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-    if (memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0 &&
-        vamp_table[i].status != VAMP_STATUS_FREE) {
-      vamp_clear_entry(i);
-      return true;
-    }
-  }
-  return false; // No encontrado
-}
-
-// Buscar dispositivo por RF_ID
-vamp_entry_t* vamp_find_device(const uint8_t* rf_id) {
-  for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-    if (memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0 && 
-        vamp_table[i].status == VAMP_STATUS_ACTIVE) {
-      return &vamp_table[i];
-    }
-  }
-  return NULL; // No encontrado
-}
-
-// Limpiar una entrada específica de la tabla
+/* Limpiar una entrada específica de la tabla */
 void vamp_clear_entry(int index) {
   if (index < 0 || index >= VAMP_MAX_DEVICES) {
     return;
   }
   
-  if (vamp_table[index].status != VAMP_STATUS_FREE) {
+  if (vamp_table[index].status != VAMP_DEV_STATUS_FREE) {
     // Solo marcar como libre - otros campos se sobrescriben cuando se reasigna
-    vamp_table[index].status = VAMP_STATUS_FREE;
-    vamp_device_count--;
+    vamp_table[index].status = VAMP_DEV_STATUS_FREE;
   }
 }
 
-// Limpiar entradas expiradas
-void vamp_cleanup_expired() {
+/* Agregar dispositivo a la tabla */
+bool vamp_add_device(const uint8_t* rf_id) {
+
+	/* Verificar si el dispositivo ya está en la tabla */
+	uint8_t table_index = vamp_find_device(rf_id);
+	if (table_index < VAMP_MAX_DEVICES) {
+		/* Ya existe, no hacer nada */
+		return true;
+	}
+
+	/* buscar un slot libre */
+	for (table_index = 0; table_index < VAMP_MAX_DEVICES; table_index++) {
+		if (vamp_table[table_index].status == VAMP_DEV_STATUS_FREE) {
+			break;
+		}
+
+		/* Si no hubiera slots libres, buscamos el sensor inactivo mas antiguo */
+		if( table_index == VAMP_MAX_DEVICES) {
+			table_index = vamp_get_oldest_inactive();
+		}
+
+		if (table_index < VAMP_MAX_DEVICES) {
+			// Reemplazar el sensor inactivo más antiguo
+			vamp_clear_entry(table_index);
+			memcpy(vamp_table[table_index].rf_id, rf_id, VAMP_ADDR_LEN);
+			vamp_table[table_index].port = vamp_generate_id_byte(table_index);
+			vamp_table[table_index].status = VAMP_DEV_STATUS_ADDED;
+			vamp_table[table_index].last_activity = millis();
+			return true;
+		}
+	}
+  
+  /* No hay slots libres ni inactivos */
+  Serial.println("No hay slots libres para agregar dispositivo");
+  return false;
+
+}
+
+/* Remover dispositivo de la tabla */
+bool vamp_remove_device(const uint8_t* rf_id) {
+
+	/* Asegurarse que el dispositivo está en la tabla */
+	uint8_t index = vamp_find_device(rf_id);
+  	if (index < VAMP_MAX_DEVICES) {
+    	vamp_clear_entry(index);
+    	return true;
+    }
+	
+	return false; // No encontrado
+}
+
+/* Buscar dispositivos expirados para marcarlos como inactivos */
+void vamp_detect_expired() {
   uint32_t current_time = millis();
   
   // Limpiar tabla unificada VAMP
   for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-    if (vamp_table[i].status == VAMP_STATUS_ACTIVE) {
+    if (vamp_table[i].status == VAMP_DEV_STATUS_ACTIVE) {
       // Verificar timeout de dispositivo
       if (current_time - vamp_table[i].last_activity > VAMP_DEVICE_TIMEOUT) {
-        vamp_clear_entry(i);
+        vamp_table[i].status = VAMP_DEV_STATUS_INACTIVE;
       }
     }
   }
+}
+
+uint8_t vamp_get_oldest_inactive(void){
+
+	/* Buscar el dispositivo inactivo más antiguo, para ello cargamos primero el tiempo
+	 pues actual, pues siempre cuaquier dispositivo inactivo tendrá un tiempo de última
+	 actividad menor (será más antiguo)
+	 OJO!!! esta funcion escrita asi no tiene en cuenta el desbordamiento del millis(),
+	 en una refactorización futura se debe tener en cuenta este caso!!!!!
+	 */
+	uint32_t oldest_time = millis();
+	uint8_t oldest_index = 0; // Valor por defecto si no se encuentra
+
+	for (oldest_index = 0; oldest_index < VAMP_MAX_DEVICES; oldest_index++) {
+		if (vamp_table[oldest_index].status == VAMP_DEV_STATUS_INACTIVE) {
+			if (vamp_table[oldest_index].last_activity < oldest_time) {
+				oldest_time = vamp_table[oldest_index].last_activity;
+			}
+		}
+	}
+
+	return oldest_index; // Retorna el índice del dispositivo inactivo más antiguo o VAMP_MAX_DEVICES si no hay
 }
 
 
@@ -362,132 +306,185 @@ void vamp_cleanup_expired() {
 
 // ======================== PARSING RESPUESTAS VREG ========================
 
-// Parser simple para CSV (campo por campo)
-char* parse_csv_field(char** line_ptr) {
-  if (*line_ptr == NULL) return NULL;
-  
-  char* field_start = *line_ptr;
-  char* comma = strchr(*line_ptr, ',');
-  
-  if (comma != NULL) {
-    *comma = '\0';
-    *line_ptr = comma + 1;
-  } else {
-    *line_ptr = NULL; // Último campo
-  }
-  
-  return field_start;
-}
 
-// Convertir string hexadecimal a RF_ID
-bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id) {
-  if (strlen(hex_str) != VAMP_ADDR_LEN * 2) {
-    return false;
+
+bool is_valid_rf_id(const char * rf_id) {
+  // Verificar que el RF_ID no sea NULL y tenga la longitud correcta
+  if (rf_id == NULL || strlen(rf_id) != VAMP_ADDR_LEN * 2) {
+	return false;
   }
   
-  for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-    char hex_byte[3] = {hex_str[i*2], hex_str[i*2+1], '\0'};
-    rf_id[i] = (uint8_t)strtol(hex_byte, NULL, 16);
+  // Verificar que todos los caracteres sean válidos (0-9, A-F)
+  for (int i = 0; i < (VAMP_ADDR_LEN * 2); i++) {
+    if (!((rf_id[i] >= '0' && rf_id[i] <= '9') || (rf_id[i] >= 'A' && rf_id[i] <= 'F'))) {
+      return false;
+    }
   }
   
   return true;
 }
 
-// Procesar respuesta CSV de VREG
+
+/* Convertir string hexadecimal a RF_ID */
+bool hex_to_rf_id(const char * hex_str, uint8_t * rf_id) {
+  if (!is_valid_rf_id(hex_str)) {
+    return false;
+  }
+
+  /* Convertir cada par de caracteres a un byte */
+  for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+    char hex_pair[3] = {0}; // Para almacenar 2 caracteres + '\0'
+    hex_pair[0] = hex_str[i * 2];     // Primer dígito hex
+    hex_pair[1] = hex_str[i * 2 + 1]; // Segundo dígito hex
+    hex_pair[2] = '\0';               // Terminador
+    
+    // Convertir el par hex a byte usando strtol
+    rf_id[i] = (uint8_t)strtol(hex_pair, NULL, 16);
+  }
+  
+  return true;
+}
+
+
+
+
+/** 
+ * Process the synchronization response from VREG.
+ * El buffer contiene la respuesta que debe tener el formato:
+ * gateway_sync_resp <--option> <value>
+ * <value> es el nuevo valor para la opción
+ * Opciones:
+ * - "--updated": indica que la tabla ya está actualizada, no hay nuevos datos, no tiene value
+ * - "--error": indica que hubo un error en la sincronización, value contiene el mensaje de error
+ * - "--data": contiene los datos de la tabla en formato CSV, value es el CSV con los campos:
+ *  	rf_id, action, type, resource
+ * actions:
+ * - "ADD": agregar un dispositivo. El VREG no sabe ni debe intervenir en el puerto, 
+ *          así que el gateway busca un slot vacío y asigna el nuevo nodo. Se revisa 
+ *          primero si el nodo ya estaba en la tabla. Al adicionar un nodo nuevo se 
+ *          cambia el prefijo de puerto de 8 a 7 para indicar que es un cache que 
+ *          ningún nodo ha reclamado aún.
+ * - "REMOVE": eliminar un dispositivo, se cambia el estado a libre y se pone a cero el rf_id
+ * - "UPDATE": actualizar un dispositivo existente
+*/
 bool vamp_process_sync_response(const char* csv_data) {
-  if (csv_data == NULL) {
-    return false;
-  }
+	
+	if (csv_data == NULL) {
+		return false;
+	}
   
-  // Hacer una copia local para parsing
-  size_t data_len = strlen(csv_data);
-  char* local_copy = (char*)malloc(data_len + 1);
-  if (local_copy == NULL) {
-    return false;
-  }
-  strcpy(local_copy, csv_data);
+	/* Apuntamos a la primera linea */
+	const char * csv_ptr = csv_data; // VER probablemente csv_ptr no sea necesario
+
+	/* 	Procesar cada línea, que tiene la forma: 
+		rf_id,action,type,resource'\n' */
+	while (csv_ptr != NULL) {
+
+		/* Si viene de un ciclo anterior hay que saltar el '\n' */
+		if (csv_ptr[0] == '\n') {
+			csv_ptr++;
+		}
+
+		/* El primer campo son 10 bytes con la direccion en HEX
+			que se traduciran a 5 bytes de RF_ID */
+		uint8_t rf_id[5];	
+		if(!hex_to_rf_id(csv_ptr, rf_id)) {
+			Serial.println("RF_ID inválido en la respuesta VREG");
+			return false;
+		}
+		
+		csv_ptr += 11; // Saltar el campo rf_id y la coma
+
+		/* Si el ACTION es ADD */
+		if (!strncmp(csv_ptr, "ADD", 3)){
+
+			// Buscar slot libre y asignar
+			uint8_t table_index = vamp_add_device(rf_id);
+
+			/* Si se encontró un slot libre se asigna el estado de cache */
+			if (table_index < VAMP_MAX_DEVICES) {
+
+				/* Asignar el estado de cache */
+				vamp_table[table_index].status = VAMP_DEV_STATUS_CACHE;
+
+				/* Saltar "ADD," */
+				csv_ptr += 4;
+
+				/* Poner el type */
+				vamp_table[table_index].type = atoi(csv_ptr);
+				
+				/* Saltar el tipo y la coma, e. g "2,", */
+				csv_ptr += 2; 
+				/* y como ahora lo que viene es el resource hasta el final de la línea
+				hay que buscar ese final que puede ser un '\n' o final del buffer 
+				(csv_ptr = NULL) */
+				char* end_ptr = strchr(csv_ptr, '\n');
+
+				uint8_t resource_len = end_ptr - csv_ptr;
+				if (resource_len >= VAMP_ENDPOINT_MAX_LEN) {
+					Serial.println("Resource demasiado largo en la respuesta VREG");
+					return false; //este error no debería pasar, pero por si acaso hay que manejarlo mejor que esto
+				}
+
+				/* Poner el resource */
+
+				strncpy(vamp_table[table_index].endpoint_resource, csv_ptr, resource_len);
+				vamp_table[table_index].endpoint_resource[resource_len] = '\0'; // Asegurar terminación
+				
+				csv_ptr = end_ptr; // Mover el puntero al final de la línea
+			} else {
+				/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
+				csv_ptr = strchr(csv_ptr, '\n');
+			}
+
+		/* Si el ACTION es REMOVE */	
+		} else if (!strncmp(csv_ptr, "REMOVE", 6)) {
+
+			vamp_remove_device(rf_id);
+
+			/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
+			csv_ptr = strchr(csv_ptr, '\n');
+
+		/* Si el ACTION es UPDATE */	
+		} else if (strncmp(csv_ptr, "UPDATE", 6) == 0) {
+
+			/* Buscar el dispositivo en la tabla */
+			uint8_t table_index = vamp_find_device(rf_id);
+
+			if (table_index < VAMP_MAX_DEVICES) {
+				/* Si se encontró el dispositivo en la tabla, actualizarlo */
+				csv_ptr += 7; // Saltar "UPDATE,"
+				
+				/* Poner el tipo */
+				vamp_table[table_index].type = atoi(csv_ptr);
+				
+				/* Saltar el tipo y la coma, e. g "2," */
+				csv_ptr += 2; 
+				
+				/* Buscar el final de la línea o del buffer */
+				char* end_ptr = strchr(csv_ptr, '\n');
+				if (!end_ptr) {
+					end_ptr = strchr(csv_ptr, '\0'); // Buscar el final del buffer
+				}
+				
+				uint8_t resource_len = end_ptr - csv_ptr;
+				if (resource_len >= VAMP_ENDPOINT_MAX_LEN) {
+					Serial.println("Resource demasiado largo en la respuesta VREG");
+					return false; //este error no debería pasar, pero por si acaso hay que manejarlo mejor que esto
+				}
+
+				/* Poner el resource */
+				strncpy(vamp_table[table_index].endpoint_resource, csv_ptr, resource_len);
+				vamp_table[table_index].endpoint_resource[resource_len] = '\0'; // Asegurar terminación
+				
+				csv_ptr = end_ptr; // Mover el puntero al final de la línea
+			} else {
+				/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
+				csv_ptr = strchr(csv_ptr, '\n');
+			}
+		}
+	}
+    
   
-  char* line = strtok(local_copy, "\n\r");
-  char latest_timestamp[32] = {0};
-  bool success = true;
-  
-  while (line != NULL && success) {
-    char* line_ptr = line;
-    
-    // Parsear campos CSV: timestamp,action,rf_id,port,verification
-    char* timestamp = parse_csv_field(&line_ptr);
-    char* action = parse_csv_field(&line_ptr);
-    char* rf_id_str = parse_csv_field(&line_ptr);
-    char* port_str = parse_csv_field(&line_ptr);
-    char* verification_str = parse_csv_field(&line_ptr);
-    
-    if (timestamp == NULL || action == NULL || rf_id_str == NULL) {
-      success = false;
-      break;
-    }
-    
-    // Actualizar timestamp más reciente
-    if (strcmp(timestamp, latest_timestamp) > 0) {
-      strncpy(latest_timestamp, timestamp, sizeof(latest_timestamp) - 1);
-    }
-    
-    // Procesar según acción
-    uint8_t rf_id[VAMP_ADDR_LEN];
-    if (!hex_to_rf_id(rf_id_str, rf_id)) {
-      success = false;
-      break;
-    }
-    
-    if (strcmp(action, "ADD") == 0) {
-      if (port_str && verification_str) {
-        uint16_t port = (uint16_t)atoi(port_str);
-        (void)atoi(verification_str); // Suprimir warning - verification ya está en el puerto
-        
-        // Buscar slot libre y asignar
-        for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-          if (vamp_table[i].status == VAMP_STATUS_FREE) {
-            memcpy(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN);
-            vamp_table[i].port = port;
-            vamp_table[i].last_activity = millis();
-            vamp_table[i].status = VAMP_STATUS_ACTIVE;
-            vamp_device_count++;
-            break;
-          }
-        }
-      }
-    } else if (strcmp(action, "DEL") == 0) {
-      // Remover dispositivo
-      for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-        if (memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0 &&
-            vamp_table[i].status != VAMP_STATUS_FREE) {
-          vamp_clear_entry(i);
-          break;
-        }
-      }
-    } else if (strcmp(action, "UPD") == 0) {
-      if (port_str && verification_str) {
-        uint16_t port = (uint16_t)atoi(port_str);
-        
-        // Actualizar dispositivo existente
-        for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
-          if (memcmp(vamp_table[i].rf_id, rf_id, VAMP_ADDR_LEN) == 0 &&
-              vamp_table[i].status == VAMP_STATUS_ACTIVE) {
-            vamp_table[i].port = port;
-            vamp_table[i].last_activity = millis();
-            break;
-          }
-        }
-      }
-    }
-    
-    line = strtok(NULL, "\n\r");
-  }
-  
-  // Actualizar timestamp de última sincronización
-  if (success && strlen(latest_timestamp) > 0) {
-    strncpy(last_table_update, latest_timestamp, sizeof(last_table_update) - 1);
-  }
-  
-  free(local_copy);
-  return success;
+  return true; // Procesamiento exitoso
 }

@@ -922,6 +922,7 @@ VAMP implementa un sistema de comunicación abstracto que permite usar diferente
 VAMP utiliza dos tipos de callbacks para separar completamente el protocolo del transporte:
 
 #### **1. Internet Callback** (`vamp_internet_callback_t`)
+
 ```cpp
 typedef bool (*vamp_internet_callback_t)(const char* endpoint, uint8_t method, char* data, size_t data_size);
 ```
@@ -929,16 +930,19 @@ typedef bool (*vamp_internet_callback_t)(const char* endpoint, uint8_t method, c
 **Propósito**: Comunicación con servicios en Internet (VREG, APIs REST, MQTT brokers, etc.)
 
 **Métodos soportados**:
+
 - `VAMP_ASK` (0): Equivale a GET/SUBSCRIBE/READ
 - `VAMP_TELL` (1): Equivale a POST/PUBLISH/WRITE
 
 **Implementaciones típicas**:
+
 - **HTTP/HTTPS**: Para APIs REST
 - **MQTT**: Para brokers IoT
 - **WebSocket**: Para comunicación en tiempo real
 - **CoAP**: Para dispositivos IoT ligeros
 
-#### **2. WSN Callback** (`vamp_wsn_callback_t`) 
+#### **2. WSN Callback** (`vamp_wsn_callback_t`)
+
 ```cpp
 typedef bool (*vamp_wsn_callback_t)(const char* rf_id, uint8_t mode, uint8_t* data, size_t len);
 ```
@@ -946,6 +950,7 @@ typedef bool (*vamp_wsn_callback_t)(const char* rf_id, uint8_t mode, uint8_t* da
 **Propósito**: Comunicación con dispositivos en la red de sensores inalámbricos
 
 **Implementaciones típicas**:
+
 - **NRF24L01+**: Radio 2.4GHz
 - **LoRa**: Comunicación de largo alcance
 - **BLE**: Bluetooth Low Energy
@@ -980,7 +985,8 @@ void setup() {
 
 ### Flujo de Comunicación
 
-#### **Sincronización con VREG**:
+#### **Sincronización con VREG**
+
 ```text
 1. VAMP genera request: {"action":"gateway_sync","gateway_id":"VAM_GW_01","last_update":"..."}
 2. Llama internet_callback(endpoint, VAMP_TELL, request_data, size)
@@ -989,7 +995,8 @@ void setup() {
 5. VAMP procesa respuesta y actualiza tabla local
 ```
 
-#### **Comunicación con dispositivos**:
+#### **Comunicación con dispositivos**
+
 ```text
 1. Dispositivo envía: [TIPO][ID_COMPACTO][DATOS...]
 2. WSN callback recibe datos via RF/LoRa/BLE
@@ -1000,6 +1007,7 @@ void setup() {
 ### Independencia del Transporte
 
 VAMP **NO** conoce ni depende de:
+
 - ❌ Detalles de HTTP (headers, códigos de estado, etc.)
 - ❌ Topics MQTT específicos
 - ❌ Frecuencias de radio
@@ -1007,6 +1015,7 @@ VAMP **NO** conoce ni depende de:
 - ❌ Certificados SSL/TLS
 
 VAMP **SÍ** maneja:
+
 - ✅ Protocolo de mensajes interno
 - ✅ Tabla de dispositivos y mapeo NAT
 - ✅ Timeouts y reintentos
@@ -1014,3 +1023,137 @@ VAMP **SÍ** maneja:
 - ✅ Validación de IDs compactos
 
 Esta separación permite que VAMP sea una biblioteca verdaderamente portable y reutilizable.
+
+## Protocolo de Sincronización con VREG
+
+VAMP implementa un protocolo de sincronización con el VREG (Virtual Registry) que permite mantener coherencia entre la tabla local del gateway y el registro central de dispositivos.
+
+### Formato del Request de Sincronización
+
+El gateway envía un request al VREG usando el método `VAMP_TELL` con el siguiente formato:
+
+```text
+gateway_sync_req --gateway <gateway_id> --last_time <timestamp>
+```
+
+**Ejemplo:**
+
+```text
+gateway_sync_req --gateway VAM_GW_01 --last_time 2025-07-19T10:30:00Z
+```
+
+### Formato de la Respuesta del VREG
+
+El VREG responde con uno de los siguientes formatos:
+
+#### 1. Tabla Actualizada
+
+```text
+gateway_sync_resp --updated
+```
+
+Indica que no hay cambios desde la última sincronización.
+
+#### 2. Error en Sincronización
+
+```text
+gateway_sync_resp --error <mensaje_error>
+```
+Indica que hubo un error durante la sincronización.
+
+#### 3. Datos de Sincronización
+
+```text
+gateway_sync_resp --data
+action,type,rf_id,resource
+ADD,2,A1B2C3D4E5,sensor.example.com/temp
+UPDATE,1,F6E7D8C9BA,actuator.io/valve
+REMOVE,0,1122334455,
+```
+
+### Campos del CSV de Datos
+
+- **action**: Acción a realizar (`ADD`, `UPDATE`, `REMOVE`)
+- **type**: Tipo de dispositivo (0=fijo, 1=dinámico, 2=auto)
+- **rf_id**: ID del dispositivo en formato hexadecimal (10 caracteres)
+- **resource**: URL del recurso del dispositivo
+
+### Procesamiento de Acciones
+
+#### ADD (Agregar Dispositivo)
+
+1. **Verificar existencia**: Se revisa si el dispositivo ya está en la tabla local
+2. **Si existe**: Se actualiza su actividad y recurso
+3. **Si no existe**: 
+   - Se busca un slot libre en la tabla
+   - Se asigna el dispositivo con estado `VAMP_DEV_STATUS_ADDED` (añadido por primera vez)
+   - Se genera un puerto usando el esquema normal: `8000 + (verification << 5) + index`
+   - Si la acción viene del servidor VREG, se cambia el estado a `VAMP_DEV_STATUS_CACHE`
+   - Cuando el nodo solicita comunicación, se cambia el estado a `VAMP_DEV_STATUS_ACTIVE`
+
+### Estados del Sistema de Cache
+
+El nuevo sistema de cache utiliza el campo `status` en lugar de prefijos de puerto:
+
+- **`VAMP_DEV_STATUS_FREE`** (0x01): Slot libre, disponible para asignación
+- **`VAMP_DEV_STATUS_INACTIVE`** (0x02): Dispositivo inactivo por timeout
+- **`VAMP_DEV_STATUS_ACTIVE`** (0x03): Dispositivo activo, comunicándose
+- **`VAMP_DEV_STATUS_ADDED`** (0x04): Dispositivo recién añadido, sin reclamar
+- **`VAMP_DEV_STATUS_CACHE`** (0x05): Dispositivo en cache desde servidor VREG
+
+### Flujo de Estados
+
+```text
+┌──────────────┐    ADD local     ┌──────────────┐
+│     FREE     │ ────────────────→│    ADDED     │
+└──────────────┘                  └──────────────┘
+       ↑                                  │
+       │                                  │ Solicitud nodo
+       │                                  ↓
+       │                          ┌──────────────┐
+       │ Timeout/Remove           │    ACTIVE    │
+       │                          └──────────────┘
+       │                                  ↑
+       │                                  │
+┌──────────────┐    Solicitud nodo        │
+│    CACHE     │ ─────────────────────────┘
+└──────────────┘
+       ↑
+       │ ADD desde VREG
+       │
+┌──────────────┐
+│    ADDED     │
+└──────────────┘
+```
+
+#### Ejemplo de Evolución de un Dispositivo
+
+```text
+1. VREG envía: ADD,2,A1B2C3D4E5,sensor.io/temp
+2. Gateway asigna: Puerto 8037, estado CACHE (verification=1, index=5)
+3. Dispositivo se conecta y solicita comunicación
+4. Gateway cambia estado a: ACTIVE (mismo puerto 8037)
+```
+
+#### UPDATE (Actualizar Dispositivo)
+
+1. Se busca el dispositivo por RF_ID
+2. Se actualiza su actividad, tipo y recurso
+3. Se mantiene el puerto existente
+
+#### REMOVE (Eliminar Dispositivo)
+
+1. Se busca el dispositivo por RF_ID
+2. Se cambia el estado a `VAMP_STATUS_FREE`
+3. Se limpia el campo `rf_id` (se pone a cero)
+4. Se decrementa el contador de dispositivos
+
+### Características del Procesamiento
+
+1. **No destructivo**: La función procesa el string directamente sin hacer copias locales
+2. **Gestión de memoria**: No usa `malloc`/`free` para evitar fragmentación
+3. **Estados granulares**: Sistema de cache basado en estados del dispositivo
+4. **Transiciones controladas**: Los dispositivos pasan por estados bien definidos
+5. **Consistencia**: Mantiene la integridad de la tabla durante toda la operación
+
+Este protocolo permite que múltiples gateways mantengan sincronizada su tabla de dispositivos con un registro central, facilitando la gestión distribuida de redes VAMP.

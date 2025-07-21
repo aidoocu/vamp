@@ -10,7 +10,8 @@
  * Asi la dirección de destino se actualiza a la dirección del gateway
  * y se puede enviar mensajes de tipo VAMP_DATA.
  */
-#include "vamp.h"
+
+#include "vamp_client.h"
 
 /* Dirección MAC del gateway por defecto, direccion de broadcast */
 static uint8_t dst_mac[VAMP_ADDR_LEN] = VAMP_BROADCAST_ADDR;
