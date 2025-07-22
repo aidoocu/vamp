@@ -1028,6 +1028,45 @@ Esta separación permite que VAMP sea una biblioteca verdaderamente portable y r
 
 VAMP implementa un protocolo de sincronización con el VREG (Virtual Registry) que permite mantener coherencia entre la tabla local del gateway y el registro central de dispositivos.
 
+### Flujo de Sincronización
+
+```mermaid
+sequenceDiagram
+    participant GW as Gateway
+    participant VREG as VAMP Registry
+    
+    Note over GW: Gateway despierta/inicia
+    GW->>+VREG: gateway_sync_req --gateway VAM_GW_01 --last_time 2025-07-19T10:30:00Z
+    
+    alt Tabla actualizada (sin cambios)
+        VREG-->>GW: gateway_sync_resp --updated
+        Note over GW: No hay cambios, continuar operación
+    else Error en sincronización
+        VREG-->>GW: gateway_sync_resp --error <mensaje_error>
+        Note over GW: Manejar error, reintentar más tarde
+    else Hay cambios disponibles
+        VREG-->>GW: gateway_sync_resp --data<br/>action,type,rf_id,resource<br/>ADD,2,A1B2C3D4E5,sensor.example.com/temp<br/>UPDATE,1,F6E7D8C9BA,actuator.io/valve<br/>REMOVE,0,1122334455,
+        
+        loop Para cada acción en CSV
+            alt Acción ADD
+                Note over GW: Buscar slot libre
+                Note over GW: Asignar dispositivo<br/>Estado: CACHE
+                Note over GW: Puerto: 8000 + (verification << 5) + index
+            else Acción UPDATE
+                Note over GW: Buscar dispositivo por RF_ID
+                Note over GW: Actualizar actividad y recurso
+            else Acción REMOVE
+                Note over GW: Buscar dispositivo por RF_ID
+                Note over GW: Estado: FREE<br/>Limpiar rf_id
+            end
+        end
+        
+        Note over GW: Tabla local actualizada<br/>Dispositivos en cache listos
+    end
+    
+    deactivate VREG
+```
+
 ### Formato del Request de Sincronización
 
 El gateway envía un request al VREG usando el método `VAMP_TELL` con el siguiente formato:
@@ -1059,6 +1098,7 @@ Indica que no hay cambios desde la última sincronización.
 ```text
 gateway_sync_resp --error <mensaje_error>
 ```
+
 Indica que hubo un error durante la sincronización.
 
 #### 3. Datos de Sincronización
@@ -1084,7 +1124,8 @@ REMOVE,0,1122334455,
 
 1. **Verificar existencia**: Se revisa si el dispositivo ya está en la tabla local
 2. **Si existe**: Se actualiza su actividad y recurso
-3. **Si no existe**: 
+3. **Si no existe**:
+
    - Se busca un slot libre en la tabla
    - Se asigna el dispositivo con estado `VAMP_DEV_STATUS_ADDED` (añadido por primera vez)
    - Se genera un puerto usando el esquema normal: `8000 + (verification << 5) + index`
