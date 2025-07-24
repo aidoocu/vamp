@@ -97,17 +97,22 @@ typedef struct {
 /** VREG Command types
 * Estos comandos se utilizan para la comunicación con el VREG (Virtual REGistry).
 */
-#define VAMP_GW_SYNC_REQ		"gateway_sync_req"		// Sincronización con el VREG
-#define VAMP_GW_SYNC_RESP 		"gateway_sync_resp"    	// Sincronización de la tabla VAMP con el VREG
-#define VAMP_VREG_SYNC_REQ 		"vreg_sync_req"     	// Solicitud de sincronización de la tabla VAMP
-#define VAMP_VREG_SYNC_RESP 	"vreg_sync_resp"    	// Respuesta de sincronización de la tabla VAMP
+#define VAMP_GW_SYNC		        "sync"		// Sincronización con el VREG
+#define VAMP_GET_NODE 	        "get_node"    	  // Obtener nodo VREG
+#define VAMP_SET_NODE 	    "set_node"    	  // Establecer nodo VREG
+
+/* Opciones */
+#define VAMP_GATEWAY_ID        "--gateway"        // ID del gateway
+#define VAMP_TIMESTAMP         "--timestamp"      // Última actualización de la tabla VAMP
+#define VAMP_NODE_ID           "--node_rf_id"     // ID del nodo VREG
+#define VAMP_DEV_COUNT         "--device_count"   // Cantidad de dispositivos en la tabla VAMP
 
 /** VREG Response types
  * Respuestas del VREG (Virtual REGistry).
  */
-#define VAMP_VREG_SYNC_OK        "--data"              // Sincronización exitosa
-#define VAMP_VREG_SYNC_UPDATED   "--updated"           // Tabla ya está actualizada
-#define VAMP_VREG_SYNC_ERROR     "--error"             // Error en la sincronización
+#define VAMP_DATA          "--data"              // Sincronización exitosa
+#define VAMP_UPDATED       "--updated"           // Tabla ya está actualizada
+#define VAMP_ERROR         "--error"             // Error en la sincronización
 
 
 
@@ -120,12 +125,13 @@ typedef struct {
  * @param rf_id Buffer to store the identifier (have VAMP_ADDR_LEN bytes)
  * @return true if the operation was successful, false otherwise
  */
-bool vamp_add_device(const uint8_t* rf_id);
 bool vamp_remove_device(const uint8_t* rf_id);
 void vamp_clear_entry(int index);
 /** @return The index of the device if found, VAMP_MAX_DEVICES not 
  *  found otherwise */
 uint8_t vamp_find_device(const uint8_t* rf_id);
+uint8_t vamp_add_device(const uint8_t* rf_id);
+uint8_t vamp_get_vreg_device(const uint8_t * rf_id);
 
 /** @brief Actualiza la tabla VAMP desde el servidor VREG */
 void vamp_table_update(void);
@@ -146,6 +152,8 @@ uint8_t vamp_generate_id_byte(const uint8_t index);
 /* --------------------- Funciones auxiliares --------------------- */
 
 bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id);
+void rf_id_to_hex(const uint8_t* rf_id, char* hex_str);
+bool vamp_is_rf_id_valid(const uint8_t * rf_id);
 bool vamp_process_sync_response(const char* csv_data);
 
 /** 
@@ -157,6 +165,23 @@ bool vamp_process_sync_response(const char* csv_data);
  * @param vamp_gw_id Gateway ID string
  */
 void vamp_local_gw_init(vamp_internet_callback_t vamp_internet_callback, vamp_wsn_callback_t vamp_wsn_callback, const char * vamp_vreg, const char * vamp_gw_id);
+
+
+
+
+/* ------------------- Gestion de mensajes WSN ------------------- */
+
+/* Verificar si es un comando o un dato */
+#define VAMP_WSN_IS_COMMAND(buffer) ((buffer)[0] & VAMP_IS_CMD_MASK)
+/* Aislar el comando */
+#define VAMP_WSN_GET_CMD(buffer) ((buffer)[0] & VAMP_WSN_CMD_MASK)
+
+bool vamp_get_wsn(void);
+
+
+
+
+
 
 
 #endif // _VAMP_GW_H_
