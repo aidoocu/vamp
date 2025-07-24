@@ -32,7 +32,7 @@
  * Tiene la siguiente estructura:
  * | Puerto |  Estado  |  Tipo    |  Dirección RF  |  Resource          | last_activity (milis) |
  * |--------|----------|----------|----------------|--------------------|-----------------------|
- * | 8128   | Libre    | Fijo     | 01:23:45:67:89 | dev1.org/local     |		107360  		|
+ * | 8128   | Libre    | Fijo     | 01:23:45:67:89 | dev1.org/local     |		  107360  		|
  * | 8161   | Activo   | Dinámico | AA:BB:CC:DD:EE | my.io/sense/temp   | 		201565	 		|
  * | 8226   | Inactivo | Auto     | 10:20:30:40:50 | tiny.net/hot       | 		300000  		|
  * | 8035   | Libre    | Fijo     | DE:AD:BE:EF:00 | hot.dog/ups        | 		400507		 	|
@@ -144,6 +144,22 @@ void vamp_detect_expired(void);
 /** @brief Retornar el indice del dispositivo inactivo más antiguo o 
  * 	VAMP_MAX_DEVICES si no hay dispositivos inactivos */
 uint8_t vamp_get_oldest_inactive(void);
+
+/* --------------------- Funciones tabla VAMP -------------------- */
+
+/** @brief Obtener número de dispositivos activos en la tabla */
+uint8_t vamp_get_device_count(void);
+
+/** @brief Obtener entrada de la tabla por índice
+ * @param index Índice del dispositivo (0-31)
+ * @return Puntero a la entrada o NULL si índice inválido */
+const vamp_entry_t* vamp_get_table_entry(uint8_t index);
+
+/** @brief Obtener estado legible de un dispositivo */
+const char* vamp_get_status_string(uint8_t status);
+
+/** @brief Obtener tipo legible de un dispositivo */
+const char* vamp_get_type_string(uint8_t type);
 
 /* --------------------- Funciones ID compacto -------------------- */
 uint8_t vamp_generate_id_byte(const uint8_t index);

@@ -706,6 +706,63 @@ bool vamp_get_wsn(void) {
 	}
 
 	return true; // Procesamiento exitoso
+}
 
+/* --------------------- Funciones públicas tabla VAMP -------------------- */
 
+/** @brief Obtener número de dispositivos activos en la tabla */
+uint8_t vamp_get_device_count(void) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < VAMP_MAX_DEVICES; i++) {
+        if (vamp_table[i].status != VAMP_DEV_STATUS_FREE) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/** @brief Obtener entrada de la tabla por índice */
+const vamp_entry_t* vamp_get_table_entry(uint8_t index) {
+    if (index >= VAMP_MAX_DEVICES) {
+        return NULL;
+    }
+    
+    // Solo retornar entradas no libres
+    if (vamp_table[index].status == VAMP_DEV_STATUS_FREE) {
+        return NULL;
+    }
+    
+    return &vamp_table[index];
+}
+
+/** @brief Obtener estado legible de un dispositivo */
+const char* vamp_get_status_string(uint8_t status) {
+    switch (status) {
+        case VAMP_DEV_STATUS_FREE:
+            return "Free";
+        case VAMP_DEV_STATUS_INACTIVE:
+            return "Inactive";
+        case VAMP_DEV_STATUS_ACTIVE:
+            return "Active";
+        case VAMP_DEV_STATUS_ADDED:
+            return "Added";
+        case VAMP_DEV_STATUS_CACHE:
+            return "Cache";
+        default:
+            return "Unknown";
+    }
+}
+
+/** @brief Obtener tipo legible de un dispositivo */
+const char* vamp_get_type_string(uint8_t type) {
+    switch (type) {
+        case VAMP_DEV_TYPE_FIXED:
+            return "Fixed";
+        case VAMP_DEV_TYPE_DYNAMIC:
+            return "Dynamic";
+        case VAMP_DEV_TYPE_AUTO:
+            return "Auto";
+        default:
+            return "Unknown";
+    }
 }
