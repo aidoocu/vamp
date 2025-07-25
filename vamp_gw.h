@@ -53,7 +53,7 @@
 typedef struct {
   uint8_t port;                                    // Puerto NAT calculado (8000 + verification * 32 + index)
   uint8_t status;                                   // Estado: 
-  uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto
+  uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
   uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
   char endpoint_resource[VAMP_ENDPOINT_MAX_LEN];    // URL del endpoint del dispositivo
   time_t last_activity;                           	// Timestamp de última actividad

@@ -532,7 +532,7 @@ bool vamp_process_sync_response(const char* csv_data) {
 
 	/* 	Procesar cada línea, que tiene la forma: 
 		rf_id,action,type,resource'\n' */
-	while (csv_ptr != NULL) {
+	while (csv_ptr[0] != '\0' && csv_ptr != NULL) {
 
 		/* Si viene de un ciclo anterior hay que saltar el '\n' */
 		if (csv_ptr[0] == '\n') {
@@ -545,7 +545,6 @@ bool vamp_process_sync_response(const char* csv_data) {
 		char rf_id_hex[VAMP_ADDR_LEN * 2 + 1]; // 10 caracteres + '\0'
 		memcpy(rf_id_hex, csv_ptr, VAMP_ADDR_LEN * 2);
 		rf_id_hex[VAMP_ADDR_LEN * 2] = '\0'; // Asegurar terminación
-
 
 		Serial.printf("RF_ID recibido: %s\n", rf_id_hex);
 
@@ -563,7 +562,8 @@ bool vamp_process_sync_response(const char* csv_data) {
 			// Buscar slot libre y asignar
 			uint8_t table_index = vamp_add_device(rf_id);
 
-			/* Si se encontró un slot libre se asigna el estado de cache */
+			/* Si se encontró un slot libre y se pudo adicionar el dispositivo se asigna 
+			el estado de cache */
 			if (table_index < VAMP_MAX_DEVICES) {
 
 				/* Asignar el estado de cache */
@@ -611,8 +611,9 @@ bool vamp_process_sync_response(const char* csv_data) {
 				} /* Si fuera NULL el while lo vera arriba */
 
 			} else {
-				/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
-				csv_ptr = strchr(csv_ptr, '\n');
+				/* Si ya no hay más slots libre pues nada que hacer */
+				Serial.println("No hay slots libres para agregar el dispositivo");
+				return false;
 			}
 
 		/* Si el ACTION es REMOVE */	
@@ -809,12 +810,14 @@ const char* vamp_get_status_string(uint8_t status) {
 /** @brief Obtener tipo legible de un dispositivo */
 const char* vamp_get_type_string(uint8_t type) {
     switch (type) {
-        case VAMP_DEV_TYPE_FIXED:
-            return "Fixed";
-        case VAMP_DEV_TYPE_DYNAMIC:
-            return "Dynamic";
-        case VAMP_DEV_TYPE_AUTO:
-            return "Auto";
+        case 0: // Fijo
+            return "Fijo";
+        case 1: // Dinámico
+            return "Dinámico";
+        case 2: // Automático
+            return "Automático";
+        case 3: // Huérfano
+            return "Huérfano";
         default:
             return "Unknown";
     }
