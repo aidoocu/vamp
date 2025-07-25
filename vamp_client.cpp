@@ -16,6 +16,9 @@
 /* Dirección MAC del gateway por defecto, direccion de broadcast */
 static uint8_t dst_mac[VAMP_ADDR_LEN] = VAMP_BROADCAST_ADDR;
 
+/* Dirección MAC local del cliente */
+static uint8_t local_id[VAMP_ADDR_LEN];
+
 /* Contador de reintentos para detectar pérdida de conexión con gateway */
 static uint8_t send_failure_count = 0;
 #define MAX_SEND_FAILURES 3  // Máximo de fallos consecutivos antes de re-join
@@ -28,6 +31,17 @@ static void vamp_reset_connection(void) {
     }
     send_failure_count = 0;
 }
+
+
+void vamp_local_client_init(const uint8_t * vamp_client_id) {
+    /* Copiar el ID del cliente a la dirección local */
+    memcpy(local_id, vamp_client_id, VAMP_ADDR_LEN);
+
+    /* Buscar la red VAMP */
+    vamp_join_network();
+
+}
+
 
 bool vamp_send_data(const uint8_t * data, uint8_t len) {
     // Verificar que los datos no sean nulos y esten dentro del rango permitido

@@ -11,6 +11,12 @@
 #include "vamp.h"
 
 
+/** @brief Initialize local VAMP client
+ * 
+ * @param vamp_client_id Pointer to the VAMP client ID
+ */
+void vamp_local_client_init(const uint8_t * vamp_client_id);
+
 
 // Si se se quiere validar si un mensaje es de tipo VAMP
 //bool is_vamp_message(const uint8_t *data, size_t length);

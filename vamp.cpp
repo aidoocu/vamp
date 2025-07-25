@@ -28,6 +28,15 @@ void vamp_gw_sync(void) {
     vamp_detect_expired();
 }
 
+/* -------------------------------------- Client -------------------------------------- */
+
+void vamp_client_init(const uint8_t * vamp_client_id) {
+
+    /* Se inicializa el cliente VAMP */
+    vamp_local_client_init(vamp_client_id);
+
+}
+
 /* -------------------------------------- WSN -------------------------------------- */
 
 void vamp_ask_wsn(void) {
