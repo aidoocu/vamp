@@ -196,6 +196,26 @@ void vamp_local_gw_init(vamp_internet_callback_t vamp_internet_callback, vamp_ws
 
 bool vamp_get_wsn(void);
 
+/* --------------------- Funciones públicas para web server -------------------- */
+
+/** @brief Obtener timestamp de la última sincronización */
+const char* vamp_get_last_sync_timestamp(void);
+
+/** @brief Obtener número de dispositivos activos en la tabla */
+uint8_t vamp_get_device_count(void);
+
+/** @brief Obtener entrada de la tabla por índice */
+const vamp_entry_t* vamp_get_table_entry(uint8_t index);
+
+/** @brief Obtener estado legible de un dispositivo */
+const char* vamp_get_status_string(uint8_t status);
+
+/** @brief Obtener tipo legible de un dispositivo */
+const char* vamp_get_type_string(uint8_t type);
+
+/** @brief Verificar si la tabla ha sido inicializada */
+bool vamp_is_table_initialized(void);
+
 
 
 

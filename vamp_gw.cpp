@@ -128,6 +128,8 @@ void vamp_table_update() {
 			return;
 		}
 
+		/* !!!! Aqui hay un problema y es que si falla los datos mas abajo, ya no se puede recuperar el timestamp
+		y queda actualizado, hay que tener cuidado con eso !!!!! */
 		/* Extraer el timestamp de la respuesta */
 		sync_resp = sync_resp + strlen(VAMP_TIMESTAMP) + 1; // +1 para saltar el espacio después del prefijo
 		if (!vamp_get_timestamp(sync_resp)) {
@@ -472,8 +474,6 @@ bool vamp_get_timestamp(char * timestamp) {
 		return false;
 	}
 
-	Serial.printf("Timestamp recibido: %s\n", timestamp);
-
 	// Encontrar el final del timestamp (siguiente espacio o final de línea o cadena)
 	char * timestamp_end = strchr(timestamp, ' ');
 	if (!timestamp_end) {
@@ -484,8 +484,6 @@ bool vamp_get_timestamp(char * timestamp) {
 	}
 
 	uint8_t timestamp_length = strlen(VAMP_TABLE_INIT_TSMP); // Longitud esperada del timestamp
-
-	Serial.printf("Timestamp length esperado: %d\n, actual: %d\n", timestamp_length, timestamp_end - timestamp);
 
 	if (timestamp_end - timestamp != timestamp_length) {
 		Serial.printf("Timestamp inválido en la respuesta VREG: %s\n", timestamp);
@@ -498,7 +496,7 @@ bool vamp_get_timestamp(char * timestamp) {
 	last_table_update[timestamp_length] = '\0'; // Asegurar el null-terminator
 
 
-	Serial.printf("Timestamp actualizado: %s\n", last_table_update);
+	Serial.printf("updated at: %s\n", last_table_update);
 
 	return true;
 }
@@ -557,7 +555,7 @@ bool vamp_process_sync_response(const char* csv_data) {
 			return false;
 		}
 		
-		csv_ptr += 11; // Saltar el campo rf_id y la coma
+		csv_ptr = csv_ptr + (VAMP_ADDR_LEN * 2 + 1); // Saltar el campo rf_id y la coma
 
 		/* Si el ACTION es ADD */
 		if (!strncmp(csv_ptr, "ADD", 3)){
@@ -590,7 +588,10 @@ bool vamp_process_sync_response(const char* csv_data) {
 				/* y como ahora lo que viene es el resource hasta el final de la línea
 				hay que buscar ese final que puede ser un '\n' o final del buffer 
 				(csv_ptr = NULL) */
-				char* end_ptr = strchr(csv_ptr, '\n');
+				char * end_ptr = strchr(csv_ptr, '\n');
+				if (!end_ptr) {
+					end_ptr = strchr(csv_ptr, '\0'); // Buscar el final del buffer
+				}
 
 				if (end_ptr) {
 
@@ -639,7 +640,7 @@ bool vamp_process_sync_response(const char* csv_data) {
 				csv_ptr += 2; 
 				
 				/* Buscar el final de la línea o del buffer */
-				char* end_ptr = strchr(csv_ptr, '\n');
+				char * end_ptr = strchr(csv_ptr, '\n');
 				if (!end_ptr) {
 					end_ptr = strchr(csv_ptr, '\0'); // Buscar el final del buffer
 				}
@@ -751,6 +752,16 @@ bool vamp_get_wsn(void) {
 }
 
 /* --------------------- Funciones públicas tabla VAMP -------------------- */
+
+/** @brief Obtener timestamp de la última sincronización */
+const char* vamp_get_last_sync_timestamp(void) {
+    return last_table_update;
+}
+
+/** @brief Verificar si la tabla ha sido inicializada */
+bool vamp_is_table_initialized(void) {
+    return strcmp(last_table_update, VAMP_TABLE_INIT_TSMP) != 0;
+}
 
 /** @brief Obtener número de dispositivos activos en la tabla */
 uint8_t vamp_get_device_count(void) {
