@@ -115,7 +115,8 @@ void vamp_table_update() {
 		}
 		/* sync --error <error> */
 		if (strstr(sync_resp, VAMP_ERROR)){
-			Serial.printf("Error en la sincronización VREG: %s\n", sync_resp);
+			Serial.print("Error en la sincronización VREG: ");
+			Serial.println(sync_resp);
 			return;
 		}
 
@@ -142,7 +143,8 @@ void vamp_table_update() {
 		//if (line_count_str) {
 		//	line_count_str += strlen(VAMP_DEV_COUNT) + 1; // Saltar el prefijo
 		//	uint8_t line_count = atoi(line_count_str);
-		//	Serial.printf("Cantidad de líneas en la respuesta: %d\n", line_count);
+		//	Serial.print("Cantidad de líneas en la respuesta: ");
+		//	Serial.println(line_count);
 		//}
 
 		/* Procesar la respuesta CSV (--data <csv_data>) */
@@ -161,7 +163,8 @@ void vamp_table_update() {
 
 			sync_resp++;
 			
-			Serial.printf("Datos CSV recibidos: '\n'%s\n", sync_resp);
+			Serial.print("Datos CSV recibidos: '\n'");
+			Serial.println(sync_resp);
 
 			/* Extraer los datos CSV de la respuesta */
 			if (vamp_process_sync_response(sync_resp)) {
@@ -201,7 +204,8 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	snprintf(req_resp_internet_buff, sizeof(req_resp_internet_buff), 
 		"%s %s %s %s %s", VAMP_GET_NODE, VAMP_GATEWAY_ID, vamp_gw_id, VAMP_NODE_ID, node_id);
 
-	Serial.printf("Enviando %s\n", req_resp_internet_buff);
+	Serial.print("Enviando ");
+	Serial.println(req_resp_internet_buff);
 
 	// Enviar request usando TELL y recibir respuesta
 	if (internet_comm_callback(vamp_vreg_resource, VAMP_TELL, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
@@ -486,7 +490,8 @@ bool vamp_get_timestamp(char * timestamp) {
 	uint8_t timestamp_length = strlen(VAMP_TABLE_INIT_TSMP); // Longitud esperada del timestamp
 
 	if (timestamp_end - timestamp != timestamp_length) {
-		Serial.printf("Timestamp inválido en la respuesta VREG: %s\n", timestamp);
+		Serial.print("Timestamp inválido en la respuesta VREG: ");
+		Serial.println(timestamp);
 		return false;
 	}
 
@@ -496,7 +501,8 @@ bool vamp_get_timestamp(char * timestamp) {
 	last_table_update[timestamp_length] = '\0'; // Asegurar el null-terminator
 
 
-	Serial.printf("updated at: %s\n", last_table_update);
+	Serial.print("updated at: ");
+	Serial.println(last_table_update);
 
 	return true;
 }
@@ -546,7 +552,8 @@ bool vamp_process_sync_response(const char* csv_data) {
 		memcpy(rf_id_hex, csv_ptr, VAMP_ADDR_LEN * 2);
 		rf_id_hex[VAMP_ADDR_LEN * 2] = '\0'; // Asegurar terminación
 
-		Serial.printf("RF_ID recibido: %s\n", rf_id_hex);
+		Serial.print("RF_ID recibido: ");
+		Serial.println(rf_id_hex);
 
 		/* convertir a RF_ID */
 		if(!hex_to_rf_id(rf_id_hex, rf_id)) {
@@ -714,7 +721,8 @@ bool vamp_get_wsn(void) {
 						return false; // Error al obtener el dispositivo
 					}
 
-					Serial.printf("Dispositivo encontrado en VREG, index: %d\n", table_index);
+					Serial.print("Dispositivo encontrado en VREG, index: ");
+					Serial.println(table_index);
 
 					/* Formamos la respuesta para el nodo solicitante */
 					wsn_buffer[0] = VAMP_JOIN_ACK;
@@ -742,7 +750,8 @@ bool vamp_get_wsn(void) {
 				break;
 			default:
 				/* Comando desconocido */
-				Serial.printf("Comando desconocido: %02X\n", wsn_buffer[0]);
+				Serial.print("Comando desconocido: 0x");
+				Serial.println(wsn_buffer[0], HEX);
 				break;
 		}
 
