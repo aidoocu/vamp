@@ -61,16 +61,17 @@ typedef struct {
 } vamp_entry_t;
 
 /* Type */
-#define VAMP_DEV_TYPE_FIXED		0x00
-#define VAMP_DEV_TYPE_DYNAMIC	0x01
-#define VAMP_DEV_TYPE_AUTO		0x02
+#define VAMP_DEV_TYPE_FIXED		'0'
+#define VAMP_DEV_TYPE_DYNAMIC	'1'
+#define VAMP_DEV_TYPE_AUTO		'2'
+#define VAMP_DEV_TYPE_ORPHAN	'3'
 
 /* Status */
-#define VAMP_DEV_STATUS_FREE		0x01
+#define VAMP_DEV_STATUS_FREE		  0x01
 #define VAMP_DEV_STATUS_INACTIVE	0x02
 #define VAMP_DEV_STATUS_ACTIVE		0x03
-#define VAMP_DEV_STATUS_ADDED		0x04
-#define VAMP_DEV_STATUS_CACHE		0x05
+#define VAMP_DEV_STATUS_ADDED		  0x04
+#define VAMP_DEV_STATUS_CACHE		  0x05
 
 // Configuración de tablas y direccionamiento
 #define VAMP_MAX_DEVICES 32          // Máximo número de dispositivos (5 bits)
@@ -99,7 +100,7 @@ typedef struct {
 */
 #define VAMP_GW_SYNC		        "sync"		// Sincronización con el VREG
 #define VAMP_GET_NODE 	        "get_node"    	  // Obtener nodo VREG
-#define VAMP_SET_NODE 	    "set_node"    	  // Establecer nodo VREG
+#define VAMP_SET_NODE 	        "set_node"    	  // Establecer nodo VREG
 
 /* Opciones */
 #define VAMP_GATEWAY_ID        "--gateway"        // ID del gateway
@@ -171,6 +172,7 @@ bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id);
 void rf_id_to_hex(const uint8_t* rf_id, char* hex_str);
 bool vamp_is_rf_id_valid(const uint8_t * rf_id);
 bool vamp_process_sync_response(const char* csv_data);
+bool vamp_get_timestamp(char * timestamp);
 
 /** 
  * @brief Initialize VAMP system with callback and server configuration

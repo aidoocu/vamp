@@ -87,13 +87,14 @@ void vamp_table_update() {
 		
 		Serial.println("Tabla VAMP inicializada localmente");
 	}
-    
-	Serial.println("Sincronizando tabla VAMP con servidor VREG...");
-	
+    	
 	// formamos la cadena de sincronización como un comando
 	// el formato es: "sync --gateway gateway_id --last_time last_update"
 	snprintf(req_resp_internet_buff, sizeof(req_resp_internet_buff), 
 		"%s %s %s %s %s", VAMP_GW_SYNC, VAMP_GATEWAY_ID, vamp_gw_id, VAMP_TIMESTAMP, last_table_update);
+
+	Serial.print("Sync:");
+	Serial.println(req_resp_internet_buff);
 
 	// Enviar request usando TELL y recibir respuesta
 	if (internet_comm_callback(vamp_vreg_resource, VAMP_TELL, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
@@ -118,45 +119,21 @@ void vamp_table_update() {
 			return;
 		}
 
-		
-		/* Si llegamos aquí, la respuesta es válida y contiene datos CSV */
-		Serial.println("Respuesta VREG válida, procesando datos CSV...");
-
 		/* sync --timestamp <timestamp> --data <csv_data> */
 
 		/* --timestamp <timestamp> */
-		char* timestamp_start = strstr(sync_resp, VAMP_TIMESTAMP);
-		if (!timestamp_start) {
-			Serial.printf("Error: No se encontró timestamp en la respuesta VREG: %s\n", sync_resp);
+		sync_resp = strstr(sync_resp, VAMP_TIMESTAMP);
+		if (!sync_resp) {
+			Serial.println("No se encontró timestamp en la respuesta VREG");
 			return;
 		}
 
-		/* Mover el puntero al inicio del valor del timestamp (después de "--timestamp ") */
-		timestamp_start += strlen(VAMP_TIMESTAMP) + 1; // +1 para saltar el espacio
-
-		/* Encontrar el final del timestamp (siguiente espacio o final de línea) */
-		char* timestamp_end = strchr(timestamp_start, ' ');
-		if (!timestamp_end) {
-			timestamp_end = strchr(timestamp_start, '\n');
-			if (!timestamp_end) {
-				timestamp_end = timestamp_start + strlen(timestamp_start);
-			}
-		}
-
-		/* Calcular la longitud del timestamp y validar */
-		size_t timestamp_len = timestamp_end - timestamp_start;
-		size_t max_timestamp_len = sizeof(last_table_update) - 1;
-		
-		if (timestamp_len > max_timestamp_len) {
-			Serial.printf("Error: Timestamp demasiado largo (%zu > %zu)\n", timestamp_len, max_timestamp_len);
+		/* Extraer el timestamp de la respuesta */
+		sync_resp = sync_resp + strlen(VAMP_TIMESTAMP) + 1; // +1 para saltar el espacio después del prefijo
+		if (!vamp_get_timestamp(sync_resp)) {
+			Serial.println("Error extrayendo timestamp de la respuesta VREG");
 			return;
 		}
-
-		/* Extraer el timestamp de forma segura */
-		memcpy(last_table_update, timestamp_start, timestamp_len);
-		last_table_update[timestamp_len] = '\0'; // Asegurar el null-terminator
-		//vamp_validate_timestamp(last_table_update); OJO HACER!!!!!
-		Serial.printf("Tabla VAMP sincronizada, última actualización: %s\n", last_table_update);
 
 		/* Ahora deberia venir un campo con la cantidad de lineas */
 		//char* line_count_str = strstr(req_resp_internet_buff, VAMP_DEV_COUNT);
@@ -172,7 +149,17 @@ void vamp_table_update() {
 
 			/* Mover el puntero al inicio de los datos CSV,
 			+1 para saltar el espacio después del prefijo */
-			sync_resp = sync_resp + strlen(VAMP_DATA) + 1;
+			sync_resp = sync_resp + strlen(VAMP_DATA);
+
+			/* Despues de --data'\n<csv_data> para enfatizar que son datos CSV */
+			if (*sync_resp != '\n') {
+				Serial.println("Error: No se encontró valor de --data en la respuesta VREG");
+				return;
+			}
+
+			sync_resp++;
+			
+			Serial.printf("Datos CSV recibidos: '\n'%s\n", sync_resp);
 
 			/* Extraer los datos CSV de la respuesta */
 			if (vamp_process_sync_response(sync_resp)) {
@@ -478,6 +465,45 @@ void rf_id_to_hex(const uint8_t * rf_id, char * hex_str) {
 }
 
 
+bool vamp_get_timestamp(char * timestamp) {
+
+	if (!timestamp) {
+		Serial.println("Error: No se encontró timestamp en la respuesta VREG");
+		return false;
+	}
+
+	Serial.printf("Timestamp recibido: %s\n", timestamp);
+
+	// Encontrar el final del timestamp (siguiente espacio o final de línea o cadena)
+	char * timestamp_end = strchr(timestamp, ' ');
+	if (!timestamp_end) {
+		timestamp_end = strchr(timestamp, '\n');
+		if (!timestamp_end) {
+			timestamp_end = timestamp + strlen(timestamp);
+		}
+	}
+
+	uint8_t timestamp_length = strlen(VAMP_TABLE_INIT_TSMP); // Longitud esperada del timestamp
+
+	Serial.printf("Timestamp length esperado: %d\n, actual: %d\n", timestamp_length, timestamp_end - timestamp);
+
+	if (timestamp_end - timestamp != timestamp_length) {
+		Serial.printf("Timestamp inválido en la respuesta VREG: %s\n", timestamp);
+		return false;
+	}
+
+	//vamp_validate_timestamp(timestamp); // Validar el timestamp
+
+	memcpy(last_table_update, timestamp, timestamp_length);
+	last_table_update[timestamp_length] = '\0'; // Asegurar el null-terminator
+
+
+	Serial.printf("Timestamp actualizado: %s\n", last_table_update);
+
+	return true;
+}
+
+
 /** 
  * Process the synchronization response from VREG.
  * El buffer contiene la respuesta que debe tener el formato:
@@ -517,8 +543,16 @@ bool vamp_process_sync_response(const char* csv_data) {
 
 		/* El primer campo son 10 bytes con la direccion en HEX
 			que se traduciran a 5 bytes de RF_ID */
-		uint8_t rf_id[5];	
-		if(!hex_to_rf_id(csv_ptr, rf_id)) {
+		uint8_t rf_id[5];
+		char rf_id_hex[VAMP_ADDR_LEN * 2 + 1]; // 10 caracteres + '\0'
+		memcpy(rf_id_hex, csv_ptr, VAMP_ADDR_LEN * 2);
+		rf_id_hex[VAMP_ADDR_LEN * 2] = '\0'; // Asegurar terminación
+
+
+		Serial.printf("RF_ID recibido: %s\n", rf_id_hex);
+
+		/* convertir a RF_ID */
+		if(!hex_to_rf_id(rf_id_hex, rf_id)) {
 			Serial.println("RF_ID inválido en la respuesta VREG");
 			return false;
 		}
@@ -540,9 +574,17 @@ bool vamp_process_sync_response(const char* csv_data) {
 				/* Saltar "ADD," */
 				csv_ptr += 4;
 
-				/* Poner el type */
-				vamp_table[table_index].type = atoi(csv_ptr);
-				
+				/* Poner el type que puede ser '0' - '3' (0x30 - 0x33)
+				(fijo, dinámico, auto, huérfano)*/
+				if( 0x30 <= csv_ptr[0] && csv_ptr[0] <= 0x33) { 
+					/* Si es un número, convertir ASCII a entero */
+					vamp_table[table_index].type = ((uint8_t)csv_ptr[0] - 0x30);
+				}
+				else {
+					Serial.println("Tipo inválido en la respuesta VREG");
+					return false; // Error en el tipo
+				}
+
 				/* Saltar el tipo y la coma, e. g "2,", */
 				csv_ptr += 2; 
 				/* y como ahora lo que viene es el resource hasta el final de la línea
