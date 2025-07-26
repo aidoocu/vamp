@@ -686,8 +686,13 @@ bool vamp_get_wsn(void) {
 	uint8_t data_recv = wsn_comm_callback(NULL, VAMP_ASK, wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
 
 	if (data_recv == 0) {
-		Serial.println("No se recibieron datos WSN");
 		return false; // No hay datos disponibles
+	}
+
+	Serial.print("Datos WSN recibidos: ");
+	for (int i = 0; i < data_recv; i++) {
+		Serial.print(wsn_buffer[i], HEX);
+		Serial.print(" ");
 	}
 
 	/* Verificar si es de datos o de comando */
