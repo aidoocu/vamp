@@ -100,7 +100,7 @@ bool vamp_send_data(const uint8_t * data, uint8_t len) {
 	}
 
 	/*  Enviar el mensaje */    
-	payload_len = wsn_comm_callback(gw_rf_id, VAMP_TELL, req_resp_wsn_buff, payload_len);
+	//payload_len = wsn_comm_callback(gw_rf_id, VAMP_TELL, req_resp_wsn_buff, payload_len);
 	
 	if (payload_len == 0) {
 		/* Si el envío falla, incrementar contador de fallos */
@@ -176,7 +176,7 @@ bool vamp_join_network(void) {
 	/*  Enviar mensaje de unión al gateway */
 	payload_len = wsn_comm_callback(gw_rf_id, VAMP_TELL, req_resp_wsn_buff, payload_len);
 	/* El mensaje recibido debe ser un JOIN_ACK (0x82) + ID_IN_GW (1 byte) + dirección del gateway (5 bytes) */
-	if (!payload_len || req_resp_wsn_buff[0] != VAMP_JOIN_ACK || payload_len < (2 + VAMP_ADDR_LEN)) {
+	if ((!payload_len) || (req_resp_wsn_buff[0] != (VAMP_JOIN_ACK | VAMP_IS_CMD_MASK)) || (payload_len != (2 + VAMP_ADDR_LEN))) {
 		Serial.println("Error al enviar JOIN_REQ o respuesta inválida");
 		return false;
 	}
@@ -198,6 +198,17 @@ bool vamp_join_network(void) {
 			return false;
 		}
 	}
+
+	Serial.print("Unión exitosa, ID en gateway: ");
+	Serial.print(id_in_gateway, HEX);
+	Serial.print(", Dirección del gateway: ");
+	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+		Serial.print(gw_rf_id[i], HEX);
+		if (i < VAMP_ADDR_LEN - 1) {
+			Serial.print(":");
+		}
+	}
+	Serial.println();
 
 	/* Resetear contador de fallos ya que tenemos nueva conexión */
 	send_failure_count = 0;
