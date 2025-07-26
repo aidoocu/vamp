@@ -263,37 +263,6 @@ uint8_t vamp_generate_id_byte(const uint8_t table_index) {
 }
 
 
-
-/** ????? @todo hay que definir algun elemento que no sea correcto como una direccion nula
- 00:00:00:00:00 o de broadcast o ... */
-bool vamp_is_rf_id_valid(const uint8_t * rf_id) {
-	// Verificar que el RF_ID no sea NULL y tenga la longitud correcta
-	if (rf_id == NULL) {
-		return false;
-	}
-	
-	if (rf_id[0] == 0 && rf_id[1] == 0 && rf_id[2] == 0 &&
-	    rf_id[3] == 0 && rf_id[4] == 0) {
-		return false; // RF_ID nulo
-	}
-
-	if (rf_id[0] == 0xFF && rf_id[1] == 0xFF && rf_id[2] == 0xFF &&
-	    rf_id[3] == 0xFF && rf_id[4] == 0xFF) {
-		return false; // RF_ID de broadcast
-	}
-
-	return true;
-}
-
-
-
-
-
-
-
-
-
-
 /* Funciones de tabla */
 
 /* Buscar dispositivo por RF_ID */

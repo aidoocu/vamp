@@ -15,7 +15,7 @@
  * 
  * @param vamp_client_id Pointer to the VAMP client ID
  */
-void vamp_local_client_init(const uint8_t * vamp_client_id);
+void vamp_local_client_init(const uint8_t * vamp_client_id, vamp_wsn_callback_t wsn_callback);
 
 
 // Si se se quiere validar si un mensaje es de tipo VAMP

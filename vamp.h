@@ -39,6 +39,9 @@
 /* Dirección de broadcast para VAMP */
 #define VAMP_BROADCAST_ADDR {0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
+/* Tiempo de espera por una respuesta */
+#define VAMP_ANSW_TIMEOUT 1000
+
 /** Client Message types (datos/comandos)
  * Se utiliza un solo byte para tanto identificar el tipo de mensaje como 
  * para el tamaño del mensaje teniendo en cuenta que el tamaño máximo del 
@@ -104,7 +107,7 @@ typedef bool (* vamp_internet_callback_t)(const char * endpoint, uint8_t method,
  * @return If mode is VAMP_TELL, returns 1 on success, 0 on failure.
  *         If mode is VAMP_ASK, returns amount of data received, 0 means no data received.
  */
-typedef uint8_t (* vamp_wsn_callback_t)(const char * rf_id, uint8_t mode, uint8_t * data, size_t len);
+typedef uint8_t (* vamp_wsn_callback_t)(uint8_t * rf_id, uint8_t mode, uint8_t * data, size_t len);
 
 /**
  * @brief Initialize VAMP system with callback and server configuration
@@ -129,13 +132,28 @@ void vamp_gw_sync(void);
  * 
  * @param vamp_client_id Pointer to the VAMP client ID (RF_ID) to be used for communication.
  */
-void vamp_client_init(const uint8_t * vamp_client_id);
+void vamp_client_init(const uint8_t * vamp_client_id, vamp_wsn_callback_t wsn_callback);
 
 /** 
  * @brief Verificar si algun dispositivo VAMP nos contactó
  *  Esta función se encarga de verificar si algún dispositivo VAMP nos ha contactado
  *  y, en caso afirmativo, procesa la solicitud.
  */
-void vamp_ask_wsn(void);
+void vamp_gw_wsn(void);
+
+
+bool vamp_wsn_send(uint8_t * data, uint8_t data_len);
+
+
+/** @brief Check if the RF_ID is valid
+ * 
+ * This function checks if the given RF_ID is valid.
+ * A valid RF_ID should not be NULL, should not be a broadcast address (0xFF...),
+ * and should not be a null address (0x00...).
+ * 
+ * @param rf_id Pointer to the RF_ID to check
+ * @return true if the RF_ID is valid, false otherwise
+ */
+bool vamp_is_rf_id_valid(const uint8_t * rf_id);
 
 #endif // _VAMP_H_
