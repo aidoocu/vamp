@@ -255,7 +255,7 @@ uint8_t vamp_generate_id_byte(const uint8_t table_index) {
 
 	/** Generar verificación del puerto a partir del numero que ya este
 		en el slot del indice para evitar que sea el mismo */
-	uint8_t check_bits = VAMP_GET_VERIFICATION(vamp_table[table_index].port);
+	uint8_t check_bits = VAMP_GET_VERIFICATION(vamp_table[table_index].wsn_id);
 	check_bits++; // Aumentar para evitar que sea el mismo
 
 	// Generar ID byte: 3 bits de verificación + 5 bits de índice
@@ -320,7 +320,7 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		// Reemplazar el sensor inactivo más antiguo
 		vamp_clear_entry(table_index);
 		memcpy(vamp_table[table_index].rf_id, rf_id, VAMP_ADDR_LEN);
-		vamp_table[table_index].port = vamp_generate_id_byte(table_index);
+		vamp_table[table_index].wsn_id = vamp_generate_id_byte(table_index);
 		vamp_table[table_index].status = VAMP_DEV_STATUS_ADDED;
 		vamp_table[table_index].last_activity = millis();
 	}
@@ -705,8 +705,19 @@ bool vamp_get_wsn(void) {
 						wsn_buffer[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
 					}
 					/* Reportamos al nodo solicitante */
-					wsn_comm_callback(NULL, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN);
+					wsn_comm_callback(vamp_table[table_index].rf_id, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN);
 
+				} else {
+					Serial.print("Dispositivo encontrado en cache, index: ");
+					Serial.println(vamp_table[table_index].wsn_id);
+
+					/* Formamos la respuesta para el nodo solicitante */
+					/* El comando JOIN_ACK es 0x02, byte completo es 0x82 */
+					wsn_buffer[0] = VAMP_JOIN_ACK | VAMP_IS_CMD_MASK;
+					/*  */
+					wsn_buffer[1] = vamp_table[table_index].wsn_id; // Asignar el ID del nodo WSN
+					/* Reportamos al nodo solicitante */
+					wsn_comm_callback(vamp_table[table_index].rf_id, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN);
 				}
 
 				break;

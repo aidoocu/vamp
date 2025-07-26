@@ -51,7 +51,7 @@
  * el dispositivo con solo un byte de ID compacto.
  */
 typedef struct {
-  uint8_t port;                                    // Puerto NAT calculado (8000 + verification * 32 + index)
+  uint8_t wsn_id;                                     // Puerto NAT calculado (8000 + verification * 32 + index)
   uint8_t status;                                   // Estado: 
   uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
   uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
