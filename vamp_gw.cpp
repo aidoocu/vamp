@@ -714,10 +714,17 @@ bool vamp_get_wsn(void) {
 					/* Formamos la respuesta para el nodo solicitante */
 					/* El comando JOIN_ACK es 0x02, byte completo es 0x82 */
 					wsn_buffer[0] = VAMP_JOIN_ACK | VAMP_IS_CMD_MASK;
-					/*  */
+					/* Enviar el identificador del nodo WSN en el gateway */
 					wsn_buffer[1] = vamp_table[table_index].wsn_id; // Asignar el ID del nodo WSN
+					/* Asignar el ID del gateway */
+					for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+						wsn_buffer[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
+					}
 					/* Reportamos al nodo solicitante */
-					wsn_comm_callback(vamp_table[table_index].rf_id, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN);
+					if (wsn_comm_callback(vamp_table[table_index].rf_id, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN)) {
+						vamp_table[table_index].status = VAMP_DEV_STATUS_ACTIVE; // Marcar como activo
+						vamp_table[table_index].last_activity = millis(); // Actualizar última actividad
+					} 
 				}
 
 				break;
