@@ -9,6 +9,9 @@
 #include "vamp_client.h"
 #include "vamp_callbacks.h"
 
+/** @todo hay que establecer algun control para cuando alguna de las interfaces 
+ * 	no esten disponibles */
+
 /* -------------------------------------- Gateway -------------------------------------- */
 
 /* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
@@ -45,11 +48,12 @@ void vamp_gw_sync(void) {
 
 void vamp_client_init(uint8_t * vamp_client_id) {
 
+	/* El modo de radio RMODE_A esta por defecto */
+
+
 	/* Inicializar la comunicación WSN */
-	if (!vamp_wsn_init(vamp_client_id)) {
-		Serial.println("wsn init fail");
-		return;
-	}
+	vamp_wsn_init(vamp_client_id);
+
 
  	Serial.println("vclient id:");
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
@@ -89,5 +93,3 @@ bool vamp_is_rf_id_valid(const uint8_t * rf_id) {
 
 	return true;
 }
-
-

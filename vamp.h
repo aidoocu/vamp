@@ -111,11 +111,7 @@ void vamp_gw_sync(void);
  * 
  * @param vamp_client_id Pointer to the VAMP client ID (RF_ID) to be used for communication.
  */
-void vamp_client_init(const uint8_t * vamp_client_id);
-
-
-/* WSN */
-bool vamp_wsn_send(uint8_t * data, uint8_t data_len);
+void vamp_client_init(uint8_t * vamp_client_id);
 
 
 /** @brief Check if the RF_ID is valid
