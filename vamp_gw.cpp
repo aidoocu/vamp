@@ -678,7 +678,7 @@ bool vamp_gw_wsn(void) {
 					Serial.println(table_index);
 
 					/* Formamos la respuesta para el nodo solicitante */
-					wsn_buffer[0] = VAMP_JOIN_ACK;
+					wsn_buffer[0] = VAMP_JOIN_ACK | VAMP_IS_CMD_MASK;
 					wsn_buffer[1] = table_index;
 					for (int i = 0; i < VAMP_ADDR_LEN; i++) {
 						wsn_buffer[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
