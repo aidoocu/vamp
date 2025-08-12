@@ -190,8 +190,6 @@ bool nrf_tell(uint8_t * dst_addr, size_t len) {
 
 uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 
-	//Serial.println("NRF24L01 comm");
-
 	/* Verificar que el chip está conectado */
 	if (!wsn_radio.isChipConnected()) {
 		Serial.println("rf24 out");
@@ -235,9 +233,34 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 
 		} else {
 			// Modo bajo consumo, esperamos respuesta
+
+			memcpy(wsn_buff, data, len);
+
+			Serial.print("A enviar: ");
+			for (uint8_t i = 0; i < len; i++) {
+				Serial.print(wsn_buff[i], HEX);
+				if (i < len - 1) {
+					Serial.print(":");
+				}
+			}
+			Serial.println();
+
 			if (nrf_tell(dst_addr, len)) {
 				// Esperar respuesta
-				return nrf_listen_window();
+				
+				Serial.print("R ");
+				Serial.print(nrf_listen_window());
+				Serial.print(" : ");
+				for (uint8_t i = 0; i < len; i++) {
+					Serial.print(wsn_buff[i], HEX);
+					if (i < len - 1) {
+						Serial.print(":");
+					}
+				}
+				Serial.println();
+				
+				
+				//return nrf_listen_window();
 			}
 		}
 	}

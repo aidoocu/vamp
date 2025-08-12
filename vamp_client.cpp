@@ -28,6 +28,31 @@ static uint8_t send_failure_count = 0;
 static uint8_t req_resp_wsn_buff[VAMP_MAX_PAYLOAD_SIZE];
 
 
+void vamp_client_init(uint8_t * vamp_client_id) {
+
+	/* El modo de radio RMODE_A esta por defecto */
+
+
+	/* Inicializar la comunicación WSN */
+	vamp_wsn_init(vamp_client_id);
+
+
+ 	Serial.println("vclient id:");
+	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
+	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+		Serial.print(local_wsn_addr[i], HEX);
+		if (i < VAMP_ADDR_LEN - 1) {
+			Serial.print(":");
+		}
+	}
+	Serial.println();
+
+    /* Se intenta unir a la red VAMP */
+    vamp_join_network();
+
+}
+
+
 /* Función para resetear la conexión con el gateway */
 void vamp_reset_connection(void) {
 	/* Resetear dirección del gateway a broadcast */
@@ -64,6 +89,9 @@ bool vamp_join_network(void) {
 		return true; // Ya está unido, no es necesario volver a unirse
 	}
 
+	/* Resetear la conexión */
+	vamp_reset_connection();
+
 	uint8_t payload_len = 0;
 
 	/*  Pseudoencabezado: T=1 (comando), Comando ID=0x01 (JOIN_REQ) = 0x81 */
@@ -83,9 +111,6 @@ bool vamp_join_network(void) {
 		}
 	}
 	Serial.println();
-
-	/* Resetear la conexión */
-	vamp_reset_connection();
 
 	/*  Enviar mensaje de unión al gateway */
 	payload_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);

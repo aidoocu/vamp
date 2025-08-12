@@ -44,31 +44,6 @@ void vamp_gw_sync(void) {
     vamp_detect_expired();
 }
 
-/* -------------------------------------- Client -------------------------------------- */
-
-void vamp_client_init(uint8_t * vamp_client_id) {
-
-	/* El modo de radio RMODE_A esta por defecto */
-
-
-	/* Inicializar la comunicación WSN */
-	vamp_wsn_init(vamp_client_id);
-
-
- 	Serial.println("vclient id:");
-	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
-	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-		Serial.print(local_wsn_addr[i], HEX);
-		if (i < VAMP_ADDR_LEN - 1) {
-			Serial.print(":");
-		}
-	}
-	Serial.println();
-
-    /* Se intenta unir a la red VAMP */
-    vamp_join_network();
-
-}
 /* -------------------------------------- WSN -------------------------------------- */
 
 
