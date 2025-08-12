@@ -20,6 +20,10 @@
 
 #include <Arduino.h>
 
+#define VAMP_RMODE_A 0b00000001 // Modo low power A
+#define VAMP_RMODE_B 0b00000010 // Modo always listen B
+
+
 #ifndef VAMP_ADDR_LEN
 #define VAMP_ADDR_LEN 5
 #endif // VAMP_ADDR_LEN
@@ -38,6 +42,7 @@
 
 /* Dirección de broadcast para VAMP */
 #define VAMP_BROADCAST_ADDR {0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+#define VAMP_NULL_ADDR {0x00, 0x00, 0x00, 0x00, 0x00}
 
 /* Tiempo de espera por una respuesta */
 #define VAMP_ANSW_TIMEOUT 1000
@@ -62,6 +67,8 @@
 #define VAMP_JOIN_ACK       0x02
 #define VAMP_PING           0x03
 #define VAMP_PONG           0x04
+#define VAMP_POLL           0x05
+#define VAMP_ACK            0x06
 
 /*  Largo que deberian tener cada uno de los mensajes de comando para poder 
     verificarlos */
@@ -79,45 +86,17 @@
  *  - VAMP_TELL: Método de respuesta, utilizado para enviar información o recursos.
  *              Equivalente a HTTP POST, MQTT PUBLISH o radio WRITE.
  */
-#define VAMP_ASK    0
-#define VAMP_TELL   1
-
-/** @brief Callback function type for internet communication with VREG
- * 
- * The callback should send the data using the specified  method and return the response.
- * 
- * @param endpoint VREG endpoint resource (e.g., "vreg.example.com/sync")
- * @param method HTTP method: VAMP_ASK or VAMP_TELL
- * @param data Buffer containing request data or response data (modified by function)
- * @param data_size Size of data buffer
- * @return bool true on success, false on failure
- */
-typedef bool (* vamp_internet_callback_t)(const char * endpoint, uint8_t method, char * data, size_t data_size);
-
-
-/** @brief Callback function type for radio communication
- * 
- * Radio-specific callback that handles communication with devices over the radio.
- * The callback should send the data using the specified method and return true on success.
- * 
- * @param rf_id RF_ID of the device to communicate with
- * @param mode mode: VAMP_ASK or VAMP_TELL
- * @param data Buffer containing request data or response data
- * @param len Length of data buffer
- * @return If mode is VAMP_TELL, returns 1 on success, 0 on failure.
- *         If mode is VAMP_ASK, returns amount of data received, 0 means no data received.
- */
-typedef uint8_t (* vamp_wsn_callback_t)(uint8_t * rf_id, uint8_t mode, uint8_t * data, size_t len);
+#define VAMP_ASK    0x00
+#define VAMP_TELL   0x01
 
 /**
  * @brief Initialize VAMP system with callback and server configuration
  * 
- * @param vamp_internet_callback Callback function for internet communication
- * @param vamp_wsn_callback Callback function for WSN communication
  * @param vamp_vreg VREG server resource
  * @param vamp_gw_id Gateway ID string
+ * @param wsn_id local WSN ID (5 bytes)
  */
-void vamp_gw_init(vamp_internet_callback_t vamp_internet_callback, vamp_wsn_callback_t vamp_wsn_callback, const char * vamp_vreg_url, const char * vamp_gw_id);
+void vamp_gw_init(char * vamp_vreg_url, char * vamp_gw_id, uint8_t * wsn_id);
 
 /**
  * @brief Synchronize VAMP gateway with VREG server
@@ -132,16 +111,10 @@ void vamp_gw_sync(void);
  * 
  * @param vamp_client_id Pointer to the VAMP client ID (RF_ID) to be used for communication.
  */
-void vamp_client_init(const uint8_t * vamp_client_id, vamp_wsn_callback_t wsn_callback);
-
-/** 
- * @brief Verificar si algun dispositivo VAMP nos contactó
- *  Esta función se encarga de verificar si algún dispositivo VAMP nos ha contactado
- *  y, en caso afirmativo, procesa la solicitud.
- */
-void vamp_gw_wsn(void);
+void vamp_client_init(const uint8_t * vamp_client_id);
 
 
+/* WSN */
 bool vamp_wsn_send(uint8_t * data, uint8_t data_len);
 
 

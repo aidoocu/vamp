@@ -5,6 +5,7 @@
  * 
  */
 #include "vamp_gw.h"
+#include "vamp_callbacks.h"
 
 // Tabla unificada VAMP (NAT + Device + Session)
 static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];
@@ -23,81 +24,58 @@ static char req_resp_internet_buff[1024];
 // Contadores globales
 //static uint8_t vamp_device_count = 0;
 
-/* ========================== Callbacks =========================== */
-
-/* Callback para comunicación http */
-
-static vamp_internet_callback_t internet_comm_callback = NULL;
-static vamp_wsn_callback_t wsn_comm_callback = NULL;
-
-
-/* ======================== Inicialización ======================== */
-
-/** @brief Initialize VAMP Gateway module */
-void vamp_local_gw_init(vamp_internet_callback_t internet_callback, vamp_wsn_callback_t wsn_callback, const char * vamp_vreg, const char * vamp_gw) {
-
-	/* Verificar que los parámetros son válidos */
-	if (vamp_vreg == NULL || vamp_gw == NULL || 
-	    strlen(vamp_vreg) >= VAMP_ENDPOINT_MAX_LEN || 
-	    strlen(vamp_gw) >= VAMP_GW_ID_MAX_LEN) {
-
-		vamp_vreg_resource[0] = '\0'; // Limpiar recurso
-		vamp_gw_id[0] = '\0'; // Limpiar ID de gateway
-		
-		Serial.println("Parámetros no válidos");
-
-		return;
-	}
-	sprintf(vamp_vreg_resource, "%s", vamp_vreg);
-	sprintf(vamp_gw_id, "%s", vamp_gw);
-
-	internet_comm_callback = internet_callback;
-	wsn_comm_callback = wsn_callback;
-	Serial.println("Callbacks comm registrados");
-
-	return;
-}
-
 
 // ======================== FUNCIONES VAMP TABLES ========================
+
+void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
+
+
+	/* Verificar que los parámetros son válidos */
+	if (vreg_url == NULL || gw_id == NULL || 
+	    strlen(vreg_url) >= VAMP_ENDPOINT_MAX_LEN || 
+	    strlen(gw_id) >= VAMP_GW_ID_MAX_LEN) {
+
+		/* Limpiar recursos */
+		vamp_vreg_resource[0] = '\0';
+		vamp_gw_id[0] = '\0';
+		
+		return;
+	}
+	sprintf(vamp_vreg_resource, "%s", vreg_url);
+	sprintf(vamp_gw_id, "%s", gw_id);
+}
+
 
 
 // Inicializar todas las tablas VAMP con sincronización VREG
 void vamp_table_update() {
 
-	// Verificar si los parámetros son válidos
-	if (vamp_vreg_resource == NULL || vamp_gw_id == NULL) {
-		Serial.println("Parámetros no válidos");
+	/* Verificar que los valores de los recursos no estén vacíos */
+	if (vamp_vreg_resource[0] == '\0' || vamp_gw_id[0] == '\0') {
+		Serial.println("no gw resources defined");
 		return;
 	}
 
-	// Ver cuando se actualizó la tabla por última vez
+	/* Ver cuando se actualizó la tabla por última vez */
 	if(!strcmp(last_table_update, VAMP_TABLE_INIT_TSMP)) {
 		// La tabla no ha sido inicializada
-		Serial.println("Tabla VAMP no inicializada, inicializando...");
+		Serial.println("init vamp table");
 
-		// Inicializar tabla unificada VAMP
-		// Solo necesitamos verificar/setear el status, el resto se inicializa cuando se asigna
+		/* Inicializar la tabla VAMP */
 		for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
 			vamp_table[i].status = VAMP_DEV_STATUS_FREE;
 		}
-		
-		// Resetear contadores
-		//vamp_device_count = 0;
-		
-		Serial.println("Tabla VAMP inicializada localmente");
 	}
-    	
-	// formamos la cadena de sincronización como un comando
-	// el formato es: "sync --gateway gateway_id --last_time last_update"
+	/*	 Formar la cadena de sincronización como un comando
+	  	"sync --gateway gateway_id --last_time last_update"*/
 	snprintf(req_resp_internet_buff, sizeof(req_resp_internet_buff), 
 		"%s %s %s %s %s", VAMP_GW_SYNC, VAMP_GATEWAY_ID, vamp_gw_id, VAMP_TIMESTAMP, last_table_update);
 
-	Serial.print("Sync:");
+	Serial.print("cmd: ");
 	Serial.println(req_resp_internet_buff);
 
-	// Enviar request usando TELL y recibir respuesta
-	if (internet_comm_callback(vamp_vreg_resource, VAMP_TELL, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
+	/* Enviar request usando TELL y recibir respuesta */
+	if (vamp_iface_comm(vamp_vreg_resource, req_resp_internet_buff, strlen(req_resp_internet_buff))) {
 
 		/* Primero hay que revisar se la respuesta es válida, mirando si contiene el prefijo esperado */
 		/* sync */
@@ -208,7 +186,7 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	Serial.println(req_resp_internet_buff);
 
 	// Enviar request usando TELL y recibir respuesta
-	if (internet_comm_callback(vamp_vreg_resource, VAMP_TELL, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
+	if (vamp_iface_comm(vamp_vreg_resource, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
 
 		/* Primero hay que revisar se la respuesta es válida, mirando si contiene el prefijo esperado */
 		if (!strstr(req_resp_internet_buff, VAMP_GET_NODE)){
@@ -348,7 +326,7 @@ void vamp_detect_expired() {
   // Limpiar tabla unificada VAMP
   for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
     if (vamp_table[i].status == VAMP_DEV_STATUS_ACTIVE) {
-      // Verificar timeout de dispositivo
+      // Verificar timeout de dispositivo (que pasa cuando se desborda el millis()?????)
       if (current_time - vamp_table[i].last_activity > VAMP_DEVICE_TIMEOUT) {
         vamp_table[i].status = VAMP_DEV_STATUS_INACTIVE;
       }
@@ -649,10 +627,10 @@ bool vamp_process_sync_response(const char* csv_data) {
 static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 
 
-bool vamp_get_wsn(void) {
+bool vamp_gw_wsn(void) {
 
     /* Extraer el mensaje de la interface via callback */
-	uint8_t data_recv = wsn_comm_callback(NULL, VAMP_ASK, wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
+	uint8_t data_recv = vamp_wsn_comm(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
 
 	if (data_recv == 0) {
 		return false; // No hay datos disponibles
@@ -661,8 +639,9 @@ bool vamp_get_wsn(void) {
 	Serial.print("Datos WSN recibidos: ");
 	for (int i = 0; i < data_recv; i++) {
 		Serial.print(wsn_buffer[i], HEX);
-		Serial.print(" ");
+		Serial.print(':');
 	}
+	Serial.println();
 
 	/* Verificar si es de datos o de comando */
 	if (VAMP_WSN_IS_COMMAND(wsn_buffer)) {
@@ -705,7 +684,7 @@ bool vamp_get_wsn(void) {
 						wsn_buffer[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
 					}
 					/* Reportamos al nodo solicitante */
-					wsn_comm_callback(vamp_table[table_index].rf_id, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN);
+					vamp_wsn_comm(vamp_table[table_index].rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN);
 
 				} else {
 					Serial.print("Dispositivo encontrado en cache, index: ");
@@ -721,7 +700,7 @@ bool vamp_get_wsn(void) {
 						wsn_buffer[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
 					}
 					/* Reportamos al nodo solicitante */
-					if (wsn_comm_callback(vamp_table[table_index].rf_id, VAMP_TELL, wsn_buffer, 2 + VAMP_ADDR_LEN)) {
+					if (vamp_wsn_comm(vamp_table[table_index].rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN)) {
 						vamp_table[table_index].status = VAMP_DEV_STATUS_ACTIVE; // Marcar como activo
 						vamp_table[table_index].last_activity = millis(); // Actualizar última actividad
 					} 

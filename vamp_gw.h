@@ -1,16 +1,16 @@
 /**
-    * @file vamp_gw.h
-    * @brief VAMP Gateway - Virtual Address Mapping Protocol Gateway
-    * @version 1.0
-    * @date 2025-07-15
-    * @author Bernardo Yaser León Ávila
-    * 
-    * 
-    * 
-    * This file contains the definitions and declarations for the VAMP Gateway,
-    * which acts as a bridge between VAMP devices and the internet.
-    * The VAMP Gateway is responsible for managing the VAMP table,
-    * handling communication with VREG, and facilitating data exchange
+		* @file vamp_gw.h
+		* @brief VAMP Gateway - Virtual Address Mapping Protocol Gateway
+		* @version 1.0
+		* @date 2025-07-15
+		* @author Bernardo Yaser León Ávila
+		* 
+		* 
+		* 
+		* This file contains the definitions and declarations for the VAMP Gateway,
+		* which acts as a bridge between VAMP devices and the internet.
+		* The VAMP Gateway is responsible for managing the VAMP table,
+		* handling communication with VREG, and facilitating data exchange
  */
 
 
@@ -51,13 +51,13 @@
  * el dispositivo con solo un byte de ID compacto.
  */
 typedef struct {
-  uint8_t wsn_id;                                     // Puerto NAT calculado (8000 + verification * 32 + index)
-  uint8_t status;                                   // Estado: 
-  uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
-  uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
-  char endpoint_resource[VAMP_ENDPOINT_MAX_LEN];    // URL del endpoint del dispositivo
-  uint32_t last_activity;                           // Timestamp de última actividad en millis()
-  //uint32_t join_time;                             // Timestamp de cuando se unió
+	uint8_t wsn_id;                                     // Puerto NAT calculado (8000 + verification * 32 + index)
+	uint8_t status;                                   // Estado: 
+	uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
+	uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
+	char endpoint_resource[VAMP_ENDPOINT_MAX_LEN];    // URL del endpoint del dispositivo
+	uint32_t last_activity;                           // Timestamp de última actividad en millis()
+	//uint32_t join_time;                             // Timestamp de cuando se unió
 } vamp_entry_t;
 
 /* Type */
@@ -67,11 +67,11 @@ typedef struct {
 #define VAMP_DEV_TYPE_ORPHAN	'3'
 
 /* Status */
-#define VAMP_DEV_STATUS_FREE		  0x01
+#define VAMP_DEV_STATUS_FREE		0x01
 #define VAMP_DEV_STATUS_INACTIVE	0x02
 #define VAMP_DEV_STATUS_ACTIVE		0x03
-#define VAMP_DEV_STATUS_ADDED		  0x04
-#define VAMP_DEV_STATUS_CACHE		  0x05
+#define VAMP_DEV_STATUS_ADDED		0x04
+#define VAMP_DEV_STATUS_CACHE		0x05
 
 // Configuración de tablas y direccionamiento
 #define VAMP_MAX_DEVICES 32          // Máximo número de dispositivos (5 bits)
@@ -98,22 +98,22 @@ typedef struct {
 /** VREG Command types
 * Estos comandos se utilizan para la comunicación con el VREG (Virtual REGistry).
 */
-#define VAMP_GW_SYNC		        "sync"		// Sincronización con el VREG
-#define VAMP_GET_NODE 	        "get_node"    	  // Obtener nodo VREG
-#define VAMP_SET_NODE 	        "set_node"    	  // Establecer nodo VREG
+#define VAMP_GW_SYNC	 "sync"				// Sincronización con el VREG
+#define VAMP_GET_NODE	 "get_node"		// Obtener nodo VREG
+#define VAMP_SET_NODE	 "set_node"		// Establecer nodo VREG
 
 /* Opciones */
-#define VAMP_GATEWAY_ID        "--gateway"        // ID del gateway
-#define VAMP_TIMESTAMP         "--timestamp"      // Última actualización de la tabla VAMP
-#define VAMP_NODE_ID           "--node_rf_id"     // ID del nodo VREG
-#define VAMP_DEV_COUNT         "--device_count"   // Cantidad de dispositivos en la tabla VAMP
+#define VAMP_GATEWAY_ID	"--gateway"        // ID del gateway
+#define VAMP_TIMESTAMP	"--timestamp"      // Última actualización de la tabla VAMP
+#define VAMP_NODE_ID		"--node_rf_id"     // ID del nodo VREG
+#define VAMP_DEV_COUNT	"--device_count"   // Cantidad de dispositivos en la tabla VAMP
 
 /** VREG Response types
  * Respuestas del VREG (Virtual REGistry).
  */
-#define VAMP_DATA          "--data"              // Sincronización exitosa
-#define VAMP_UPDATED       "--updated"           // Tabla ya está actualizada
-#define VAMP_ERROR         "--error"             // Error en la sincronización
+#define VAMP_DATA   		"--data"			// Sincronización exitosa
+#define VAMP_UPDATED		"--updated"		// Tabla ya está actualizada
+#define VAMP_ERROR			"--error"			// Error en la sincronización
 
 
 
@@ -174,18 +174,6 @@ bool vamp_is_rf_id_valid(const uint8_t * rf_id);
 bool vamp_process_sync_response(const char* csv_data);
 bool vamp_get_timestamp(char * timestamp);
 
-/** 
- * @brief Initialize VAMP system with callback and server configuration
- * 
- * @param vamp_internet_callback Callback function for HTTP communication
- * @param vamp_wsn_callback Callback function for WSN communication
- * @param vamp_vreg VREG server resource
- * @param vamp_gw_id Gateway ID string
- */
-void vamp_local_gw_init(vamp_internet_callback_t vamp_internet_callback, vamp_wsn_callback_t vamp_wsn_callback, const char * vamp_vreg, const char * vamp_gw_id);
-
-
-
 
 /* ------------------- Gestion de mensajes WSN ------------------- */
 
@@ -194,7 +182,13 @@ void vamp_local_gw_init(vamp_internet_callback_t vamp_internet_callback, vamp_ws
 /* Aislar el comando */
 #define VAMP_WSN_GET_CMD(buffer) ((buffer)[0] & VAMP_WSN_CMD_MASK)
 
-bool vamp_get_wsn(void);
+
+/** 
+ * @brief Verificar si algun dispositivo VAMP nos contactó
+ *  Esta función se encarga de verificar si algún dispositivo VAMP nos ha contactado
+ *  y, en caso afirmativo, procesa la solicitud.
+ */
+bool vamp_gw_wsn(void);
 
 /* --------------------- Funciones públicas para web server -------------------- */
 
@@ -217,7 +211,11 @@ const char* vamp_get_type_string(uint8_t type);
 bool vamp_is_table_initialized(void);
 
 
-
+/** Inicializar el gateway VAMP con la configuración del servidor VREG
+ * @param vreg_url Recurso VREG
+ * @param gw_id ID del gateway
+*/
+void vamp_gw_vreg_init(char * vreg_url, char * gw_id);
 
 
 

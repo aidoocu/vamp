@@ -7,16 +7,29 @@
 #include "vamp.h"
 #include "vamp_gw.h"
 #include "vamp_client.h"
+#include "vamp_callbacks.h"
 
 /* -------------------------------------- Gateway -------------------------------------- */
 
-void vamp_gw_init(vamp_internet_callback_t vamp_internet_callback, vamp_wsn_callback_t vamp_wsn_callback, const char * vamp_vreg_url, const char * vamp_gw_id) {
+/* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
+void vamp_gw_init(char * vreg_url, char * gw_id, uint8_t * wsn_id) {
 
-    /* Se inicializa el gateway local */
-    vamp_local_gw_init(vamp_internet_callback, vamp_wsn_callback, vamp_vreg_url, vamp_gw_id);
+	/* Como es un gateway, siempre escucha por wsn RMODE_B */
+	vamp_set_settings(VAMP_RMODE_B);
+
+	/* Inicializar los recursos */
+	vamp_gw_vreg_init(vreg_url, gw_id);
+
+	/* Inicializar la comunicación con internet */
+	vamp_iface_init();
+
+	/* Inicializar la comunicación WSN */
+	vamp_wsn_init(wsn_id);
 
     /* Inicializar la tabla VAMP */
     vamp_table_update();
+
+	return;
 }
 
 void vamp_gw_sync(void) {
@@ -30,25 +43,30 @@ void vamp_gw_sync(void) {
 
 /* -------------------------------------- Client -------------------------------------- */
 
-void vamp_client_init(const uint8_t * vamp_client_id, vamp_wsn_callback_t wsn_comm_callback) {
+void vamp_client_init(uint8_t * vamp_client_id) {
 
-    /* Se inicializa el cliente VAMP */
-    vamp_local_client_init(vamp_client_id, wsn_comm_callback);
+	/* Inicializar la comunicación WSN */
+	if (!vamp_wsn_init(vamp_client_id)) {
+		Serial.println("wsn init fail");
+		return;
+	}
+
+ 	Serial.println("vclient id:");
+	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
+	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+		Serial.print(local_wsn_addr[i], HEX);
+		if (i < VAMP_ADDR_LEN - 1) {
+			Serial.print(":");
+		}
+	}
+	Serial.println();
+
+    /* Se intenta unir a la red VAMP */
+    vamp_join_network();
 
 }
-
 /* -------------------------------------- WSN -------------------------------------- */
 
-void vamp_gw_wsn(void) {
-
-    vamp_get_wsn();
-
-}
-
-
-bool vamp_wsn_send(uint8_t * data, uint8_t data_len) {
-    return vamp_send_data(data, data_len);
-}
 
 
 /** ????? @todo hay que definir algun elemento que no sea correcto como una direccion nula
@@ -71,3 +89,5 @@ bool vamp_is_rf_id_valid(const uint8_t * rf_id) {
 
 	return true;
 }
+
+

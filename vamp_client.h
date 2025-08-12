@@ -11,16 +11,6 @@
 #include "vamp.h"
 
 
-/** @brief Initialize local VAMP client
- * 
- * @param vamp_client_id Pointer to the VAMP client ID
- */
-void vamp_local_client_init(const uint8_t * vamp_client_id, vamp_wsn_callback_t wsn_callback);
-
-
-// Si se se quiere validar si un mensaje es de tipo VAMP
-//bool is_vamp_message(const uint8_t *data, size_t length);
-
 /** @brief Check if VAMP is joined
  * 
  * @return true if joined, false otherwise
@@ -45,9 +35,19 @@ bool vamp_force_rejoin(void);
  * 
  * @param data Pointer to the data to be sent
  * @param len Length of the data to be sent
- * @return bool true on success, false on failure
+ * @return  0 on failure, 
+ *          0 < return <= VAMP_MAX_PAYLOAD_SIZE data contained a msg from the gateway
+ *          > VAMP_MAX_PAYLOAD_SIZE (VAMP_MAX_PAYLOAD_SIZE + 1) success (just ACK)          
  */
-bool vamp_send_data(const uint8_t * data, uint8_t len);
+uint8_t vamp_client_send(const uint8_t * data, uint8_t len);
 
+/** @brief Polling gateway asking for data using VAMP
+ * 
+ * @param data Pointer to the buffer to store received data
+ * @param len Length of the buffer
+ * @return  0 on failure, 
+ *          0 < return <= VAMP_MAX_PAYLOAD_SIZE data contained a msg from the gateway
+ */
+uint8_t vamp_client_poll(uint8_t * data, uint8_t len);
 
 #endif // _VAMP_CLIENT_H_
