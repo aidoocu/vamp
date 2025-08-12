@@ -103,16 +103,6 @@ void vamp_gw_init(char * vamp_vreg_url, char * vamp_gw_id, uint8_t * wsn_id);
  */
 void vamp_gw_sync(void);
 
-/**
- * @brief Initialize VAMP client with VREG URL and gateway ID
- * 
- * This function initializes the VAMP client with the specified VREG URL and gateway ID.
- * It is used to set up the client for communication with the VREG server.
- * 
- * @param vamp_client_id Pointer to the VAMP client ID (RF_ID) to be used for communication.
- */
-void vamp_client_init(uint8_t * vamp_client_id);
-
 
 /** @brief Check if the RF_ID is valid
  * 
