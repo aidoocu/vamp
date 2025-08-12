@@ -308,6 +308,17 @@ uint8_t vamp_wsn_comm(uint8_t * data, size_t len) {
 /* ----------------------------- /wsn --------------------------------- */
 
 
+
+
+/* -----------------------------  ESP8266 --------------------------------- */
+
+#if defined(ARDUINO_ARCH_ESP8266)
+
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
+
+
 /* ----------------------------- WiFi --------------------------------- */
 
 // Configuración de IP Estática
@@ -330,14 +341,6 @@ IPAddress dns2(193, 254, 230, 2);             // DNS secundario (Google)
 #define HTTPS_USER_AGENT 	"VAMP-Gateway/1.0" // User agent para requests
 
 /* -----------------------------  /WiFi --------------------------------- */
-
-/* -----------------------------  ESP8266 --------------------------------- */
-
-#if defined(ARDUINO_ARCH_ESP8266)
-
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <WiFiClientSecure.h>
 
 
 /* Objetos globales para comunicación HTTPS (reutilizables) */
@@ -465,6 +468,8 @@ bool vamp_iface_init(void) {
 	return esp8266_init();
 	#endif // ARDUINO_ARCH_ESP8266
 
+	return 0;
+
 }
 
 /* Callback para comunicación con el servidor VREG */
@@ -478,6 +483,6 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	return esp8266_https(url, data, len);
 	#endif // ARDUINO_ARCH_ESP8266
 
-return 0; // Implementar la comunicación con el servidor VREG
+	return 0; // Implementar la comunicación con el servidor VREG
 
 }
