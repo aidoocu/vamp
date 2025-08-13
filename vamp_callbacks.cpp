@@ -103,14 +103,18 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin) {
 
 	if (wsn_radio.begin(ce_pin, csn_pin)) {
 		// Configuración mínima necesaria para funcionar
-		wsn_radio.enableDynamicPayloads(); // NECESARIO para getDynamicPayloadSize()
+		wsn_radio.enableDynamicPayloads(); 	// NECESARIO para getDynamicPayloadSize()
 		wsn_radio.disableAckPayload();		//esto hay que revisar que sea correcto
+		wsn_radio.enableDynamicAck();		// Habilitar ACK dinámico
 
 		/* ✅ Pipe 0 direccion local */
 		wsn_radio.openReadingPipe(0, local_wsn_addr);
 		/* ✅ Pipe 1 acepta dirección completa diferente (broadcast) */
 		uint8_t broadcast_addr[5] = VAMP_BROADCAST_ADDR;
-		wsn_radio.openReadingPipe(1, broadcast_addr); // Pipe para broadcast
+		wsn_radio.openReadingPipe(1, broadcast_addr);
+		
+		wsn_radio.setAutoAck(1, false);
+		wsn_radio.flush_rx(); 				// Limpiar buffer de recepción
 
 		Serial.println("NRF24 ready");
 
@@ -152,9 +156,17 @@ uint8_t nrf_ask(void) {
 	return bytes_read; // Éxito al recibir datos
 }
 
+/** 
+ * Escuchar en una ventana por si hay alguna solicitud o un simple ACK
+ * @return 	Número de bytes leídos si hay datos disponibles, 
+ * 			0 en caso contrario
+ * 			VAMP_MAX_PAYLOAD_SIZE + 1 si se recibe un ACK
+ * @note	Esta función abre una ventana de escucha y espera por datos.
+ */
 uint8_t nrf_listen_window(void) {
 	
-	/* Escuchar en una ventana por si hay alguna solicitud o un simple ACK */
+	wsn_radio.powerUp();
+	wsn_radio.flush_rx();
 	wsn_radio.startListening();
 
 	uint8_t len = 0;
@@ -165,6 +177,7 @@ uint8_t nrf_listen_window(void) {
 	}
 
 	wsn_radio.stopListening();
+	wsn_radio.powerDown();
 
 	/* Si len == 1 probablemente se recibió un ACK */
 	if (len == 1) {
@@ -181,8 +194,12 @@ bool nrf_tell(uint8_t * dst_addr, size_t len) {
 	// Establecer dirección del pipe de escritura
 	wsn_radio.openWritingPipe(dst_addr);
 
+	/* Si es un broadcast no se puede esperar por un ACK, 
+	esto asi no parece muy eficiente, hay que cambiarlo */
+	bool is_broadcast = (memcmp(dst_addr, (const uint8_t[])VAMP_BROADCAST_ADDR, VAMP_ADDR_LEN) == 0);
+
 	// Enviar datos
-	if (!wsn_radio.write(wsn_buff, len)){
+	if (!wsn_radio.write(wsn_buff, len, is_broadcast)){
 		return false;
 	}
 	return true; // Éxito al enviar datos		
@@ -199,6 +216,7 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	/* Mode ASK */
 	if (!dst_addr) {
 
+		len = 0;
 		/* Si está en modo bajo consumo, hay que abrir una ventana de
 			escucha. Esto exige un mecanismo de sincronización que no es
 			parte de estas funciones */
@@ -208,64 +226,44 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 			// Modo siempre escucha, no hay que abrir ventana
 			len = nrf_ask();
 		}
-
 		if (len) {
 			/* Si se recibió un mensaje, copiarlo al buffer de datos */
 			memcpy(data, wsn_buff, len);
-
 		}
-
-		return len;
-
-	} 
-	/* Mode TELL */
-	else if (len) {
-
-		if(vamp_get_settings() & VAMP_RMODE_B) {
-			// Modo siempre escucha asi que que dejar de escuchar
-			wsn_radio.stopListening();
-			// Enviar datos
-			nrf_tell(dst_addr, len);
-			// Volver a escuchar
-			wsn_radio.startListening();
-
-			return 1; // Modo siempre escucha, datos enviados
-
-		} else {
-			// Modo bajo consumo, esperamos respuesta
-
-			memcpy(wsn_buff, data, len);
-
-			Serial.print("A enviar: ");
-			for (uint8_t i = 0; i < len; i++) {
-				Serial.print(wsn_buff[i], HEX);
-				if (i < len - 1) {
-					Serial.print(":");
-				}
-			}
-			Serial.println();
-
-			if (nrf_tell(dst_addr, len)) {
-				// Esperar respuesta
-				
-				Serial.print("R ");
-				Serial.print(nrf_listen_window());
-				Serial.print(" : ");
-				for (uint8_t i = 0; i < len; i++) {
-					Serial.print(wsn_buff[i], HEX);
-					if (i < len - 1) {
-						Serial.print(":");
-					}
-				}
-				Serial.println();
-				
-				
-				//return nrf_listen_window();
-			}
-		}
+	return len; // Retornar el número de bytes leídos
 	}
 
-	return 0; // Modo no soportado
+	/* Mode TELL */
+	if (len) {
+		/* Copiar datos al buffer de lectura/escritura */
+		memcpy(wsn_buff, data, len);
+
+		if(vamp_get_settings() & VAMP_RMODE_B) {
+			/* Modo siempre escucha asi que que dejar de escuchar */
+			wsn_radio.stopListening();
+			/* Enviar datos */
+			len = (uint8_t)nrf_tell(dst_addr, len);
+			/* Volver a escuchar */
+			wsn_radio.startListening();
+
+		} else {
+			/* Modo bajo consumo, esperamos respuesta */			
+			if (nrf_tell(dst_addr, len)) {
+				/* Si se envió correctamente, abrir ventana de escucha */
+				len = nrf_listen_window();
+
+				/* Si se recibió un mensaje se copia al buffer de datos */
+				if(len <= (VAMP_MAX_PAYLOAD_SIZE) && len > 0) {
+					memcpy(data, wsn_buff, len);
+				}
+				/* De lo contrario, o no se recibió un mensaje o se recibió un ACK */
+				return len;
+
+			}
+		}
+	return len;
+	}
+	return 0; // No se recibió ningún dato
 }
 
 
