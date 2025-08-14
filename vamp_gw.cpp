@@ -694,15 +694,6 @@ bool vamp_gw_wsn(void) {
 		return false; // No hay datos disponibles
 	}
 
-	#ifdef VAMP_DEBUG
-	Serial.print("Datos WSN recibidos: ");
-	for (int i = 0; i < data_recv; i++) {
-		Serial.print(wsn_buffer[i], HEX);
-		Serial.print(':');
-	}
-	Serial.println();
-	#endif /* VAMP_DEBUG */
-
 	/* Verificar si es de datos o de comando */
 	if (VAMP_WSN_IS_COMMAND(wsn_buffer)) {
 

@@ -22,7 +22,6 @@ static uint8_t id_in_gateway = 0;
 
 /* Contador de reintentos para detectar pérdida de conexión con gateway */
 static uint8_t send_failure_count = 0;
-#define MAX_SEND_FAILURES 3  // Máximo de fallos consecutivos antes de re-join
 
 /** @brief Buffer para almacenar datos de envío y recepción */
 static uint8_t req_resp_wsn_buff[VAMP_MAX_PAYLOAD_SIZE];
@@ -93,6 +92,11 @@ bool vamp_join_network(void) {
 	/* Resetear la conexión */
 	vamp_reset_connection();
 
+	#ifdef VAMP_DEBUG
+	Serial.print("GW? ");
+	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
+	#endif /* VAMP_DEBUG */
+
 	uint8_t payload_len = 0;
 
 	/*  Pseudoencabezado: T=1 (comando), Comando ID=0x01 (JOIN_REQ) = 0x81 */
@@ -105,14 +109,7 @@ bool vamp_join_network(void) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.print("Join message:");
-	for (int i = 0; i < payload_len; i++) {
-		Serial.print(req_resp_wsn_buff[i], HEX);
-		if (i < payload_len - 1) {
-			Serial.print(":");
-		}
-	}
-	Serial.println();
+	Serial.print("Joining");
 	#endif /* VAMP_DEBUG */
 
 	/*  Enviar mensaje de unión al gateway */
@@ -145,15 +142,7 @@ bool vamp_join_network(void) {
 
 	#ifdef VAMP_DEBUG
 	Serial.print("joined! GW: ");
-	Serial.print(id_in_gateway);
-	Serial.print("-");
-	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-		Serial.print(vamp_gw_addr[i], HEX);
-		if (i < VAMP_ADDR_LEN - 1) {
-			Serial.print(":");
-		}
-	}
-	Serial.println();
+	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
 
 	/* Resetear contador de fallos ya que tenemos nueva conexión */

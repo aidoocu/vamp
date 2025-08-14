@@ -33,6 +33,9 @@
 /** @brief Tiempo de espera por una respuesta */
 #define VAMP_ANSW_TIMEOUT 1000
 
+/** @brief   Máximo de fallos consecutivos antes de re-join */
+#define MAX_SEND_FAILURES 3
+
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
 #define VAMP_DEBUG
 
