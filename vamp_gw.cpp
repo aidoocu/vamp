@@ -759,7 +759,8 @@ bool vamp_gw_wsn(void) {
 					wsn_buffer[1] = vamp_table[table_index].wsn_id; // Asignar el ID del nodo WSN
 					/* Asignar el ID del gateway */
 					for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-						wsn_buffer[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
+						uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
+						wsn_buffer[i + 2] = (uint8_t)local_wsn_addr[i]; // Asignar el ID del gateway
 					}
 					/* Reportamos al nodo solicitante */
 					if (vamp_wsn_comm(vamp_table[table_index].rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN)) {
