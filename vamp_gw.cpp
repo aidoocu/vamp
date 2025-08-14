@@ -799,6 +799,57 @@ bool vamp_gw_wsn(void) {
 				break;
 		}
 
+	/* Si no es un comando, es un dato */
+	} else {
+
+		#ifdef VAMP_DEBUG
+		Serial.println("Datos recibidos del WSN");
+		#endif /* VAMP_DEBUG */
+
+		/* El primer byte indica la longitud de los datos recibidos */
+		uint8_t rec_len = wsn_buffer[0];
+
+		/* Verificar que la longitud es válida */
+		if (rec_len > VAMP_MAX_PAYLOAD_SIZE - 2 || rec_len == 0) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Longitud de datos inválida");
+			#endif /* VAMP_DEBUG */
+			return false; // Longitud inválida
+		}
+
+		/*  En el segundo byte se encuentra el ID del dispositivo
+		 	en la forma de: Formato del byte ID: [VVV][IIIII] */
+		vamp_entry_t * entry = &vamp_table[VAMP_GET_INDEX(wsn_buffer[1])];
+		/* Verificar que la verificación es correcta */
+		if (entry->wsn_id != wsn_buffer[1]) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Verificación de dispositivo fallida");
+			#endif /* VAMP_DEBUG */
+			return false; // Verificación fallida
+		}
+
+		/* Actualizar la última actividad del dispositivo */
+		entry->last_activity = millis();
+
+		#ifdef VAMP_DEBUG
+		Serial.print("dev: ");
+		Serial.print(entry->wsn_id);
+		Serial.print(" data: ");
+		vamp_debug_msg(&wsn_buffer[2], rec_len);
+		#endif /* VAMP_DEBUG */
+
+		/* Como la respuesta del servidor puede demorar y 
+		probablemente el mote no resuelva nada con ella
+		le respondemos y ack para que el mote sepa que 
+		al menos su tarea fue recibida */
+		uint8_t ack_buffer[1] = { VAMP_ACK | VAMP_IS_CMD_MASK };
+		vamp_wsn_comm(entry->rf_id, ack_buffer, 1);
+
+		/* Apuntar al inicio de los datos */
+		char * data = (char *)&wsn_buffer[2];
+
+		/* Enviar el contenido de la carga útil */
+		vamp_iface_comm(entry->endpoint_resource, data, rec_len);
 
 	}
 
