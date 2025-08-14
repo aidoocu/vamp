@@ -105,8 +105,8 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin) {
 	if (wsn_radio.begin(ce_pin, csn_pin)) {
 		// Configuración mínima necesaria para funcionar
 		wsn_radio.enableDynamicPayloads(); 	// NECESARIO para getDynamicPayloadSize()
-		wsn_radio.disableAckPayload();		//esto hay que revisar que sea correcto
-		wsn_radio.enableDynamicAck();		// Habilitar ACK dinámico
+		wsn_radio.disableAckPayload();		// Sin payload en ACKs
+		wsn_radio.setAutoAck(false);		// DESHABILITAR ACKs completamente
 
 		/* ✅ Pipe 0 direccion local */
 		wsn_radio.openReadingPipe(0, local_wsn_addr);
@@ -115,7 +115,7 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin) {
 		wsn_radio.openReadingPipe(1, broadcast_addr);
 		
 		wsn_radio.setAutoAck(1, false);
-		wsn_radio.flush_rx(); 				// Limpiar buffer de recepción
+		wsn_radio.flush_rx();
 
 		#ifdef VAMP_DEBUG
 		Serial.println("NRF24 ready");
@@ -170,7 +170,6 @@ uint8_t nrf_ask(void) {
  */
 uint8_t nrf_listen_window(void) {
 	
-	wsn_radio.powerUp();
 	wsn_radio.flush_rx();
 	wsn_radio.startListening();
 
@@ -182,7 +181,6 @@ uint8_t nrf_listen_window(void) {
 	}
 
 	wsn_radio.stopListening();
-	wsn_radio.powerDown();
 
 	/* Si len == 1 probablemente se recibió un ACK */
 	if (len == 1) {
@@ -195,22 +193,21 @@ uint8_t nrf_listen_window(void) {
 }
 
 bool nrf_tell(uint8_t * dst_addr, size_t len) {
-	
-	// Establecer dirección del pipe de escritura
+
 	wsn_radio.openWritingPipe(dst_addr);
 
-	/* Si es un broadcast no se puede esperar por un ACK, 
-	esto asi no parece muy eficiente, hay que cambiarlo */
-	bool is_broadcast = (memcmp(dst_addr, (const uint8_t[])VAMP_BROADCAST_ADDR, VAMP_ADDR_LEN) == 0);
+	Serial.print("TELL");
+	Serial.println(len);
 
 	// Enviar datos
-	if (!wsn_radio.write(wsn_buff, len, is_broadcast)){
+	if (!wsn_radio.write(wsn_buff, len)){  // Sin tercer parámetro = no ACK
+		Serial.println("TELL FAIL");
 		return false;
 	}
 	return true; // Éxito al enviar datos		
 }
 
-uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
+uint8_t nrf_comm(uint8_t * dst_addr, size_t len) {
 
 	/* Verificar que el chip está conectado */
 	if (!wsn_radio.isChipConnected()) {
@@ -228,23 +225,33 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 			escucha. Esto exige un mecanismo de sincronización que no es
 			parte de estas funciones */
 		if(vamp_get_settings() & VAMP_RMODE_A){
+			/* Encender el chip */
+			wsn_radio.powerUp();
+			/* ... abrir ventana de escucha */
 			len = nrf_listen_window();
+			/* Apagar el chip */
+			wsn_radio.powerDown();
 		} else {
 			// Modo siempre escucha, no hay que abrir ventana
 			len = nrf_ask();
 		}
-		if (len) {
-			/* Si se recibió un mensaje, copiarlo al buffer de datos */
-			memcpy(data, wsn_buff, len);
-		}
-	return len; // Retornar el número de bytes leídos
+
+		return len; // Retornar el número de bytes leídos
 	}
 
 	/* Mode TELL */
 	if (len) {
-		/* Copiar datos al buffer de lectura/escritura */
-		memcpy(wsn_buff, data, len);
 
+		/** @todo este mecanismo que parece logico tiene problemas, por ejemplo:
+		 * el ACK payload puede sustituir la ventana de escucha
+		 * que pasa cuando se envia sin esperar ACK?
+		 * hay que unificar las formas de respuestas de la funcion macro pues puede pasar:
+		 * ACK simple (sin payload)
+		 * ACK con payload
+		 * ACK con payload y ventana
+		 * No ACK
+		 * y esto no esta bien diferenciado
+		 */
 		if(vamp_get_settings() & VAMP_RMODE_B) {
 			/* Modo siempre escucha asi que que dejar de escuchar */
 			wsn_radio.stopListening();
@@ -253,28 +260,33 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 			/* Volver a escuchar */
 			wsn_radio.startListening();
 
-		} else {
-			/* Modo bajo consumo, esperamos respuesta */			
+			return len;
+
+		}
+
+		/* Modo bajo consumo, esperamos respuesta */
+		if (vamp_get_settings() & VAMP_RMODE_A) {
+
+			/* Encender el chip */
+			wsn_radio.powerUp();
 			if (nrf_tell(dst_addr, len)) {
 				/* Si se envió correctamente, abrir ventana de escucha */
 				len = nrf_listen_window();
-
-				/* Si se recibió un mensaje se copia al buffer de datos */
-				if(len <= (VAMP_MAX_PAYLOAD_SIZE) && len > 0) {
-					memcpy(data, wsn_buff, len);
-				}
-				/* De lo contrario, o no se recibió un mensaje o se recibió un ACK */
-				return len;
-
+			} else {
+				/* Si hubo un error al enviar, pues se retorna un 0 */
+				len = 0;
 			}
+			
+			/* Apagar el chip */
+			wsn_radio.powerDown();
+			return len; // Retornar el número de bytes leídos
 		}
-	return len;
 	}
-	return 0; // No se recibió ningún dato
+	return 0; //Aqui no se hizo nada porque no se cumplio ninguna de las condiciones
 }
 
 
-#endif
+#endif /* NRF24L01 */
 
 /* ----------------------------- /NRF24L01 ----------------------------- */
 
@@ -296,9 +308,9 @@ bool vamp_wsn_init(const uint8_t * wsn_addr) {
 	/* Copiar el ID del cliente a la dirección local */
 	memcpy(local_wsn_addr, wsn_addr, VAMP_ADDR_LEN);
 
-#ifdef RF24_AVAILABLE
+	#ifdef RF24_AVAILABLE
 	return nrf_init(wsn_ce_pin, wsn_csn_pin);
-#endif // RF24_AVAILABLE
+	#endif // RF24_AVAILABLE
 
 }
 
@@ -309,11 +321,32 @@ uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 		return 0;
 	}
 
+	/* Copiar datos al buffer de lectura/escritura */
+	memcpy(wsn_buff, data, len);
+
+	#ifdef VAMP_DEBUG
+	Serial.print("wsn tell: ");
+	vamp_debug_msg(wsn_buff, len);
+	#endif /* VAMP_DEBUG */
+
 	#ifdef RF24_AVAILABLE
-	return nrf_comm(dst_addr, data, len);
+	len = nrf_comm(dst_addr, len);
+	#else //#elif en caso de otras arquitecturas
+	len = 0; //y un else final por falta de soporte
 	#endif
-	
-	return 0;
+
+	/* Si se recibió un mensaje se copia al buffer de datos */
+	if(len <= (VAMP_MAX_PAYLOAD_SIZE) && len > 0) {
+		memcpy(data, wsn_buff, len);
+
+		#ifdef VAMP_DEBUG
+		Serial.print("wsn tell resp: ");
+		vamp_debug_msg(data, len);
+		#endif /* VAMP_DEBUG */
+
+	}
+	/* De lo contrario, o no se recibió un mensaje o se recibió un ACK */
+	return len;
 }
 
 /* Callback para ASK */
@@ -324,10 +357,22 @@ uint8_t vamp_wsn_comm(uint8_t * data, size_t len) {
 	}
 
 	#ifdef RF24_AVAILABLE
-	return nrf_comm(NULL, data, len);
+	len = nrf_comm(NULL, len);
+	#else //#elif en caso de otras arquitecturas
+	len = 0; //y un else final por falta de soporte
 	#endif
 
-	return 0;
+	if (len) {
+		/* Si se recibió un mensaje, copiarlo al buffer de datos */
+		memcpy(data, wsn_buff, len);
+
+		#ifdef VAMP_DEBUG
+		Serial.print("wsn ask: ");
+		vamp_debug_msg(data, len);
+		#endif /* VAMP_DEBUG */
+	}
+
+	return len;
 
 }
 

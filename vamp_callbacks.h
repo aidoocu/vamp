@@ -8,6 +8,7 @@
 #define VAMP_CALLBACKS_H
 
 #include <Arduino.h>
+#include "vamp_config.h"
 
 // Forward declarations to avoid circular dependencies
 // Only include what we absolutely need in the header
@@ -42,6 +43,10 @@ uint8_t vamp_get_settings(void);
 void vamp_set_settings(uint8_t settings);
 void vamp_add_settings(uint8_t settings);
 
+
+#ifdef VAMP_DEBUG
+void vamp_debug_msg(uint8_t * msg, uint8_t len);
+#endif /* VAMP_DEBUG */
 
 /* ---------------------------------- wsn ---------------------------------- */
 

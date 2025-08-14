@@ -38,13 +38,7 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 	#ifdef VAMP_DEBUG
  	Serial.println("vclient id:");
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
-	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-		Serial.print(local_wsn_addr[i], HEX);
-		if (i < VAMP_ADDR_LEN - 1) {
-			Serial.print(":");
-		}
-	}
-	Serial.println();
+	vamp_debug_msg(local_wsn_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
 	
     /* Se intenta unir a la red VAMP */
@@ -109,7 +103,7 @@ bool vamp_join_network(void) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.print("Joining");
+	Serial.println("Joining");
 	#endif /* VAMP_DEBUG */
 
 	/*  Enviar mensaje de unión al gateway */
