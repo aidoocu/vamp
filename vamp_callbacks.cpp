@@ -100,6 +100,10 @@ static uint8_t wsn_csn_pin = WSN_CSN_PIN;
 RF24 wsn_radio; // CE, CSN pins
 
 
+/** @todo HAY QUE IMPLEMENTARLO PARA QUE USE EL MECAMISMO DE ACK NATIVO DEL NRF24
+ * PUES ES MAS EFICIENTE ENERGETICAMENTE !!!!
+ */
+
 bool nrf_init(uint8_t ce_pin, uint8_t csn_pin) {
 
 	if (wsn_radio.begin(ce_pin, csn_pin)) {
@@ -332,7 +336,10 @@ uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	#endif
 
 	/* Si se recibió un mensaje se copia al buffer de datos */
-	if(len <= (VAMP_MAX_PAYLOAD_SIZE) && len > 0) {
+	/** @todo el 1 en el tamaño del payload significaria un ACK para el modo A
+	 * y un simplemente enviado en modo B, esto hay que implementarlo
+	 */
+	if(len <= (VAMP_MAX_PAYLOAD_SIZE) && len > 1) {
 		memcpy(data, wsn_buff, len);
 
 		#ifdef VAMP_DEBUG
