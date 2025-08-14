@@ -139,7 +139,7 @@ bool vamp_join_network(void) {
 	}
 
 	Serial.print("joined: ");
-	Serial.print(id_in_gateway, HEX);
+	Serial.print(id_in_gateway);
 	Serial.print("-");
 	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
 		Serial.print(vamp_gw_addr[i], HEX);
