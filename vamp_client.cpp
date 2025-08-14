@@ -36,7 +36,7 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(vamp_client_id);
 
-
+	#ifdef VAMP_DEBUG
  	Serial.println("vclient id:");
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
 	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
@@ -46,7 +46,8 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 		}
 	}
 	Serial.println();
-
+	#endif /* VAMP_DEBUG */
+	
     /* Se intenta unir a la red VAMP */
     vamp_join_network();
 
@@ -103,6 +104,7 @@ bool vamp_join_network(void) {
 		req_resp_wsn_buff[payload_len++] = local_wsn_addr[i];
 	}
 
+	#ifdef VAMP_DEBUG
 	Serial.print("Join message:");
 	for (int i = 0; i < payload_len; i++) {
 		Serial.print(req_resp_wsn_buff[i], HEX);
@@ -111,6 +113,7 @@ bool vamp_join_network(void) {
 		}
 	}
 	Serial.println();
+	#endif /* VAMP_DEBUG */
 
 	/*  Enviar mensaje de unión al gateway */
 	payload_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
@@ -129,7 +132,9 @@ bool vamp_join_network(void) {
 
 		/* Verificar que la dirección del gateway sea válida */
 		if (!vamp_is_rf_id_valid(vamp_gw_addr)) {
+			#ifdef VAMP_DEBUG
 			Serial.println("gw addr invalid");
+			#endif /* VAMP_DEBUG */
 
 			/* 	Resetear conexión si la dirección es inválida para mantener los chequeos
 				consistentes */
@@ -138,7 +143,8 @@ bool vamp_join_network(void) {
 		}
 	}
 
-	Serial.print("joined: ");
+	#ifdef VAMP_DEBUG
+	Serial.print("joined! GW: ");
 	Serial.print(id_in_gateway);
 	Serial.print("-");
 	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
@@ -148,6 +154,7 @@ bool vamp_join_network(void) {
 		}
 	}
 	Serial.println();
+	#endif /* VAMP_DEBUG */
 
 	/* Resetear contador de fallos ya que tenemos nueva conexión */
 	send_failure_count = 0;

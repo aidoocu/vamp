@@ -54,6 +54,7 @@ void vamp_set_gw_addr(uint8_t * addr){
 	memcpy(gw_wsn_addr, addr, VAMP_ADDR_LEN);
 } */
 
+#ifdef VAMP_DEBUG
 void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 	
 	for (uint8_t i = 0; i < len; i++) {
@@ -64,6 +65,7 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 	}
 	Serial.println();
 }
+#endif /* VAMP_DEBUG */
 
 /* ----------------------------- NRF24L01 ------------------------------ */
 
@@ -99,7 +101,6 @@ RF24 wsn_radio; // CE, CSN pins
 
 
 bool nrf_init(uint8_t ce_pin, uint8_t csn_pin) {
-	//Serial.println("Iniciando NRF24L01...");
 
 	if (wsn_radio.begin(ce_pin, csn_pin)) {
 		// Configuración mínima necesaria para funcionar
@@ -116,13 +117,17 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin) {
 		wsn_radio.setAutoAck(1, false);
 		wsn_radio.flush_rx(); 				// Limpiar buffer de recepción
 
+		#ifdef VAMP_DEBUG
 		Serial.println("NRF24 ready");
+		#endif /* VAMP_DEBUG */
 
 		/* Si es un gateway siempre debera estar escuchando */
 		if (vamp_get_settings() & VAMP_RMODE_B) {
 			// Modo siempre escucha
 			wsn_radio.startListening(); // Modo siempre escucha
+			#ifdef VAMP_DEBUG
 			Serial.println("and listening");
+			#endif /* VAMP_DEBUG */
 			return true; // Éxito - salir de la función
 		} 
 			
@@ -209,7 +214,9 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 
 	/* Verificar que el chip está conectado */
 	if (!wsn_radio.isChipConnected()) {
+		#ifdef VAMP_DEBUG
 		Serial.println("rf24 out");
+		#endif /* VAMP_DEBUG */
 		return 0;
 	}
 
@@ -380,20 +387,26 @@ bool esp8266_init(){
 	int timeout = WIFI_TIMEOUT;
 	while (WiFi.status() != WL_CONNECTED && timeout > 0) {
 		delay(1000);
+		#ifdef VAMP_DEBUG
 		Serial.print(".");
+		#endif /* VAMP_DEBUG */
 		timeout--;
 	}
 	
 	if (WiFi.status() == WL_CONNECTED) {
+		#ifdef VAMP_DEBUG
 		Serial.println();
 		Serial.print("WiFi conectado! IP: ");
 		Serial.println(WiFi.localIP());
 		Serial.println("WiFi inicializado correctamente");
+		#endif /* VAMP_DEBUG */
 		return true;
 	} else {
+		#ifdef VAMP_DEBUG
 		Serial.println();
 		Serial.println("Error: No se pudo conectar a WiFi");
 		Serial.println("Error al inicializar WiFi");
+		#endif /* VAMP_DEBUG */
 		return false;
 	}
 }
@@ -405,17 +418,20 @@ bool esp8266_check_conn() {
 	if (WiFi.status() == WL_CONNECTED) {
 		return true;
 	}
-	
-	// Si perdió la conexión, intentar reconectar
+	#ifdef VAMP_DEBUG
 	Serial.println("Conexión WiFi perdida, intentando reconectar...");
-
-	// Intentar reconectar usando esp8266_init()
+	#endif /* VAMP_DEBUG */
+	/* Intentar reconectar usando esp8266_init() */
 	esp8266_init();
 	if (WiFi.status() == WL_CONNECTED) {
+		#ifdef VAMP_DEBUG
 		Serial.println("Reconexión WiFi exitosa");
+		#endif /* VAMP_DEBUG */
 		return true;
 	} else {
+		#ifdef VAMP_DEBUG
 		Serial.println("Fallo en reconexión WiFi, reintentando en próximo ciclo");
+		#endif /* VAMP_DEBUG */
 		delay(RECONNECT_DELAY);
 		return false;
 	}
@@ -424,7 +440,9 @@ bool esp8266_check_conn() {
 // Función para enviar datos por HTTPS
 bool esp8266_https(const char* vamp_resource, char * data, size_t data_size) {
 	if (!esp8266_check_conn()) {
+		#ifdef VAMP_DEBUG
 		Serial.println("Error: WiFi no conectado");
+		#endif /* VAMP_DEBUG */
 		return false;
 	}
 	
@@ -454,19 +472,22 @@ bool esp8266_https(const char* vamp_resource, char * data, size_t data_size) {
 		// Copiar respuesta al buffer proporcionado
 		sprintf(data, "%s", response.c_str());
 
+		#ifdef VAMP_DEBUG
 		Serial.print("rspta de ");
 		Serial.print(vamp_resource);
 		Serial.print(" - Código: ");
 		Serial.println(httpResponseCode);
-
+		#endif /* VAMP_DEBUG */
 		https_http.end();
 		
 		return true; // Éxito
 	
 	} else {
+		#ifdef VAMP_DEBUG
 		Serial.print("Error en HTTPS ");
 		Serial.print(": ");
 		Serial.println(httpResponseCode);
+		#endif /* VAMP_DEBUG */
 		https_http.end(); // Cerrar conexión solo en caso de error
 		return false;
 	}

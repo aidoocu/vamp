@@ -8,11 +8,6 @@
  * * The VAMP protocol is designed to facilitate communication between the mote and a IP network.
  * 
  * 
- * 
- * 
- * 
- * 
- * 
  */
 
 #ifndef _VAMP_H_
@@ -20,32 +15,10 @@
 
 #include <Arduino.h>
 
+#include "vamp_config.h"
+
 #define VAMP_RMODE_A 0b00000001 // Modo low power A
 #define VAMP_RMODE_B 0b00000010 // Modo always listen B
-
-
-#ifndef VAMP_ADDR_LEN
-#define VAMP_ADDR_LEN 5
-#endif // VAMP_ADDR_LEN
-
-#ifndef VAMP_MAX_PAYLOAD_SIZE
-#define VAMP_MAX_PAYLOAD_SIZE 32
-#endif // VAMP_MAX_PAYLOAD_SIZE
-
-#ifndef VAMP_ENDPOINT_MAX_LEN
-#define VAMP_ENDPOINT_MAX_LEN 64
-#endif // VAMP_ENDPOINT_MAX_LEN
-
-#ifndef VAMP_GW_ID_MAX_LEN
-#define VAMP_GW_ID_MAX_LEN 16
-#endif // VAMP_GW_ID_MAX_LEN
-
-/* Dirección de broadcast para VAMP */
-#define VAMP_BROADCAST_ADDR {0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-#define VAMP_NULL_ADDR {0x00, 0x00, 0x00, 0x00, 0x00}
-
-/* Tiempo de espera por una respuesta */
-#define VAMP_ANSW_TIMEOUT 1000
 
 /** Client Message types (datos/comandos)
  * Se utiliza un solo byte para tanto identificar el tipo de mensaje como 
