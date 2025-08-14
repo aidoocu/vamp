@@ -196,12 +196,8 @@ bool nrf_tell(uint8_t * dst_addr, size_t len) {
 
 	wsn_radio.openWritingPipe(dst_addr);
 
-	Serial.print("TELL");
-	Serial.println(len);
-
 	// Enviar datos
 	if (!wsn_radio.write(wsn_buff, len)){  // Sin tercer parámetro = no ACK
-		Serial.println("TELL FAIL");
 		return false;
 	}
 	return true; // Éxito al enviar datos		
