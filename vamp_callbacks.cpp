@@ -506,10 +506,16 @@ bool esp8266_https(const char* vamp_resource, char * data, size_t data_size) {
 	
 	/* Si data esta vacio, es un ASK, hay que usar un GET */
 	if (data[0] =='\0') {
+		#ifdef VAMP_DEBUG
+		Serial.println("GET");
+		#endif /* VAMP_DEBUG */
 		httpResponseCode = https_http.GET();
 	} 
 	/* Si data tiene una cadena, es un TELL, hay que usar un POST */
 	else {
+		#ifdef VAMP_DEBUG
+		Serial.println("POST");
+		#endif /* VAMP_DEBUG */
 		httpResponseCode = https_http.POST(data);
 	}
 	

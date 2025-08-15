@@ -823,11 +823,14 @@ bool vamp_gw_wsn(void) {
 		/*	GET exige una cadena vacia, asi que un len == 0
 		* 	significa un GET, y para validarlo se pone un '\0'
 		* 	como primer byte de payload */
-		if(rec_len == 0 && wsn_buffer[2] != '\0'){
-			#ifdef VAMP_DEBUG
-			Serial.println("formato GET invalido");
-			#endif /* VAMP_DEBUG */
-			return false;
+		if(rec_len == 0){
+			if(wsn_buffer[2] != '\0'){
+				#ifdef VAMP_DEBUG
+				Serial.println("formato GET invalido");
+				#endif /* VAMP_DEBUG */
+				return false;
+			}
+			rec_len = 1;
 		}
 
 		/*  En el segundo byte se encuentra el ID del dispositivo
@@ -864,22 +867,9 @@ bool vamp_gw_wsn(void) {
 		}
 		req_resp_internet_buff[rec_len] = '\0'; // Asegurar terminación de cadena si es necesario
 
-		#ifdef VAMP_DEBUG
-		Serial.print("Datos enviados al endpoint: ");
-		Serial.println(entry->endpoint_resource);
-		Serial.print("Datos enviados: ");
-		Serial.println(req_resp_internet_buff);
-		#endif /* VAMP_DEBUG */
-
 		/* Enviar el contenido de la carga útil */
 		vamp_iface_comm(entry->endpoint_resource, req_resp_internet_buff, rec_len);
 
-		#ifdef VAMP_DEBUG
-		Serial.print("Datos recibidos del endpoint: ");
-		Serial.println(entry->endpoint_resource);
-		Serial.print("Datos enviados: ");
-		Serial.println(req_resp_internet_buff);
-		#endif /* VAMP_DEBUG */
 
 	}
 
