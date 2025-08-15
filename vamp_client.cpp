@@ -147,7 +147,7 @@ bool vamp_join_network(void) {
 
 /*  ----------------------------------------------------------------- */
 
-uint8_t vamp_client_send(const uint8_t * data, uint8_t len) {
+uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
 	/* Verificar que los datos no sean nulos y esten dentro del rango permitido */
 	if (data == NULL || len == 0 || len > VAMP_MAX_PAYLOAD_SIZE - 2) { // -2 para el encabezado
 		return 0;
@@ -168,8 +168,14 @@ uint8_t vamp_client_send(const uint8_t * data, uint8_t len) {
 	/*  Pseudoencabezado: T=0 (datos), resto bits = tamaño del payload
 		aqui no deberia hacerse nada pues el tamaño ya se paso como argumento
 		y se ha validado que es menor que VAMP_MAX_PAYLOAD_SIZE por lo que el
-		bit mas significativo ya seria 0 */
-	req_resp_wsn_buff[payload_len++] = len;
+		bit mas significativo ya seria 0.
+		A menos que sea el caso especial de GET, donde el primer byte es '\0',
+		entonces se escribira 0x00 en este primer byte */
+	if (data[0] == '\0') {
+		req_resp_wsn_buff[payload_len++] = 0x00;
+	} else {
+		req_resp_wsn_buff[payload_len++] = len;
+	}
 
 	/* Copiar el identificador en el GW al segundo byte */
 	req_resp_wsn_buff[payload_len++] = id_in_gateway;
@@ -210,8 +216,18 @@ uint8_t vamp_client_send(const uint8_t * data, uint8_t len) {
 }
 
 
+/* ASK for data using VAMP in asynchronous mode */
+bool vamp_client_ask(void) {
 
-//TODO: ESt funcion no cantrola si hay o no conexion, debera unirsr a la funcion send
+	/* Se envia solo un '\0', y si no se recibe un ACK, retornar falso */
+	if (vamp_client_tell((uint8_t *)'\0', 1) != VAMP_MAX_PAYLOAD_SIZE + 1) {
+		return false;
+	}
+
+	return true;
+}
+
+//TODO: Esta funcion no controla si hay o no conexion, debera unirse a la funcion send
 uint8_t vamp_client_poll(uint8_t * data, uint8_t len) {
 	/* Simplemente enviar el comando de poll */
 
