@@ -46,7 +46,10 @@ void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
 }
 
 
-
+/** @todo CUANDO HAY UN ERROR ACTUALIZANDO LA TABLA YA SE QUEDA AHI Y NO SIGUE
+ * ASI QUE DESPUES DEL ERROR NO SE ACTUALIZA LA TABLA NI SE INCORPORAN NUEVAS ENTRADAS
+ * !!1!!!!!
+ */
 // Inicializar todas las tablas VAMP con sincronización VREG
 void vamp_table_update() {
 
@@ -810,11 +813,21 @@ bool vamp_gw_wsn(void) {
 		uint8_t rec_len = wsn_buffer[0];
 
 		/* Verificar que la longitud es válida */
-		if (rec_len > VAMP_MAX_PAYLOAD_SIZE - 2 || rec_len == 0) {
+		if (rec_len > VAMP_MAX_PAYLOAD_SIZE - 2) {
 			#ifdef VAMP_DEBUG
 			Serial.println("Longitud de datos inválida");
 			#endif /* VAMP_DEBUG */
 			return false; // Longitud inválida
+		}
+
+		/*	GET exige una cadena vacia, asi que un len == 0
+		* 	significa un GET, y para validarlo se pone un '\0'
+		* 	como primer byte de payload */
+		if(rec_len == 0 && wsn_buffer[2] != '\0'){
+			#ifdef VAMP_DEBUG
+			Serial.println("formato GET invalido");
+			#endif /* VAMP_DEBUG */
+			return false;
 		}
 
 		/*  En el segundo byte se encuentra el ID del dispositivo
@@ -845,11 +858,28 @@ bool vamp_gw_wsn(void) {
 		uint8_t ack_buffer[1] = { VAMP_ACK | VAMP_IS_CMD_MASK };
 		vamp_wsn_comm(entry->rf_id, ack_buffer, 1);
 
-		/* Apuntar al inicio de los datos */
-		char * data = (char *)&wsn_buffer[2];
+		/* Copiar los datos recibidos al buffer de internet si es que hay datos */
+		if(rec_len > 0) {
+			memcpy(req_resp_internet_buff, &wsn_buffer[2], rec_len);
+		}
+		req_resp_internet_buff[rec_len] = '\0'; // Asegurar terminación de cadena si es necesario
+
+		#ifdef VAMP_DEBUG
+		Serial.print("Datos enviados al endpoint: ");
+		Serial.println(entry->endpoint_resource);
+		Serial.print("Datos enviados: ");
+		Serial.println(req_resp_internet_buff);
+		#endif /* VAMP_DEBUG */
 
 		/* Enviar el contenido de la carga útil */
-		vamp_iface_comm(entry->endpoint_resource, data, rec_len);
+		vamp_iface_comm(entry->endpoint_resource, req_resp_internet_buff, rec_len);
+
+		#ifdef VAMP_DEBUG
+		Serial.print("Datos recibidos del endpoint: ");
+		Serial.println(entry->endpoint_resource);
+		Serial.print("Datos enviados: ");
+		Serial.println(req_resp_internet_buff);
+		#endif /* VAMP_DEBUG */
 
 	}
 

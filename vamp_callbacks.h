@@ -94,7 +94,7 @@ bool vamp_iface_init(void);
  * @note If the data is empty (data == '\0') or len is 0, meas GET (or similar) request
  *       If data is not empty, it will be a POST (or similar) request.
  * @param url URL of the VREG resource
- * @param data Data to send
+ * @param data Data to send, if empty (data[0] == '\0') is a GET, otherwise it is a POST
  * @param len Length of data buffer
  * @return 
  */

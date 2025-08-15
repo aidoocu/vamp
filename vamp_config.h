@@ -18,7 +18,7 @@
 
 /** @brief Longitud máxima del endpoint VAMP (en bytes) */
 #ifndef VAMP_ENDPOINT_MAX_LEN
-#define VAMP_ENDPOINT_MAX_LEN 64
+#define VAMP_ENDPOINT_MAX_LEN 128
 #endif // VAMP_ENDPOINT_MAX_LEN
 
 /** @brief Longitud máxima del ID del gateway VAMP (en bytes) */
