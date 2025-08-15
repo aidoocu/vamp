@@ -148,6 +148,7 @@ bool vamp_join_network(void) {
 /*  ----------------------------------------------------------------- */
 
 uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
+
 	/* Verificar que los datos no sean nulos y esten dentro del rango permitido */
 	if (data == NULL || len == 0 || len > VAMP_MAX_PAYLOAD_SIZE - 2) { // -2 para el encabezado
 		return 0;
@@ -219,8 +220,10 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
 /* ASK for data using VAMP in asynchronous mode */
 bool vamp_client_ask(void) {
 
+	uint8_t payload_empty[1] = {'\0'};
+
 	/* Se envia solo un '\0', y si no se recibe un ACK, retornar falso */
-	if (vamp_client_tell((uint8_t *)'\0', 1) != VAMP_MAX_PAYLOAD_SIZE + 1) {
+	if (vamp_client_tell(payload_empty, 1) != VAMP_MAX_PAYLOAD_SIZE + 1) {
 		return false;
 	}
 
