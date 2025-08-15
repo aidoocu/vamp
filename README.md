@@ -33,12 +33,12 @@ Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 - **Byte 1**: ID compacto (verificación + índice) - solo en mensajes de datos
 
 ```text
- 0                   1                   2                   3
+ 0             1               2               3               4
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|T|   Tamaño/Comando ID     |    ID Compacto    |     Datos     |
+|T| Pyl_len/CMD |  Compact ID   |            Data               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                         Datos (cont.)                         |
+|                          Data (cont.)                         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                             ...                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -60,8 +60,7 @@ Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 ```text
  0   1   2   3   4   5   6   7
 +---+---+---+---+---+---+---+---+
-|  Verificación |    Índice     |
-|   (3 bits)    |   (5 bits)    |
+|   check   |      index        |
 +---+---+---+---+---+---+---+---+
 ```
 
