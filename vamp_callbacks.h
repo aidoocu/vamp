@@ -74,7 +74,7 @@ uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len);
  * @brief Function for ASK WSN radio communication
  * @param data Buffer containing the data from the radio iface
  * @param len Length of data buffer
- * @return Pointer to the gateway RF_ID
+ * @return Tamaño de los datos recibidos
  */
 uint8_t vamp_wsn_comm(uint8_t * data, size_t len);
 
