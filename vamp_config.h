@@ -13,7 +13,7 @@
 
 /** @brief Longitud máxima del payload VAMP (en bytes) */
 #ifndef VAMP_MAX_PAYLOAD_SIZE
-#define VAMP_MAX_PAYLOAD_SIZE 32
+#define VAMP_MAX_PAYLOAD_SIZE 30
 #endif // VAMP_MAX_PAYLOAD_SIZE
 
 /** @brief Longitud máxima del endpoint VAMP (en bytes) */
