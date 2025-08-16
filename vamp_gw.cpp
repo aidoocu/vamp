@@ -6,6 +6,8 @@
  */
 #include "vamp_gw.h"
 #include "vamp_callbacks.h"
+#include <cstring>
+#include <cstdlib>
 
 // Tabla unificada VAMP (NAT + Device + Session)
 static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];
@@ -71,6 +73,8 @@ void vamp_table_update() {
 		/* Inicializar la tabla VAMP */
 		for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
 			vamp_table[i].status = VAMP_DEV_STATUS_FREE;
+			vamp_table[i].profile.endpoint_resource = NULL;
+			vamp_table[i].profile.headers = NULL;
 		}
 	}
 	/*	 Formar la cadena de sincronización como un comando
@@ -302,6 +306,11 @@ void vamp_clear_entry(int index) {
   }
   
   if (vamp_table[index].status != VAMP_DEV_STATUS_FREE) {
+		// Liberar recurso asignado dinámicamente si existe
+		if (vamp_table[index].profile.endpoint_resource) {
+			free(vamp_table[index].profile.endpoint_resource);
+			vamp_table[index].profile.endpoint_resource = NULL;
+		}
     // Solo marcar como libre - otros campos se sobrescriben cuando se reasigna
     vamp_table[index].status = VAMP_DEV_STATUS_FREE;
   }
@@ -345,6 +354,10 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		vamp_table[table_index].wsn_id = vamp_generate_id_byte(table_index);
 		vamp_table[table_index].status = VAMP_DEV_STATUS_ADDED;
 		vamp_table[table_index].last_activity = millis();
+		// Inicializar perfil
+		vamp_table[table_index].profile.method = VAMP_HTTP_METHOD_GET;
+		vamp_table[table_index].profile.endpoint_resource = NULL;
+		vamp_table[table_index].profile.headers = NULL;
 	}
   
 	return table_index;
@@ -517,9 +530,7 @@ bool vamp_get_timestamp(char * timestamp) {
  * actions:
  * - "ADD": agregar un dispositivo. El VREG no sabe ni debe intervenir en el puerto, 
  *          así que el gateway busca un slot vacío y asigna el nuevo nodo. Se revisa 
- *          primero si el nodo ya estaba en la tabla. Al adicionar un nodo nuevo se 
- *          cambia el prefijo de puerto de 8 a 7 para indicar que es un cache que 
- *          ningún nodo ha reclamado aún.
+ *          primero si el nodo ya estaba en la tabla.
  * - "REMOVE": eliminar un dispositivo, se cambia el estado a libre y se pone a cero el rf_id
  * - "UPDATE": actualizar un dispositivo existente
 */
@@ -613,10 +624,21 @@ bool vamp_process_sync_response(const char* csv_data) {
 						return false; //este error no debería pasar, pero por si acaso hay que manejarlo mejor que esto
 					}
 
-					/* Poner el resource */
-
-					strncpy(vamp_table[table_index].endpoint_resource, csv_ptr, resource_len);
-					vamp_table[table_index].endpoint_resource[resource_len] = '\0'; // Asegurar terminación
+					/* Poner el resource (asignación dinámica) */
+					// Liberar anterior si existe
+					if (vamp_table[table_index].profile.endpoint_resource) {
+						free(vamp_table[table_index].profile.endpoint_resource);
+						vamp_table[table_index].profile.endpoint_resource = NULL;
+					}
+					vamp_table[table_index].profile.endpoint_resource = (char*)malloc(resource_len + 1);
+					if (!vamp_table[table_index].profile.endpoint_resource) {
+						#ifdef VAMP_DEBUG
+						Serial.println("Fallo asignando memoria para endpoint_resource");
+						#endif /* VAMP_DEBUG */
+						return false;
+					}
+					strncpy(vamp_table[table_index].profile.endpoint_resource, csv_ptr, resource_len);
+					vamp_table[table_index].profile.endpoint_resource[resource_len] = '\0'; // Asegurar terminación
 					
 					csv_ptr = end_ptr; // Mover el puntero al final de la línea
 				} /* Si fuera NULL el while lo vera arriba */
@@ -667,9 +689,20 @@ bool vamp_process_sync_response(const char* csv_data) {
 					return false; //este error no debería pasar, pero por si acaso hay que manejarlo mejor que esto
 				}
 
-				/* Poner el resource */
-				strncpy(vamp_table[table_index].endpoint_resource, csv_ptr, resource_len);
-				vamp_table[table_index].endpoint_resource[resource_len] = '\0'; // Asegurar terminación
+				/* Poner el resource (asignación dinámica) */
+				if (vamp_table[table_index].profile.endpoint_resource) {
+					free(vamp_table[table_index].profile.endpoint_resource);
+					vamp_table[table_index].profile.endpoint_resource = NULL;
+				}
+				vamp_table[table_index].profile.endpoint_resource = (char*)malloc(resource_len + 1);
+				if (!vamp_table[table_index].profile.endpoint_resource) {
+					#ifdef VAMP_DEBUG
+					Serial.println("Fallo asignando memoria para endpoint_resource");
+					#endif /* VAMP_DEBUG */
+					return false;
+				}
+				strncpy(vamp_table[table_index].profile.endpoint_resource, csv_ptr, resource_len);
+				vamp_table[table_index].profile.endpoint_resource[resource_len] = '\0'; // Asegurar terminación
 				
 				csv_ptr = end_ptr; // Mover el puntero al final de la línea
 			} else {
@@ -868,7 +901,13 @@ bool vamp_gw_wsn(void) {
 		req_resp_internet_buff[rec_len] = '\0'; // Asegurar terminación de cadena si es necesario
 
 		/* Enviar el contenido de la carga útil */
-		vamp_iface_comm(entry->endpoint_resource, req_resp_internet_buff, rec_len);
+		if (entry->profile.endpoint_resource && entry->profile.endpoint_resource[0] != '\0') {
+			vamp_iface_comm(entry->profile.endpoint_resource, req_resp_internet_buff, rec_len);
+		} else {
+			#ifdef VAMP_DEBUG
+			Serial.println("Endpoint resource vacío, no se envía a internet");
+			#endif /* VAMP_DEBUG */
+		}
 
 
 	}

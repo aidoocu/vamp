@@ -24,6 +24,28 @@
 /* Fecha de la última actualización de la tabla en UTC */
 #define VAMP_TABLE_INIT_TSMP "2020-01-01T00:00:00Z"
 
+#define VAMP_HTTP_METHOD_GET  0
+#define VAMP_HTTP_METHOD_POST 1
+
+
+/** Perfil de comunicación VAMP
+ * Este perfil se utiliza para definir la estructura de los mensajes que se reencaminan por
+ * el gateway VAMP, desde los dispositivos y hasta el servidor final. Los dispositvos no pueden
+ * gestionar ninguna de las estructuras ip-tcp-http... por lo que depende de este perfil.
+ * 		@field endpoint_resource: URL del endpoint del dispositivo
+ * 		@field method: 	Método HTTP (GET, POST,...) con el que se enviara el mensaje. 
+ * 						@todo hay que pensar en MQTT ++
+ * 		@field headers:	Cabeceras HTTP ( @todo hay que pensar en MQTT ++ )
+ * 		@field payload_template: Es la forma que se espera que tenga el payload, o sea, la forma
+ * 						en que deberia estar organizado el mensaje que viene del dispositivo.
+ */
+typedef struct {
+	uint8_t method;					// Método (GET, POST,...)
+	char * endpoint_resource;    	// URL del endpoint del dispositivo (dinámica)
+	char * headers;					// Cabeceras HTTP
+//	char * payload_template;		// Plantilla de payload
+} vamp_profile_t;
+
 /**                                     Tabla VAMP
  * La tabla VAMP se utiliza para almacenar información sobre los dispositivos en la red,
  * incluyendo su estado, dirección RF y otra información relevante. Esta tabla es
@@ -32,7 +54,7 @@
  * Tiene la siguiente estructura:
  * | Puerto |  Estado  |  Tipo    |  Dirección RF  |  Resource          | last_activity (milis) |
  * |--------|----------|----------|----------------|--------------------|-----------------------|
- * | 8128   | Libre    | Fijo     | 01:23:45:67:89 | dev1.org/local     |		  107360  		|
+ * | 8128   | Libre    | Fijo     | 01:23:45:67:89 | dev1.org/local     |		107360  		|
  * | 8161   | Activo   | Dinámico | AA:BB:CC:DD:EE | my.io/sense/temp   | 		201565	 		|
  * | 8226   | Inactivo | Auto     | 10:20:30:40:50 | tiny.net/hot       | 		300000  		|
  * | 8035   | Libre    | Fijo     | DE:AD:BE:EF:00 | hot.dog/ups        | 		400507		 	|
@@ -55,10 +77,11 @@ typedef struct {
 	uint8_t status;                                   // Estado: 
 	uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
 	uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
-	char endpoint_resource[VAMP_ENDPOINT_MAX_LEN];    // URL del endpoint del dispositivo
 	uint32_t last_activity;                           // Timestamp de última actividad en millis()
+	vamp_profile_t profile;                           // Perfil de comunicación con el dispositivo
 	//uint32_t join_time;                             // Timestamp de cuando se unió
 } vamp_entry_t;
+
 
 /* Type */
 #define VAMP_DEV_TYPE_FIXED		'0'
