@@ -145,6 +145,48 @@ bool vamp_join_network(void) {
 	return true; // Unión exitosa
 }
 
+/* Verificar si el cliente está activo en la red VAMP */
+bool vamp_is_active(void) {
+	/*  Verificar si ya se ha unido previamente, de lo contrario hay que volver a intentar
+		volver a unirse al menos una vez */
+	if (!vamp_is_joined()) {
+		if (!vamp_join_network()) {
+			/* Si no se pudo unir a la red, retornar falso */
+			return false;
+		}
+	}
+	return true;
+}
+
+/* Manejo de fallos en el envío */
+bool vamp_fail_handle(void){
+
+	/* Si el envío falla, incrementar contador de fallos */
+	send_failure_count++;
+	
+	/* Si hay demasiados fallos consecutivos, resetear conexión */
+	if (send_failure_count >= MAX_SEND_FAILURES) {
+		vamp_reset_connection();
+		
+		/* Intentar re-join inmediatamente */
+		if (vamp_join_network()) {
+			send_failure_count = 0;
+			return true; // Re-join exitoso
+		}
+
+		#ifdef VAMP_DEBUG
+		Serial.println("vamp disconnected");
+		#endif /* VAMP_DEBUG */
+
+	}
+
+	#ifdef VAMP_DEBUG
+	Serial.println("comm failed");
+	#endif /* VAMP_DEBUG */
+
+	return false; // Fallo en el re-join o en el reenvío después de re-join
+}
+
 /*  ----------------------------------------------------------------- */
 
 uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t len) {
@@ -153,14 +195,11 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
 	if (profile >= VAMP_MAX_PROFILES || data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) { // -2 min para el encabezado
 		return 0;
 	}
-
-	/*  Verificar si ya se ha unido previamente, de lo contrario hay que volver a intentar
-		volver a unirse al menos una vez */
-	if (!vamp_is_joined()) {
-		if (!vamp_join_network()) {
-			/* Si no se pudo unir a la red, retornar falso */
-			return 0;
-		}
+	
+	/* Si el dispositivo no está activo, no se puede enviar el mensaje */
+	if(!vamp_is_active()) {
+		
+		return 0;
 	}
 
 	/*  Crear mensaje de datos según el protocolo VAMP */
@@ -192,24 +231,19 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
 	len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 
 	if (len == 0) {
-		/* Si el envío falla, incrementar contador de fallos */
-		send_failure_count++;
-		
-		/* Si hay demasiados fallos consecutivos, resetear conexión */
-		if (send_failure_count >= MAX_SEND_FAILURES) {
-			vamp_reset_connection();
-			
-			/* Intentar re-join inmediatamente */
-			if (vamp_join_network()) {
-				/* Si el re-join fue exitoso, intentar enviar de nuevo */
-				len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
-				if(len > 0) {
-					return len; // Envío exitoso
-				}
-			}
+		/* Si el envío falla, manejar el fallo */
+		if(!vamp_fail_handle()) {
+			/* Si el manejo del fallo también falla, retornar 0 */
+			return 0;
+		}
+		/* Si el re-join fue exitoso, intentar enviar de nuevo */
+		len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
+		if(!len) {
+			/* Si vuelve a fallar, incrementar contador de fallos y salir */
+			send_failure_count ++;
+			return 0;
 		}
 
-		return 0; // Fallo en el re-join o en el reenvío después de re-join
 	}
 
 	/* Envío exitoso, resetear contador de fallos */
@@ -237,24 +271,50 @@ bool vamp_client_ask(void) {
 	return vamp_client_ask(VAMP_DEFAULT_PROFILE);
 }
 
-//@TODO: Esta funcion no controla si hay o no conexion, debera unirse a la funcion send
-/** @todo esta funcion no esta implementada completamente!!!! */
+/* Simplemente enviar el comando de poll */
 uint8_t vamp_client_poll(uint8_t * data, uint8_t len) {
-	/* Simplemente enviar el comando de poll */
+	
+	if(data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) {
+		return 0;
+	}
 
-	/*  Crear mensaje de datos según el protocolo VAMP */
-	uint8_t payload_len = 0;
+	if (!vamp_is_active()) {
+		/* Si el dispositivo no está activo en la red vamp, no se puede enviar el mensaje */
+		return 0;
+	}
 
-	/*  Pseudoencabezado: T=0 (datos), resto bits = tamaño del payload
-		aqui no deberia hacerse nada pues el tamaño ya se paso como argumento
-		y se ha validado que es menor que VAMP_MAX_PAYLOAD_SIZE por lo que el
-		bit mas significativo ya seria 0 */
-	req_resp_wsn_buff[payload_len++] = (VAMP_POLL | VAMP_IS_CMD_MASK);
+	/*  Pseudoencabezado: T=1 (cmd), comando como tal */
+	req_resp_wsn_buff[0] = (VAMP_POLL | VAMP_IS_CMD_MASK);
 
 	/* Copiar el identificador en el GW al segundo byte */
-	req_resp_wsn_buff[payload_len++] = id_in_gateway;
+	req_resp_wsn_buff[1] = id_in_gateway;
 
 	/*  Enviar el mensaje */    
-	return vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
+	uint8_t response_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, 2);
+
+	if(!response_len) {
+		if(!vamp_fail_handle()) {
+			/* Si el manejo del fallo también falla, retornar 0 */
+			return 0;
+		}
+		/* Si el re-join fue exitoso, intentar enviar de nuevo */
+		response_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, 2);
+		if(!response_len) {
+			/* Si vuelve a fallar, incrementar contador de fallos y salir */
+			send_failure_count ++;
+			return 0;
+		}
+	}
+
+	if(response_len > VAMP_MAX_PAYLOAD_SIZE) {
+		/* Es una respuesta vacia, o un ACK, o un error en la respuesta */
+		return 0;
+	}
+
+	/* Si ha llegado hasta aqui es que la respuesta es valida por lo que se pasa 
+	   al buffer de recepción */
+	memcpy(data, req_resp_wsn_buff, response_len);
+
+	return response_len;
 
 }
