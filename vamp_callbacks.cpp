@@ -613,6 +613,9 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	/* Reservar memoria para el endpoint antes de usarlo */
 	profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!profile.endpoint_resource) {
+		#ifdef VAMP_DEBUG
+		Serial.println("Error: No se pudo reservar memoria para endpoint");
+		#endif /* VAMP_DEBUG */
 		return 0;
 	}
 	
@@ -620,15 +623,17 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	/* Asegurar terminación nula */
 	profile.endpoint_resource[url_len] = '\0';
 
-
 	len ? profile.method = VAMP_HTTP_METHOD_POST : profile.method = VAMP_HTTP_METHOD_GET;
-
 	profile.protocol_params = NULL;
 
 	#if defined(ARDUINO_ARCH_ESP8266)
-	len = esp8266_https(&profile, data, len);
+	len = (uint8_t)esp8266_https(&profile, data, len);
+	#else //#elif en caso de otras arquitecturas
+	/* Se devuelve 0 en caso de no tener ninguna arquitectura definida */
+	len = 0;
 	#endif // ARDUINO_ARCH_ESP8266
 
+	/* Liberar memoria reservada siempre */
 	free(profile.endpoint_resource);
 
 	return len; // Implementar la comunicación con el servidor VREG
