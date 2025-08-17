@@ -486,7 +486,7 @@ bool esp8266_check_conn() {
 }
 
 // Función para enviar datos por HTTPS
-bool esp8266_https(const char* vamp_resource, char * data, size_t data_size) {
+bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size) {
 	if (!esp8266_check_conn()) {
 		#ifdef VAMP_DEBUG
 		Serial.println("Error: WiFi no conectado");
@@ -498,37 +498,68 @@ bool esp8266_https(const char* vamp_resource, char * data, size_t data_size) {
 	https_client.setInsecure(); // Solo para desarrollo - en producción usar certificados
 
 	/* Configurar HTTP client - reutilizar conexión si es posible */
-	https_http.begin(https_client, vamp_resource);
+	https_http.begin(https_client, profile->endpoint_resource);
 	https_http.setTimeout(HTTPS_TIMEOUT);
 	https_http.setUserAgent(HTTPS_USER_AGENT);
+
+	/* Añadir headers personalizados si hubiera */
+	if (profile->protocol_params && profile->protocol_params[0] != '\0') {
+		const char * p = profile->protocol_params;
+		while (*p) {
+			// Encontrar fin de par header
+			const char *sep = strchr(p, ':');
+			if (!sep) break;
+			const char *end = strchr(sep + 1, ',');
+			if (!end) end = p + strlen(p);
+			// Extraer nombre y valor
+			int name_len = (int)(sep - p);
+			int val_len = (int)(end - (sep + 1));
+			if (name_len > 0 && val_len > 0) {
+				String hname = String(p).substring(0, name_len);
+				String hval = String(sep + 1).substring(0, val_len);
+				hname.trim();
+				hval.trim();
+				if (hname.length() > 0) {
+					https_http.addHeader(hname, hval);
+				}
+			}
+			if (*end == ',') end++;
+			p = end;
+		}
+	}
 	
 	int httpResponseCode = -1;
 	
-	/* Si data esta vacio, es un ASK, hay que usar un GET */
-	if (data[0] =='\0') {
-		#ifdef VAMP_DEBUG
-		Serial.println("GET");
-		#endif /* VAMP_DEBUG */
-		httpResponseCode = https_http.GET();
-	} 
-	/* Si data tiene una cadena, es un TELL, hay que usar un POST */
-	else {
-		#ifdef VAMP_DEBUG
-		Serial.println("POST");
-		#endif /* VAMP_DEBUG */
-		httpResponseCode = https_http.POST(data);
+	
+	switch (profile->method) {
+		/* GET */
+		case VAMP_HTTP_METHOD_GET:
+			httpResponseCode = https_http.GET();
+			break;
+		case VAMP_HTTP_METHOD_POST:
+			httpResponseCode = https_http.POST((uint8_t*)data, data_size);
+			break;
+		default:
+			break;
 	}
 	
 	// Procesar respuesta
 	if (httpResponseCode > 0) {
 		String response = https_http.getString();
 
-		// Copiar respuesta al buffer proporcionado
+		if(response.length() == 0 || response.length() >= VAMP_IFACE_BUFF_SIZE) {
+			/* Buffer nulo o demasiado grande */
+			#ifdef VAMP_DEBUG
+			Serial.println("Error: Respuesta inválida");
+			#endif /* VAMP_DEBUG */
+			return false;
+		}
+		/* Copiar respuesta al buffer proporcionado */
 		sprintf(data, "%s", response.c_str());
 
 		#ifdef VAMP_DEBUG
 		Serial.print("rspta de ");
-		Serial.print(vamp_resource);
+		Serial.print(profile->endpoint_resource);
 		Serial.print(" - Código: ");
 		Serial.println(httpResponseCode);
 		#endif /* VAMP_DEBUG */
@@ -571,14 +602,48 @@ bool vamp_iface_init(void) {
 /* Callback para comunicación con el servidor VREG */
 uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	/* Verificar que no sea nulo */
-	if (!url || !data || !len) {
+	if (!url || !data) {
+		return 0;
+	}
+
+	/* crear perfil temporal para comunicación */
+	uint8_t url_len = strlen(url);
+	vamp_profile_t profile = {};
+
+	/* Reservar memoria para el endpoint antes de usarlo */
+	profile.endpoint_resource = (char*)malloc(url_len + 1);
+	if (!profile.endpoint_resource) {
+		return 0;
+	}
+	
+	memcpy(profile.endpoint_resource, url, url_len);
+	/* Asegurar terminación nula */
+	profile.endpoint_resource[url_len] = '\0';
+
+
+	len ? profile.method = VAMP_HTTP_METHOD_POST : profile.method = VAMP_HTTP_METHOD_GET;
+
+	profile.protocol_params = NULL;
+
+	#if defined(ARDUINO_ARCH_ESP8266)
+	len = esp8266_https(&profile, data, len);
+	#endif // ARDUINO_ARCH_ESP8266
+
+	free(profile.endpoint_resource);
+
+	return len; // Implementar la comunicación con el servidor VREG
+
+}
+
+/* Internal helper that uses explicit method and params */
+uint8_t vamp_iface_comm(const vamp_profile_t * profile, char * data, size_t len) {
+	if (!profile || !data) {
 		return 0;
 	}
 
 	#if defined(ARDUINO_ARCH_ESP8266)
-	return esp8266_https(url, data, len);
-	#endif // ARDUINO_ARCH_ESP8266
+		return esp8266_https(profile, data, len);
+	#endif
 
-	return 0; // Implementar la comunicación con el servidor VREG
-
+	return 0;
 }

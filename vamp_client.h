@@ -50,17 +50,6 @@ bool vamp_force_rejoin(void);
  */
 uint8_t vamp_client_tell(const uint8_t * data, uint8_t len);
 
-/** @brief Ask for data using VAMP in asynchronous mode.
- *          this function acts as GET but without waiting for a response, the gateway
- *          will receive a special data type frame with len = 0, but with a '\0' terminator
- *          in the first byte of payload:
- *          | 0x00 | VID | '\0' ... 
- *          and the gateway will make a GET to the registered resource and will send the 
- *          response back using a poll or the next node contact.
- * @return true if the ask was successful, false otherwise
- */
-bool vamp_client_ask(void);
-
 /** @brief Polling gateway asking for data using VAMP
  * 
  * @param data Pointer to the buffer to store received data

@@ -24,25 +24,52 @@
 /* Fecha de la última actualización de la tabla en UTC */
 #define VAMP_TABLE_INIT_TSMP "2020-01-01T00:00:00Z"
 
+/* Constantes del protocolo extendido para múltiples perfiles */
+#define VAMP_MAX_PROFILES 4              // Máximo 4 perfiles por dispositivo
+
+/* Máscaras y macros para el protocolo extendido [C][PP][LLLLL] */
+#define VAMP_WSN_PROFILE_MASK     0x60              // Bits 6-5: Perfil (00, 01, 10, 11)
+#define VAMP_WSN_LENGTH_MASK      0x1F              // Bits 4-0: Longitud (0-31)
+
+/* Macros para extraer campos del protocolo extendido */
+#define VAMP_WSN_GET_PROFILE(byte)    (((byte) & VAMP_WSN_PROFILE_MASK) >> 5)
+#define VAMP_WSN_GET_LENGTH(byte)     ((byte) & VAMP_WSN_LENGTH_MASK)
+
+/* Macros para crear el byte de protocolo extendido */
+#define VAMP_WSN_MAKE_DATA_BYTE(profile, length)    (((profile) << 5) | ((length) & 0x1F))
+#define VAMP_WSN_MAKE_CMD_BYTE(profile, cmd)        (VAMP_IS_CMD_MASK | ((profile) << 5) | ((cmd) & 0x1F))
+
+/* Valores especiales para longitud */
+#define VAMP_WSN_LENGTH_ESCAPE        31            // Longitud = 31 indica escape (datos adicionales siguen)
+
 #define VAMP_HTTP_METHOD_GET  0
 #define VAMP_HTTP_METHOD_POST 1
+
+/* Protocolos soportados */
+#define VAMP_PROTOCOL_HTTP    0
+#define VAMP_PROTOCOL_HTTPS   1
+#define VAMP_PROTOCOL_MQTT    2
+#define VAMP_PROTOCOL_COAP    3
+#define VAMP_PROTOCOL_WEBSOCKET 4
+#define VAMP_PROTOCOL_CUSTOM  15    // Para protocolos definidos por usuario
 
 
 /** Perfil de comunicación VAMP
  * Este perfil se utiliza para definir la estructura de los mensajes que se reencaminan por
  * el gateway VAMP, desde los dispositivos y hasta el servidor final. Los dispositvos no pueden
  * gestionar ninguna de las estructuras ip-tcp-http... por lo que depende de este perfil.
- * 		@field endpoint_resource: URL del endpoint del dispositivo
- * 		@field method: 	Método HTTP (GET, POST,...) con el que se enviara el mensaje. 
- * 						@todo hay que pensar en MQTT ++
- * 		@field headers:	Cabeceras HTTP ( @todo hay que pensar en MQTT ++ )
+ * 		@field protocol: 	Protocolo de comunicación (HTTP, MQTT, CoAP, etc.)
+ * 		@field method: 		Método específico del protocolo (GET/POST para HTTP, PUB/SUB para MQTT, etc.)
+ * 		@field endpoint_resource: URL/URI del endpoint (sin esquema de protocolo)
+ * 		@field protocol_params:	Parámetros específicos del protocolo (headers HTTP, topics MQTT, options CoAP, etc.)
  * 		@field payload_template: Es la forma que se espera que tenga el payload, o sea, la forma
  * 						en que deberia estar organizado el mensaje que viene del dispositivo.
  */
-typedef struct {
-	uint8_t method;					// Método (GET, POST,...)
-	char * endpoint_resource;    	// URL del endpoint del dispositivo (dinámica)
-	char * headers;					// Cabeceras HTTP
+typedef struct vamp_profile_t {
+//	uint8_t protocol;				// Protocolo (HTTP, MQTT, CoAP, etc.)
+	uint8_t method;					// Método específico del protocolo
+	char * endpoint_resource;    	// URL/URI del endpoint sin esquema (dinámica)
+	char * protocol_params;			// Parámetros específicos del protocolo (dinámica)
 //	char * payload_template;		// Plantilla de payload
 } vamp_profile_t;
 
@@ -73,13 +100,14 @@ typedef struct {
  * el dispositivo con solo un byte de ID compacto.
  */
 typedef struct {
-	uint8_t wsn_id;                                   // ID en la forma [VVV][IIIII]
-	uint8_t status;                                   // Estado: 
-	uint8_t type;                                     // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
-	uint8_t rf_id[VAMP_ADDR_LEN];                     // RF_ID del dispositivo (5 bytes)
-	uint32_t last_activity;                           // Timestamp de última actividad en millis()
-	vamp_profile_t profile;                           // Perfil de comunicación con el dispositivo
-	//uint32_t join_time;                             // Timestamp de cuando se unió
+	uint8_t wsn_id;                                 // ID en la forma [VVV][IIIII]
+	uint8_t status;                                 // Estado: 
+	uint8_t type;                                   // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
+	uint8_t rf_id[VAMP_ADDR_LEN];                   // RF_ID del dispositivo (5 bytes)
+	uint32_t last_activity;                         // Timestamp de última actividad en millis()
+	uint8_t profile_count;                         	// Número de perfiles configurados (1-4)
+	vamp_profile_t profiles[VAMP_MAX_PROFILES];  	// Array de perfiles de comunicación
+	//uint32_t join_time;                          	// Timestamp de cuando se unió
 } vamp_entry_t;
 
 
@@ -90,11 +118,11 @@ typedef struct {
 #define VAMP_DEV_TYPE_ORPHAN	'3'
 
 /* Status */
-#define VAMP_DEV_STATUS_FREE		0x01
-#define VAMP_DEV_STATUS_INACTIVE	0x02
-#define VAMP_DEV_STATUS_ACTIVE		0x03
-#define VAMP_DEV_STATUS_ADDED		0x04
-#define VAMP_DEV_STATUS_CACHE		0x05
+#define VAMP_DEV_STATUS_FREE		0x01	// Libre, un dispositivo así deberá ignorarse sus campos 
+#define VAMP_DEV_STATUS_INACTIVE	0x02	// Inactivo y configurado
+#define VAMP_DEV_STATUS_ACTIVE		0x03	// Activo y configurado
+#define VAMP_DEV_STATUS_ADDED		0x04	// Recién agregado, y NO configurado
+#define VAMP_DEV_STATUS_CACHE		0x05	// En caché y configurado
 
 // Configuración de tablas y direccionamiento
 #define VAMP_MAX_DEVICES 32          // Máximo número de dispositivos (5 bits)
@@ -146,7 +174,7 @@ typedef struct {
 /** @brief Funciones que manejan la tabla unificada VAMP
  * 
  * @param index Table index 0 <= index < VAMP_MAX_DEVICES
- * @param rf_id Buffer to store the identifier (have VAMP_ADDR_LEN bytes)
+ * @param rf_id WSN ID (have VAMP_ADDR_LEN bytes)
  * @return true if the operation was successful, false otherwise
  */
 bool vamp_remove_device(const uint8_t* rf_id);
@@ -179,12 +207,6 @@ uint8_t vamp_get_device_count(void);
  * @return Puntero a la entrada o NULL si índice inválido */
 const vamp_entry_t* vamp_get_table_entry(uint8_t index);
 
-/** @brief Obtener estado legible de un dispositivo */
-const char* vamp_get_status_string(uint8_t status);
-
-/** @brief Obtener tipo legible de un dispositivo */
-const char* vamp_get_type_string(uint8_t type);
-
 /* --------------------- Funciones ID compacto -------------------- */
 uint8_t vamp_generate_id_byte(const uint8_t index);
 
@@ -199,12 +221,6 @@ bool vamp_get_timestamp(char * timestamp);
 
 
 /* ------------------- Gestion de mensajes WSN ------------------- */
-
-/* Verificar si es un comando o un dato */
-#define VAMP_WSN_IS_COMMAND(buffer) ((buffer)[0] & VAMP_IS_CMD_MASK)
-/* Aislar el comando */
-#define VAMP_WSN_GET_CMD(buffer) ((buffer)[0] & VAMP_WSN_CMD_MASK)
-
 
 /** 
  * @brief Verificar si algun dispositivo VAMP nos contactó
@@ -224,11 +240,24 @@ uint8_t vamp_get_device_count(void);
 /** @brief Obtener entrada de la tabla por índice */
 const vamp_entry_t* vamp_get_table_entry(uint8_t index);
 
-/** @brief Obtener estado legible de un dispositivo */
-const char* vamp_get_status_string(uint8_t status);
+/* --------------------- Funciones para manejo de múltiples perfiles -------------------- */
 
-/** @brief Obtener tipo legible de un dispositivo */
-const char* vamp_get_type_string(uint8_t type);
+/** @brief Obtener perfil específico de un dispositivo */
+const vamp_profile_t* vamp_get_device_profile(uint8_t device_index, uint8_t profile_index);
+
+/** @brief Configurar perfil específico de un dispositivo */
+bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const vamp_profile_t* profile);
+
+/** @brief Limpiar todos los perfiles de un dispositivo */
+void vamp_clear_device_profiles(uint8_t device_index);
+
+/* --------------------- Funciones para manejo de protocolos -------------------- */
+
+/** @brief Obtener nombre legible del protocolo */
+//const char* vamp_get_protocol_string(uint8_t protocol);
+
+/** @brief Enviar datos usando el protocolo específico del perfil */
+//uint8_t vamp_send_with_profile(const vamp_profile_t* profile, char* data, size_t len);
 
 /** @brief Verificar si la tabla ha sido inicializada */
 bool vamp_is_table_initialized(void);

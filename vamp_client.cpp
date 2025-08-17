@@ -216,20 +216,6 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
 
 }
 
-
-/* ASK for data using VAMP in asynchronous mode */
-bool vamp_client_ask(void) {
-
-	uint8_t payload_empty[1] = {'\0'};
-
-	/* Se envia solo un '\0', y si no se recibe un ACK, retornar falso */
-	if (vamp_client_tell(payload_empty, 1) != VAMP_MAX_PAYLOAD_SIZE + 1) {
-		return false;
-	}
-
-	return true;
-}
-
 //TODO: Esta funcion no controla si hay o no conexion, debera unirse a la funcion send
 uint8_t vamp_client_poll(uint8_t * data, uint8_t len) {
 	/* Simplemente enviar el comando de poll */

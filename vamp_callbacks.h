@@ -91,14 +91,24 @@ bool vamp_iface_init(void);
 
 /**
  * @brief Function for sending data to the VREG server
- * @note If the data is empty (data == '\0') or len is 0, meas GET (or similar) request
- *       If data is not empty, it will be a POST (or similar) request.
  * @param url URL of the VREG resource
- * @param data Data to send, if empty (data[0] == '\0') is a GET, otherwise it is a POST
+ * @param data Data to send, if answer, data will contain the response
  * @param len Length of data buffer
  * @return 
  */
 uint8_t vamp_iface_comm(const char * url, char * data, size_t len);
+
+// Forward declare profile type to avoid including vamp_gw.h here
+struct vamp_profile_t;
+
+/**
+ * @brief Function for sending data to the VREG server
+ * @param profile entire profile of the VREG resource
+ * @param data  Data to send, if answer, data will contain the response
+ * @param len Length of data buffer
+ * @return 
+ */
+uint8_t vamp_iface_comm(const vamp_profile_t * profile, char * data, size_t len);
 
 
 #endif // VAMP_CALLBACKS_H

@@ -21,6 +21,16 @@
 #define VAMP_ENDPOINT_MAX_LEN 128
 #endif // VAMP_ENDPOINT_MAX_LEN
 
+/** @brief Longitud máxima del endpoint VAMP (en bytes) */
+#ifndef VAMP_PROTOCOL_PARAMS_MAX_LEN
+#define VAMP_PROTOCOL_PARAMS_MAX_LEN 128
+#endif // VAMP_PROTOCOL_PARAMS_MAX_LEN
+
+// Tamaño estándar del buffer de internet (request/response)
+#ifndef VAMP_IFACE_BUFF_SIZE
+#define VAMP_IFACE_BUFF_SIZE 1024
+#endif // VAMP_IFACE_BUFF_SIZE
+
 /** @brief Longitud máxima del ID del gateway VAMP (en bytes) */
 #ifndef VAMP_GW_ID_MAX_LEN
 #define VAMP_GW_ID_MAX_LEN 16

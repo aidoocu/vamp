@@ -21,7 +21,7 @@ static char vamp_vreg_resource[VAMP_ENDPOINT_MAX_LEN];
 static char vamp_gw_id[VAMP_GW_ID_MAX_LEN];
 
 /* Buffer para la solicitud y respuesta de internet */
-static char req_resp_internet_buff[1024];
+static char req_resp_internet_buff[VAMP_IFACE_BUFF_SIZE];
 
 // Contadores globales
 //static uint8_t vamp_device_count = 0;
@@ -73,8 +73,6 @@ void vamp_table_update() {
 		/* Inicializar la tabla VAMP */
 		for (int i = 0; i < VAMP_MAX_DEVICES; i++) {
 			vamp_table[i].status = VAMP_DEV_STATUS_FREE;
-			vamp_table[i].profile.endpoint_resource = NULL;
-			vamp_table[i].profile.headers = NULL;
 		}
 	}
 	/*	 Formar la cadena de sincronización como un comando
@@ -306,17 +304,17 @@ void vamp_clear_entry(int index) {
   }
   
   if (vamp_table[index].status != VAMP_DEV_STATUS_FREE) {
-		// Liberar recurso asignado dinámicamente si existe
-		if (vamp_table[index].profile.endpoint_resource) {
-			free(vamp_table[index].profile.endpoint_resource);
-			vamp_table[index].profile.endpoint_resource = NULL;
-		}
+		// Liberar recursos asignados dinámicamente en todos los perfiles
+		vamp_clear_device_profiles(index);
     // Solo marcar como libre - otros campos se sobrescriben cuando se reasigna
     vamp_table[index].status = VAMP_DEV_STATUS_FREE;
   }
 }
 
-/* Agregar dispositivo a la tabla */
+/** @brief Agregar dispositivo a la tabla pero no lo configura completamente
+ * 		Esta función solo agrega el dispositivo a la tabla y establece su estado
+ * 		inicial. Esto es responsabilidad de otras funciones.
+ */
 uint8_t vamp_add_device(const uint8_t* rf_id) {
 
 	/* Asegurarse que el dispositivo es válido */
@@ -354,10 +352,6 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		vamp_table[table_index].wsn_id = vamp_generate_id_byte(table_index);
 		vamp_table[table_index].status = VAMP_DEV_STATUS_ADDED;
 		vamp_table[table_index].last_activity = millis();
-		// Inicializar perfil
-		vamp_table[table_index].profile.method = VAMP_HTTP_METHOD_GET;
-		vamp_table[table_index].profile.endpoint_resource = NULL;
-		vamp_table[table_index].profile.headers = NULL;
 	}
   
 	return table_index;
@@ -577,7 +571,7 @@ bool vamp_process_sync_response(const char* csv_data) {
 		/* Si el ACTION es ADD */
 		if (!strncmp(csv_ptr, "ADD", 3)){
 
-			// Buscar slot libre y asignar
+			/* Buscar slot libre y asignar para luego configurar sus campos */
 			uint8_t table_index = vamp_add_device(rf_id);
 
 			/* Si se encontró un slot libre y se pudo adicionar el dispositivo se asigna 
@@ -604,44 +598,79 @@ bool vamp_process_sync_response(const char* csv_data) {
 				}
 
 				/* Saltar el tipo y la coma, e. g "2,", */
-				csv_ptr += 2; 
-				/* y como ahora lo que viene es el resource hasta el final de la línea
-				hay que buscar ese final que puede ser un '\n' o final del buffer 
-				(csv_ptr = NULL) */
-				char * end_ptr = strchr(csv_ptr, '\n');
-				if (!end_ptr) {
-					end_ptr = strchr(csv_ptr, '\0'); // Buscar el final del buffer
+				csv_ptr += 2;
+
+				/* 	A partir de aqui vendrán los profiles, que pueden estar entre 0 y 
+					VAMP_MAX_PROFILES, estos vendran en orden hasta el final de la linea
+					con la forma:
+					<protocol>,<method>,<endpoint_resource>,<protocol_params> */
+
+				/* Inicializar el contador de perfiles */
+				uint8_t profile_index = 0;
+				vamp_table[table_index].profile_count = 0;
+
+				/* Mientras que no se llegue al final de la linea o del archivo */
+				char * find_comma = NULL;
+				while (csv_ptr && (csv_ptr[0] != '\n') && (csv_ptr[0] != '\0')) {
+
+					//vamp_table[table_index].profiles[profile_index].protocol = atoi(csv_ptr);
+					//csv_ptr = strchr(csv_ptr, ',');
+					//if (!csv_ptr) break;
+					//csv_ptr++;
+
+					/* Método específico del protocolo */
+					vamp_table[table_index].profiles[profile_index].method = atoi(csv_ptr);
+					csv_ptr = strchr(csv_ptr, ',');
+					if (!csv_ptr) break;
+					csv_ptr++;
+
+					/* Endpoint resource */
+					find_comma = strchr(csv_ptr, ',');
+					if (!find_comma) { break; }
+					uint8_t field_len = (uint8_t)(find_comma - csv_ptr);
+					if (field_len >= VAMP_ENDPOINT_MAX_LEN) {
+						#ifdef VAMP_DEBUG
+						Serial.println("Endpoint resource demasiado largo en la respuesta VREG");
+						#endif /* VAMP_DEBUG */
+						break;
+					}
+					/* Liberar previo si existiera y asignar nuevo */
+					if (vamp_table[table_index].profiles[profile_index].endpoint_resource) {
+						free(vamp_table[table_index].profiles[profile_index].endpoint_resource);
+						vamp_table[table_index].profiles[profile_index].endpoint_resource = NULL;
+					}
+					vamp_table[table_index].profiles[profile_index].endpoint_resource = (char*)malloc(field_len + 1);
+					if (!vamp_table[table_index].profiles[profile_index].endpoint_resource) { break; }
+					memcpy(vamp_table[table_index].profiles[profile_index].endpoint_resource, csv_ptr, field_len);
+					vamp_table[table_index].profiles[profile_index].endpoint_resource[field_len] = '\0';
+					csv_ptr = find_comma + 1; // Mover al siguiente campo
+
+					find_comma = strchr(csv_ptr, ',');
+					if (!find_comma) { break; }
+					field_len = (uint8_t)(find_comma - csv_ptr);
+					if (field_len >= VAMP_PROTOCOL_PARAMS_MAX_LEN) {
+						#ifdef VAMP_DEBUG
+						Serial.println("Protocol params demasiado largo en la respuesta VREG");
+						#endif /* VAMP_DEBUG */
+						break;
+					}
+					/* Liberar previo si existiera y asignar nuevo */
+					if (vamp_table[table_index].profiles[profile_index].protocol_params) {
+						free(vamp_table[table_index].profiles[profile_index].protocol_params);
+						vamp_table[table_index].profiles[profile_index].protocol_params = NULL;
+					}
+					vamp_table[table_index].profiles[profile_index].protocol_params = (char*)malloc(field_len + 1);
+					if (!vamp_table[table_index].profiles[profile_index].protocol_params) { break; }
+					memcpy(vamp_table[table_index].profiles[profile_index].protocol_params, csv_ptr, field_len);
+					vamp_table[table_index].profiles[profile_index].protocol_params[field_len] = '\0';
+					csv_ptr = find_comma + 1; // Mover al siguiente campo
+
+					profile_index++;
+					vamp_table[table_index].profile_count = profile_index;
+					/** @todo este error hay que manejarlo mejor */
+					if (profile_index >= VAMP_MAX_PROFILES) break;
+
 				}
-
-				if (end_ptr) {
-
-					/* Si hay un final de línea, calcular la longitud del resource */
-					uint8_t resource_len = end_ptr - csv_ptr;
-					if (resource_len >= VAMP_ENDPOINT_MAX_LEN) {
-						#ifdef VAMP_DEBUG
-						Serial.println("Resource demasiado largo en la respuesta VREG");
-						#endif /* VAMP_DEBUG */
-						return false; //este error no debería pasar, pero por si acaso hay que manejarlo mejor que esto
-					}
-
-					/* Poner el resource (asignación dinámica) */
-					// Liberar anterior si existe
-					if (vamp_table[table_index].profile.endpoint_resource) {
-						free(vamp_table[table_index].profile.endpoint_resource);
-						vamp_table[table_index].profile.endpoint_resource = NULL;
-					}
-					vamp_table[table_index].profile.endpoint_resource = (char*)malloc(resource_len + 1);
-					if (!vamp_table[table_index].profile.endpoint_resource) {
-						#ifdef VAMP_DEBUG
-						Serial.println("Fallo asignando memoria para endpoint_resource");
-						#endif /* VAMP_DEBUG */
-						return false;
-					}
-					strncpy(vamp_table[table_index].profile.endpoint_resource, csv_ptr, resource_len);
-					vamp_table[table_index].profile.endpoint_resource[resource_len] = '\0'; // Asegurar terminación
-					
-					csv_ptr = end_ptr; // Mover el puntero al final de la línea
-				} /* Si fuera NULL el while lo vera arriba */
 
 			} else {
 				/* Si ya no hay más slots libre pues nada que hacer */
@@ -675,36 +704,57 @@ bool vamp_process_sync_response(const char* csv_data) {
 				/* Saltar el tipo y la coma, e. g "2," */
 				csv_ptr += 2; 
 				
-				/* Buscar el final de la línea o del buffer */
-				char * end_ptr = strchr(csv_ptr, '\n');
-				if (!end_ptr) {
-					end_ptr = strchr(csv_ptr, '\0'); // Buscar el final del buffer
-				}
-				
-				uint8_t resource_len = end_ptr - csv_ptr;
-				if (resource_len >= VAMP_ENDPOINT_MAX_LEN) {
-					#ifdef VAMP_DEBUG
-					Serial.println("Resource demasiado largo en la respuesta VREG");
-					#endif /* VAMP_DEBUG */
-					return false; //este error no debería pasar, pero por si acaso hay que manejarlo mejor que esto
+				/* Limpiar perfiles anteriores y reiniciar contador */
+				vamp_clear_device_profiles(table_index);
+				vamp_table[table_index].profile_count = 0;
+
+				/* Parsear perfiles como en ADD */
+				uint8_t profile_index = 0;
+				char * find_comma = NULL;
+				while (csv_ptr && (csv_ptr[0] != '\n') && (csv_ptr[0] != '\0')) {
+					/* Método */
+					vamp_table[table_index].profiles[profile_index].method = atoi(csv_ptr);
+					csv_ptr = strchr(csv_ptr, ',');
+					if (!csv_ptr) break;
+					csv_ptr++;
+
+					/* Endpoint resource */
+					find_comma = strchr(csv_ptr, ',');
+					if (!find_comma) break;
+					uint8_t field_len = (uint8_t)(find_comma - csv_ptr);
+					if (field_len >= VAMP_ENDPOINT_MAX_LEN) { break; }
+					if (vamp_table[table_index].profiles[profile_index].endpoint_resource) {
+						free(vamp_table[table_index].profiles[profile_index].endpoint_resource);
+						vamp_table[table_index].profiles[profile_index].endpoint_resource = NULL;
+					}
+					vamp_table[table_index].profiles[profile_index].endpoint_resource = (char*)malloc(field_len + 1);
+					if (!vamp_table[table_index].profiles[profile_index].endpoint_resource) break;
+					memcpy(vamp_table[table_index].profiles[profile_index].endpoint_resource, csv_ptr, field_len);
+					vamp_table[table_index].profiles[profile_index].endpoint_resource[field_len] = '\0';
+					csv_ptr = find_comma + 1;
+
+					/* Protocol params */
+					find_comma = strchr(csv_ptr, ',');
+					if (!find_comma) break;
+					field_len = (uint8_t)(find_comma - csv_ptr);
+					if (field_len >= VAMP_PROTOCOL_PARAMS_MAX_LEN) { break; }
+					if (vamp_table[table_index].profiles[profile_index].protocol_params) {
+						free(vamp_table[table_index].profiles[profile_index].protocol_params);
+						vamp_table[table_index].profiles[profile_index].protocol_params = NULL;
+					}
+					vamp_table[table_index].profiles[profile_index].protocol_params = (char*)malloc(field_len + 1);
+					if (!vamp_table[table_index].profiles[profile_index].protocol_params) break;
+					memcpy(vamp_table[table_index].profiles[profile_index].protocol_params, csv_ptr, field_len);
+					vamp_table[table_index].profiles[profile_index].protocol_params[field_len] = '\0';
+					csv_ptr = find_comma + 1;
+
+					profile_index++;
+					vamp_table[table_index].profile_count = profile_index;
+					if (profile_index >= VAMP_MAX_PROFILES) break;
 				}
 
-				/* Poner el resource (asignación dinámica) */
-				if (vamp_table[table_index].profile.endpoint_resource) {
-					free(vamp_table[table_index].profile.endpoint_resource);
-					vamp_table[table_index].profile.endpoint_resource = NULL;
-				}
-				vamp_table[table_index].profile.endpoint_resource = (char*)malloc(resource_len + 1);
-				if (!vamp_table[table_index].profile.endpoint_resource) {
-					#ifdef VAMP_DEBUG
-					Serial.println("Fallo asignando memoria para endpoint_resource");
-					#endif /* VAMP_DEBUG */
-					return false;
-				}
-				strncpy(vamp_table[table_index].profile.endpoint_resource, csv_ptr, resource_len);
-				vamp_table[table_index].profile.endpoint_resource[resource_len] = '\0'; // Asegurar terminación
-				
-				csv_ptr = end_ptr; // Mover el puntero al final de la línea
+				/* Avanzar al final de la línea */
+				csv_ptr = strchr(csv_ptr, '\n');
 			} else {
 				/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
 				csv_ptr = strchr(csv_ptr, '\n');
@@ -730,11 +780,11 @@ bool vamp_gw_wsn(void) {
 		return false; // No hay datos disponibles
 	}
 
-	/* Verificar si es de datos o de comando */
-	if (VAMP_WSN_IS_COMMAND(wsn_buffer)) {
+	/* --------------------- Si es un comando --------------------- */
+	if (wsn_buffer[0] & VAMP_IS_CMD_MASK) {
 
 		/* Aislar el comando */
-		wsn_buffer[0] = VAMP_WSN_GET_CMD(wsn_buffer);
+		wsn_buffer[0] = wsn_buffer[0] & VAMP_WSN_CMD_MASK;
 		uint8_t table_index = 0;
 		
 		/* Procesar el comando */
@@ -835,35 +885,38 @@ bool vamp_gw_wsn(void) {
 				break;
 		}
 
-	/* Si no es un comando, es un dato */
+	/* -------------- Si es un dato -------------- */
 	} else {
 
 		#ifdef VAMP_DEBUG
 		Serial.println("Datos recibidos del WSN");
 		#endif /* VAMP_DEBUG */
 
-		/* El primer byte indica la longitud de los datos recibidos */
-		uint8_t rec_len = wsn_buffer[0];
+		/* El primer byte contiene el protocolo: [C=0][PP][LLLLL] */
+		uint8_t profile_index = VAMP_WSN_GET_PROFILE(wsn_buffer[0]);
+		uint8_t rec_len = VAMP_WSN_GET_LENGTH(wsn_buffer[0]);
+		
+		/* Manejar escape de longitud (si length == 31, el siguiente byte tiene la longitud real) */
+		uint8_t data_offset = 2; // Por defecto: [protocol][wsn_id][data...]
+		if (rec_len == VAMP_WSN_LENGTH_ESCAPE) {
+			rec_len = wsn_buffer[2];
+			data_offset = 3; // [protocol][wsn_id][length][data...]
+		}
 
 		/* Verificar que la longitud es válida */
-		if (rec_len > VAMP_MAX_PAYLOAD_SIZE - 2) {
+		if ((rec_len > VAMP_MAX_PAYLOAD_SIZE - data_offset) || ((rec_len + data_offset) != data_recv)) {
 			#ifdef VAMP_DEBUG
 			Serial.println("Longitud de datos inválida");
 			#endif /* VAMP_DEBUG */
 			return false; // Longitud inválida
 		}
 
-		/*	GET exige una cadena vacia, asi que un len == 0
-		* 	significa un GET, y para validarlo se pone un '\0'
-		* 	como primer byte de payload */
-		if(rec_len == 0){
-			if(wsn_buffer[2] != '\0'){
-				#ifdef VAMP_DEBUG
-				Serial.println("formato GET invalido");
-				#endif /* VAMP_DEBUG */
-				return false;
-			}
-			rec_len = 1;
+		/* Verificar que el perfil es válido */
+		if (profile_index >= VAMP_MAX_PROFILES) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Índice de perfil inválido");
+			#endif /* VAMP_DEBUG */
+			return false; // Perfil inválido
 		}
 
 		/*  En el segundo byte se encuentra el ID del dispositivo
@@ -877,14 +930,29 @@ bool vamp_gw_wsn(void) {
 			return false; // Verificación fallida
 		}
 
+		/* Verificar que el dispositivo tiene el perfil solicitado */
+		const vamp_profile_t* profile = &entry->profiles[profile_index];
+		if (!profile) {
+			#ifdef VAMP_DEBUG
+			Serial.print("Perfil ");
+			Serial.print(profile_index);
+			Serial.println(" no configurado para este dispositivo");
+			#endif /* VAMP_DEBUG */
+			return false; // Perfil no configurado
+		}
+
 		/* Actualizar la última actividad del dispositivo */
 		entry->last_activity = millis();
 
 		#ifdef VAMP_DEBUG
 		Serial.print("dev: ");
 		Serial.print(entry->wsn_id);
+		Serial.print(" profile: ");
+		Serial.print(profile_index);
+		Serial.print(" resource: ");
+		Serial.print(profile->endpoint_resource);
 		Serial.print(" data: ");
-		vamp_debug_msg(&wsn_buffer[2], rec_len);
+		vamp_debug_msg(&wsn_buffer[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
 
 		/* Como la respuesta del servidor puede demorar y 
@@ -896,13 +964,13 @@ bool vamp_gw_wsn(void) {
 
 		/* Copiar los datos recibidos al buffer de internet si es que hay datos */
 		if(rec_len > 0) {
-			memcpy(req_resp_internet_buff, &wsn_buffer[2], rec_len);
+			memcpy(req_resp_internet_buff, &wsn_buffer[data_offset], rec_len);
 		}
 		req_resp_internet_buff[rec_len] = '\0'; // Asegurar terminación de cadena si es necesario
 
-		/* Enviar el contenido de la carga útil */
-		if (entry->profile.endpoint_resource && entry->profile.endpoint_resource[0] != '\0') {
-			vamp_iface_comm(entry->profile.endpoint_resource, req_resp_internet_buff, rec_len);
+		/* Enviar con el perfil completo (método/endpoint/params) */
+		if (profile->endpoint_resource && profile->endpoint_resource[0] != '\0') {
+			vamp_iface_comm(profile, req_resp_internet_buff, rec_len);
 		} else {
 			#ifdef VAMP_DEBUG
 			Serial.println("Endpoint resource vacío, no se envía a internet");
@@ -952,36 +1020,164 @@ const vamp_entry_t* vamp_get_table_entry(uint8_t index) {
     return &vamp_table[index];
 }
 
-/** @brief Obtener estado legible de un dispositivo */
-const char* vamp_get_status_string(uint8_t status) {
-    switch (status) {
-        case VAMP_DEV_STATUS_FREE:
-            return "Free";
-        case VAMP_DEV_STATUS_INACTIVE:
-            return "Inactive";
-        case VAMP_DEV_STATUS_ACTIVE:
-            return "Active";
-        case VAMP_DEV_STATUS_ADDED:
-            return "Added";
-        case VAMP_DEV_STATUS_CACHE:
-            return "Cache";
-        default:
-            return "Unknown";
+/* --------------------- Funciones para manejo de múltiples perfiles -------------------- */
+/** @todo REVISAR O LA PERTINENCIA DE ESTAS FUNCIONES O ELIMINAR */
+/** @brief Obtener perfil específico de un dispositivo */
+const vamp_profile_t* vamp_get_device_profile(uint8_t device_index, uint8_t profile_index) {
+    if (device_index >= VAMP_MAX_DEVICES || profile_index >= vamp_table[device_index].profile_count) {
+        return NULL;
     }
+    
+    // No devolver perfiles de dispositivos libres
+    if (vamp_table[device_index].status == VAMP_DEV_STATUS_FREE) {
+        return NULL;
+    }
+    
+    return &vamp_table[device_index].profiles[profile_index];
 }
 
-/** @brief Obtener tipo legible de un dispositivo */
-const char* vamp_get_type_string(uint8_t type) {
-    switch (type) {
-        case 0: // Fijo
-            return "Fijo";
-        case 1: // Dinámico
-            return "Dinámico";
-        case 2: // Automático
-            return "Automático";
-        case 3: // Huérfano
-            return "Huérfano";
+/** @brief Configurar perfil específico de un dispositivo */
+bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const vamp_profile_t* profile) {
+    if (device_index >= VAMP_MAX_DEVICES || profile_index >= VAMP_MAX_PROFILES || !profile) {
+        return false;
+    }
+    
+    // No configurar perfiles en dispositivos libres
+    if (vamp_table[device_index].status == VAMP_DEV_STATUS_FREE) {
+        return false;
+    }
+    
+    // Liberar recursos previos si existen
+    if (vamp_table[device_index].profiles[profile_index].endpoint_resource) {
+        free(vamp_table[device_index].profiles[profile_index].endpoint_resource);
+        vamp_table[device_index].profiles[profile_index].endpoint_resource = NULL;
+    }
+    if (vamp_table[device_index].profiles[profile_index].protocol_params) {
+        free(vamp_table[device_index].profiles[profile_index].protocol_params);
+        vamp_table[device_index].profiles[profile_index].protocol_params = NULL;
+    }
+    
+    // Configurar el nuevo perfil
+    //vamp_table[device_index].profiles[profile_index].protocol = profile->protocol;
+    vamp_table[device_index].profiles[profile_index].method = profile->method;
+    
+    // Copiar endpoint_resource si no es NULL
+    if (profile->endpoint_resource) {
+        size_t len = strlen(profile->endpoint_resource);
+        vamp_table[device_index].profiles[profile_index].endpoint_resource = (char*)malloc(len + 1);
+        if (vamp_table[device_index].profiles[profile_index].endpoint_resource) {
+            strcpy(vamp_table[device_index].profiles[profile_index].endpoint_resource, profile->endpoint_resource);
+        }
+    }
+    
+    // Copiar protocol_params si no es NULL
+    if (profile->protocol_params) {
+        size_t len = strlen(profile->protocol_params);
+        vamp_table[device_index].profiles[profile_index].protocol_params = (char*)malloc(len + 1);
+        if (vamp_table[device_index].profiles[profile_index].protocol_params) {
+            strcpy(vamp_table[device_index].profiles[profile_index].protocol_params, profile->protocol_params);
+        }
+    }
+    
+    // Actualizar profile_count si es necesario
+    if (profile_index >= vamp_table[device_index].profile_count) {
+        vamp_table[device_index].profile_count = profile_index + 1;
+    }
+    
+    return true;
+}
+
+/** @brief Limpiar todos los perfiles de un dispositivo */
+void vamp_clear_device_profiles(uint8_t device_index) {
+    if (device_index >= VAMP_MAX_DEVICES) {
+        return;
+    }
+    
+    // Liberar memoria de todos los perfiles
+    for (uint8_t i = 0; i < VAMP_MAX_PROFILES; i++) {
+        if (vamp_table[device_index].profiles[i].endpoint_resource) {
+            free(vamp_table[device_index].profiles[i].endpoint_resource);
+            vamp_table[device_index].profiles[i].endpoint_resource = NULL;
+        }
+        if (vamp_table[device_index].profiles[i].protocol_params) {
+            free(vamp_table[device_index].profiles[i].protocol_params);
+            vamp_table[device_index].profiles[i].protocol_params = NULL;
+        }
+        //vamp_table[device_index].profiles[i].protocol = 0;
+        vamp_table[device_index].profiles[i].method = 0;
+    }
+    
+    vamp_table[device_index].profile_count = 0;
+}
+
+/* --------------------- Funciones para manejo de protocolos -------------------- */
+
+/** @brief Obtener nombre legible del protocolo */
+/* const char* vamp_get_protocol_string(uint8_t protocol) {
+    switch (protocol) {
+        case VAMP_PROTOCOL_HTTP:
+            return "HTTP";
+        case VAMP_PROTOCOL_HTTPS:
+            return "HTTPS";
+        case VAMP_PROTOCOL_MQTT:
+            return "MQTT";
+        case VAMP_PROTOCOL_COAP:
+            return "CoAP";
+        case VAMP_PROTOCOL_WEBSOCKET:
+            return "WebSocket";
+        case VAMP_PROTOCOL_CUSTOM:
+            return "Custom";
         default:
             return "Unknown";
     }
-}
+} */
+
+/** @brief Enviar datos usando el protocolo específico del perfil */
+/* uint8_t vamp_send_with_profile(const vamp_profile_t* profile, char* data, size_t len) {
+    if (!profile || !profile->endpoint_resource) {
+        return 0;
+    }
+    
+    switch (profile->protocol) {
+        case VAMP_PROTOCOL_HTTP:
+        case VAMP_PROTOCOL_HTTPS:
+            // Usar la implementación HTTP existente
+            return vamp_iface_comm(profile->endpoint_resource, data, len);
+            
+        case VAMP_PROTOCOL_MQTT:
+            // TODO: Implementar MQTT
+            #ifdef VAMP_DEBUG
+            Serial.println("MQTT no implementado aún");
+            #endif
+            return 0;
+            
+        case VAMP_PROTOCOL_COAP:
+            // TODO: Implementar CoAP  
+            #ifdef VAMP_DEBUG
+            Serial.println("CoAP no implementado aún");
+            #endif
+            return 0;
+            
+        case VAMP_PROTOCOL_WEBSOCKET:
+            // TODO: Implementar WebSocket
+            #ifdef VAMP_DEBUG
+            Serial.println("WebSocket no implementado aún");
+            #endif
+            return 0;
+            
+        case VAMP_PROTOCOL_CUSTOM:
+            // TODO: Permitir protocolos definidos por usuario
+            #ifdef VAMP_DEBUG
+            Serial.println("Protocolo custom no implementado aún");
+            #endif
+            return 0;
+            
+        default:
+            #ifdef VAMP_DEBUG
+            Serial.print("Protocolo desconocido: ");
+            Serial.println(profile->protocol);
+            #endif
+            return 0;
+    }
+} */
+
