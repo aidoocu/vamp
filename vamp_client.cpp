@@ -147,10 +147,10 @@ bool vamp_join_network(void) {
 
 /*  ----------------------------------------------------------------- */
 
-uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
+uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t len) {
 
 	/* Verificar que los datos no sean nulos y esten dentro del rango permitido */
-	if (data == NULL || len == 0 || len > VAMP_MAX_PAYLOAD_SIZE - 2) { // -2 para el encabezado
+	if (profile >= VAMP_MAX_PROFILES || data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) { // -2 min para el encabezado
 		return 0;
 	}
 
@@ -164,22 +164,24 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
 	}
 
 	/*  Crear mensaje de datos según el protocolo VAMP */
-	uint8_t payload_len = 0;
+	//uint8_t payload_len = 0;
 
-	/*  Pseudoencabezado: T=0 (datos), resto bits = tamaño del payload
-		aqui no deberia hacerse nada pues el tamaño ya se paso como argumento
-		y se ha validado que es menor que VAMP_MAX_PAYLOAD_SIZE por lo que el
-		bit mas significativo ya seria 0.
-		A menos que sea el caso especial de GET, donde el primer byte es '\0',
-		entonces se escribira 0x00 en este primer byte */
-	if (data[0] == '\0') {
-		req_resp_wsn_buff[payload_len++] = 0x00;
+	/*  Pseudoencabezado: T=0 (datos), PP=(profile), LLLLL=(length) 
+	 	En caso que len > VAMP_WSN_LENGTH_ESCAPE, se escribira 
+		VAMP_WSN_LENGTH_ESCAPE en este primer len y se utilizará el
+		tercer byte para indicar la longitud real del payload */
+	uint8_t payload_len = 2;
+	if (len < VAMP_WSN_LENGTH_ESCAPE) {
+		req_resp_wsn_buff[0] = VAMP_WSN_MAKE_DATA_BYTE(profile, len);
 	} else {
-		req_resp_wsn_buff[payload_len++] = len;
+		req_resp_wsn_buff[0] = VAMP_WSN_MAKE_DATA_BYTE(profile, VAMP_WSN_LENGTH_ESCAPE);
+		/* El tercer byte contendrá la longitud real */
+		req_resp_wsn_buff[2] = len;
+		payload_len = 3;
 	}
 
 	/* Copiar el identificador en el GW al segundo byte */
-	req_resp_wsn_buff[payload_len++] = id_in_gateway;
+	req_resp_wsn_buff[1] = id_in_gateway;
 
 	/*  Copiar los datos del payload */
 	for (int i = 0; i < len; i++) {
@@ -216,7 +218,27 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len) {
 
 }
 
-//TODO: Esta funcion no controla si hay o no conexion, debera unirse a la funcion send
+uint8_t vamp_client_tell(const uint8_t * data, uint8_t len){
+	/* Hacer un tell con el profile por defecto */
+	return vamp_client_tell(VAMP_DEFAULT_PROFILE, data, len);
+}
+
+bool vamp_client_ask(uint8_t profile) {
+	/* Hacer un tell con el profile especificado y una cadena vacia */
+	uint8_t data[1] = {'\0'};
+	if (vamp_client_tell(profile, data, 1)) {
+		return true;
+	}
+	return false;
+}
+
+bool vamp_client_ask(void) {
+	/* Hacer un ask con el profile por defecto */
+	return vamp_client_ask(VAMP_DEFAULT_PROFILE);
+}
+
+//@TODO: Esta funcion no controla si hay o no conexion, debera unirse a la funcion send
+/** @todo esta funcion no esta implementada completamente!!!! */
 uint8_t vamp_client_poll(uint8_t * data, uint8_t len) {
 	/* Simplemente enviar el comando de poll */
 

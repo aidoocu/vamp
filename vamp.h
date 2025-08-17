@@ -20,6 +20,24 @@
 #define VAMP_RMODE_A 0b00000001 // Modo low power A
 #define VAMP_RMODE_B 0b00000010 // Modo always listen B
 
+/* Máximo 4 perfiles por dispositivo o dos bits */
+#define VAMP_MAX_PROFILES 4
+
+/* Perfil por defecto */
+#define VAMP_DEFAULT_PROFILE 0
+
+/* Macros para extraer campos del protocolo extendido */
+#define VAMP_WSN_GET_PROFILE(byte)    (((byte) & VAMP_WSN_PROFILE_MASK) >> 5)
+#define VAMP_WSN_GET_LENGTH(byte)     ((byte) & VAMP_WSN_LENGTH_MASK)
+
+/* Macros para crear el byte de protocolo extendido */
+#define VAMP_WSN_MAKE_DATA_BYTE(profile, length)    (((profile) << 5) | ((length) & 0x1F))
+#define VAMP_WSN_MAKE_CMD_BYTE(profile, cmd)        (VAMP_IS_CMD_MASK | ((profile) << 5) | ((cmd) & 0x1F))
+
+/* Valores especiales para longitud */
+#define VAMP_WSN_LENGTH_ESCAPE        31            // Longitud = 31 indica escape (datos adicionales siguen)
+
+
 /** Client Message types (datos/comandos)
  * Se utiliza un solo byte para tanto identificar el tipo de mensaje como 
  * para el tamaño del mensaje teniendo en cuenta que el tamaño máximo del 
@@ -59,8 +77,8 @@
  *  - VAMP_TELL: Método de respuesta, utilizado para enviar información o recursos.
  *              Equivalente a HTTP POST, MQTT PUBLISH o radio WRITE.
  */
-#define VAMP_ASK    0x00
-#define VAMP_TELL   0x01
+//#define VAMP_ASK    0x00
+//#define VAMP_TELL   0x01
 
 /**
  * @brief Initialize VAMP system with callback and server configuration

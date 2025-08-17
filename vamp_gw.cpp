@@ -6,8 +6,10 @@
  */
 #include "vamp_gw.h"
 #include "vamp_callbacks.h"
+#ifdef ARDUINO_ARCH_ESP8266
 #include <cstring>
 #include <cstdlib>
+#endif
 
 // Tabla unificada VAMP (NAT + Device + Session)
 static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];

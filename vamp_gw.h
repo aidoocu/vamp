@@ -24,23 +24,9 @@
 /* Fecha de la última actualización de la tabla en UTC */
 #define VAMP_TABLE_INIT_TSMP "2020-01-01T00:00:00Z"
 
-/* Constantes del protocolo extendido para múltiples perfiles */
-#define VAMP_MAX_PROFILES 4              // Máximo 4 perfiles por dispositivo
-
 /* Máscaras y macros para el protocolo extendido [C][PP][LLLLL] */
 #define VAMP_WSN_PROFILE_MASK     0x60              // Bits 6-5: Perfil (00, 01, 10, 11)
 #define VAMP_WSN_LENGTH_MASK      0x1F              // Bits 4-0: Longitud (0-31)
-
-/* Macros para extraer campos del protocolo extendido */
-#define VAMP_WSN_GET_PROFILE(byte)    (((byte) & VAMP_WSN_PROFILE_MASK) >> 5)
-#define VAMP_WSN_GET_LENGTH(byte)     ((byte) & VAMP_WSN_LENGTH_MASK)
-
-/* Macros para crear el byte de protocolo extendido */
-#define VAMP_WSN_MAKE_DATA_BYTE(profile, length)    (((profile) << 5) | ((length) & 0x1F))
-#define VAMP_WSN_MAKE_CMD_BYTE(profile, cmd)        (VAMP_IS_CMD_MASK | ((profile) << 5) | ((cmd) & 0x1F))
-
-/* Valores especiales para longitud */
-#define VAMP_WSN_LENGTH_ESCAPE        31            // Longitud = 31 indica escape (datos adicionales siguen)
 
 #define VAMP_HTTP_METHOD_GET  0
 #define VAMP_HTTP_METHOD_POST 1
