@@ -272,8 +272,8 @@ bool vamp_client_ask(void) {
 }
 
 /* Simplemente enviar el comando de poll */
-uint8_t vamp_client_poll(uint8_t * data, uint8_t len) {
-	
+uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
+
 	if(data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) {
 		return 0;
 	}
@@ -289,8 +289,12 @@ uint8_t vamp_client_poll(uint8_t * data, uint8_t len) {
 	/* Copiar el identificador en el GW al segundo byte */
 	req_resp_wsn_buff[1] = id_in_gateway;
 
+	/* Copiar el ticket en el buffer de solicitud */
+	req_resp_wsn_buff[2] = (ticket >> 8) & 0xFF;
+	req_resp_wsn_buff[3] = ticket & 0xFF;
+
 	/*  Enviar el mensaje */    
-	uint8_t response_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, 2);
+	uint8_t response_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, 4);
 
 	if(!response_len) {
 		if(!vamp_fail_handle()) {

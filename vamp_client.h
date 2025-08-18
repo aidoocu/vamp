@@ -82,6 +82,6 @@ bool vamp_client_ask(void);
  * @return  0 on failure, 
  *          0 < return <= VAMP_MAX_PAYLOAD_SIZE data contained a msg from the gateway
  */
-uint8_t vamp_client_poll(uint8_t * data, uint8_t len);
+uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len);
 
 #endif // _VAMP_CLIENT_H_
