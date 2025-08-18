@@ -5,6 +5,7 @@
  * 
  */
 #include "vamp_gw.h"
+#include "vamp_client.h"
 #include "vamp_callbacks.h"
 #ifdef ARDUINO_ARCH_ESP8266
 #include <cstring>
@@ -308,6 +309,13 @@ void vamp_clear_entry(int index) {
   if (vamp_table[index].status != VAMP_DEV_STATUS_FREE) {
 		// Liberar recursos asignados dinámicamente en todos los perfiles
 		vamp_clear_device_profiles(index);
+		
+		// Liberar buffer de datos temporales si existe
+		if (vamp_table[index].data_buff) {
+			free(vamp_table[index].data_buff);
+			vamp_table[index].data_buff = NULL;
+		}
+		
     // Solo marcar como libre - otros campos se sobrescriben cuando se reasigna
     vamp_table[index].status = VAMP_DEV_STATUS_FREE;
   }
@@ -354,6 +362,24 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		vamp_table[table_index].wsn_id = vamp_generate_id_byte(table_index);
 		vamp_table[table_index].status = VAMP_DEV_STATUS_ADDED;
 		vamp_table[table_index].last_activity = millis();
+		vamp_table[table_index].ticket = 0;
+
+		/* Reservar memoria para el buffer de datos temporales. Estos datos se guardaran
+		como una cadena asi que se debe tener en cuenta el terminador nulo */
+		vamp_table[table_index].data_buff = (char * )malloc(VAMP_MAX_PAYLOAD_SIZE + 1);
+		if (!vamp_table[table_index].data_buff) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Error: No se pudo reservar memoria para data_buff");
+			#endif /* VAMP_DEBUG */
+			// Si falla la reserva, limpiar la entrada y retornar error
+			vamp_table[table_index].status = VAMP_DEV_STATUS_FREE;
+			return VAMP_MAX_DEVICES;
+		}
+		
+		#ifdef VAMP_DEBUG
+		Serial.print("Buffer de datos reservado para dispositivo en índice ");
+		Serial.println(table_index);
+		#endif /* VAMP_DEBUG */
 	}
   
 	return table_index;
@@ -410,8 +436,23 @@ uint8_t vamp_get_oldest_inactive(void){
 	return oldest_index; // Retorna el índice del dispositivo inactivo más antiguo o VAMP_MAX_DEVICES si no hay
 }
 
+/* Obtener entrada de la tabla VAMP y validarla a partir del campo wsn_id */
+bool vamp_get_entry(vamp_entry_t * entry, uint8_t wsn_id) {
 
+		/*  En el segundo byte se encuentra el ID del dispositivo
+		 	en la forma de: Formato del byte ID: [VVV][IIIII] */
+		entry = &vamp_table[VAMP_GET_INDEX(wsn_id)];
 
+		/* Verificar que la verificación es correcta */
+		if (entry->wsn_id != wsn_id) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Verificación de dispositivo fallida");
+			#endif /* VAMP_DEBUG */
+			return false; // Verificación fallida
+		}
+
+		return true;
+}
 
 
 
@@ -780,7 +821,11 @@ bool vamp_gw_wsn(void) {
 
 	if (data_recv == 0) {
 		return false; // No hay datos disponibles
-	}
+	}		
+
+	/* Inicializar el puntero a la entrada 
+	!!!!! esto no es del todo correcto asi !!!!! */
+	vamp_entry_t * entry = NULL;
 
 	/* --------------------- Si es un comando --------------------- */
 	if (wsn_buffer[0] & VAMP_IS_CMD_MASK) {
@@ -788,7 +833,8 @@ bool vamp_gw_wsn(void) {
 		/* Aislar el comando */
 		wsn_buffer[0] = wsn_buffer[0] & VAMP_WSN_CMD_MASK;
 		uint8_t table_index = 0;
-		
+
+
 		/* Procesar el comando */
 		switch (wsn_buffer[0]) {
 			case VAMP_JOIN_REQ:
@@ -876,6 +922,39 @@ bool vamp_gw_wsn(void) {
 				Serial.println("Comando PONG recibido");
 				#endif /* VAMP_DEBUG */
 				break;
+			case VAMP_POLL:
+				/* Manejar el comando POLL */
+				#ifdef VAMP_DEBUG
+				Serial.println("Comando POLL recibido");
+				#endif /* VAMP_DEBUG */
+
+				/* buscar la entrada */
+				entry = NULL;
+				if (!vamp_get_entry(entry, wsn_buffer[1])) {
+					#ifdef VAMP_DEBUG
+					Serial.println("Entrada no encontrada");
+					#endif /* VAMP_DEBUG */
+					return false; // Entrada no encontrada
+				}
+
+				/* Despues viene el ticket */
+				if ((wsn_buffer[2] | (wsn_buffer[3] << 8)) == entry->ticket) {
+
+					vamp_client_tell((uint8_t *)entry->data_buff, strlen(entry->data_buff) - 1);
+
+					/* Si el ticket coincide, se puede procesar la solicitud */
+					#ifdef VAMP_DEBUG
+					Serial.print("Ticket found");
+					Serial.println((wsn_buffer[2] | (wsn_buffer[3] << 8)));
+					#endif /* VAMP_DEBUG */
+				} else {
+					/* Si el ticket no coincide, se ignora la solicitud */
+					#ifdef VAMP_DEBUG
+					Serial.println("ticket deprecate");
+					#endif /* VAMP_DEBUG */
+				}
+
+				break;
 			default:
 				/* Comando desconocido */
 				#ifdef VAMP_DEBUG
@@ -921,15 +1000,11 @@ bool vamp_gw_wsn(void) {
 			return false; // Perfil inválido
 		}
 
-		/*  En el segundo byte se encuentra el ID del dispositivo
-		 	en la forma de: Formato del byte ID: [VVV][IIIII] */
-		vamp_entry_t * entry = &vamp_table[VAMP_GET_INDEX(wsn_buffer[1])];
-		/* Verificar que la verificación es correcta */
-		if (entry->wsn_id != wsn_buffer[1]) {
+		if (!vamp_get_entry(entry, wsn_buffer[1])) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Verificación de dispositivo fallida");
+			Serial.println("Entrada no encontrada");
 			#endif /* VAMP_DEBUG */
-			return false; // Verificación fallida
+			return false; // Entrada no encontrada
 		}
 
 		/* Verificar que el dispositivo tiene el perfil solicitado */
@@ -957,12 +1032,19 @@ bool vamp_gw_wsn(void) {
 		vamp_debug_msg(&wsn_buffer[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
 
-		/* Como la respuesta del servidor puede demorar y 
+		/** Como la respuesta del servidor puede demorar y 
 		probablemente el mote no resuelva nada con ella
 		le respondemos y ack para que el mote sepa que 
-		al menos su tarea fue recibida */
-		uint8_t ack_buffer[1] = { VAMP_ACK | VAMP_IS_CMD_MASK };
-		vamp_wsn_comm(entry->rf_id, ack_buffer, 1);
+		al menos su tarea fue recibida 
+		@note que por cada ACK que se envie se incrementa el ticket
+		y como en este caso hay un solo buffer, pues se recuerda un
+		solo ticket por cada comunicación, si no se hace polling el 
+		ticket se pierde.
+		*/		
+		entry->ticket++;
+		uint8_t ack_buffer[3] = { (uint8_t)(VAMP_ACK | VAMP_IS_CMD_MASK), (uint8_t)(entry->ticket & 0xFF), (uint8_t)((entry->ticket >> 8) & 0xFF) };
+		vamp_wsn_comm(entry->rf_id, ack_buffer, 3);
+
 
 		/* Copiar los datos recibidos al buffer de internet si es que hay datos */
 		if(rec_len > 0) {
@@ -972,7 +1054,18 @@ bool vamp_gw_wsn(void) {
 
 		/* Enviar con el perfil completo (método/endpoint/params) */
 		if (profile->endpoint_resource && profile->endpoint_resource[0] != '\0') {
-			vamp_iface_comm(profile, req_resp_internet_buff, rec_len);
+			if(vamp_iface_comm(profile, req_resp_internet_buff, rec_len)) {
+				#ifdef VAMP_DEBUG
+				Serial.println("Datos enviados a internet");
+				#endif /* VAMP_DEBUG */
+				
+				/* !!!!!! hay que ver que pasa si se puede enviar y si hay respuesta */
+
+				//hay que dejar fuera el '\0'
+				memcpy(entry->data_buff, req_resp_internet_buff, rec_len); // Copiar datos al buffer del dispositivo
+
+				return true;
+			}
 		} else {
 			#ifdef VAMP_DEBUG
 			Serial.println("Endpoint resource vacío, no se envía a internet");

@@ -93,6 +93,8 @@ typedef struct {
 	uint32_t last_activity;                         // Timestamp de última actividad en millis()
 	uint8_t profile_count;                         	// Número de perfiles configurados (1-4)
 	vamp_profile_t profiles[VAMP_MAX_PROFILES];  	// Array de perfiles de comunicación
+	char * data_buff;     							// Buffer para datos
+	uint16_t ticket;                              	// Ticket de comunicación
 	//uint32_t join_time;                          	// Timestamp de cuando se unió
 } vamp_entry_t;
 
