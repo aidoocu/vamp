@@ -144,7 +144,7 @@ typedef struct {
 /* Opciones */
 #define VAMP_GATEWAY_ID	"--gateway"        // ID del gateway
 #define VAMP_TIMESTAMP	"--timestamp"      // Última actualización de la tabla VAMP
-#define VAMP_NODE_ID		"--node_rf_id"     // ID del nodo VREG
+#define VAMP_NODE_ID	"--node_rf_id"     // ID del nodo VREG
 #define VAMP_DEV_COUNT	"--device_count"   // Cantidad de dispositivos en la tabla VAMP
 
 /** VREG Response types
