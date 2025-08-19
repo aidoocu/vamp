@@ -150,7 +150,7 @@ typedef struct {
 /** VREG Response types
  * Respuestas del VREG (Virtual REGistry).
  */
-#define VAMP_DATA   		"--node"		// Sincronización exitosa
+#define VAMP_NODE   		"--node"		// Sincronización exitosa
 #define VAMP_UPDATED		"--updated"		// Tabla ya está actualizada
 #define VAMP_ERROR			"--error"		// Error en la sincronización
 

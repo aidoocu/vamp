@@ -118,7 +118,7 @@ void vamp_table_update() {
 			return;
 		}
 
-		/* sync --timestamp <timestamp> --data <csv_data> */
+		/* sync --timestamp <timestamp> --node <csv_data> */
 
 		/* --timestamp <timestamp> */
 		sync_resp = strstr(sync_resp, VAMP_TIMESTAMP);
@@ -140,27 +140,18 @@ void vamp_table_update() {
 			return;
 		}
 
-		/* Ahora deberia venir un campo con la cantidad de lineas */
-		//char* line_count_str = strstr(req_resp_internet_buff, VAMP_DEV_COUNT);
-		//if (line_count_str) {
-		//	line_count_str += strlen(VAMP_DEV_COUNT) + 1; // Saltar el prefijo
-		//	uint8_t line_count = atoi(line_count_str);
-		//	Serial.print("Cantidad de líneas en la respuesta: ");
-		//	Serial.println(line_count);
-		//}
-
-		/* Procesar la respuesta CSV (--data <csv_data>) */
-		sync_resp = strstr(req_resp_internet_buff, VAMP_DATA);
+		/* Procesar la respuesta CSV (--node <csv_data>) */
+		sync_resp = strstr(req_resp_internet_buff, VAMP_NODE);
 		if (sync_resp) {
 
 			/* Mover el puntero al inicio de los datos CSV,
 			+1 para saltar el espacio después del prefijo */
-			sync_resp = sync_resp + strlen(VAMP_DATA);
+			sync_resp = sync_resp + strlen(VAMP_NODE);
 
-			/* Despues de --data'\n<csv_data> para enfatizar que son datos CSV */
+			/* Despues de --node'\n<csv_data> para enfatizar que son datos CSV */
 			if (*sync_resp != '\n') {
 				#ifdef VAMP_DEBUG
-				Serial.println("Error: No se encontró valor de --data en la respuesta VREG");
+				Serial.println("Error: No se encontró valor de --node en la respuesta VREG");
 				#endif /* VAMP_DEBUG */
 				return;
 			}
@@ -190,7 +181,7 @@ void vamp_table_update() {
 		/** @todo ESTO HAY QUE REFACTORIZANRLO */
 		/* Si llegamos aquí, la respuesta no es válida */
 		#ifdef VAMP_DEBUG
-		Serial.println("no --data en respuesta VREG");
+		Serial.println("no --node en respuesta VREG");
 		#endif /* VAMP_DEBUG */
 
 	} else {
@@ -562,7 +553,7 @@ bool vamp_get_timestamp(char * timestamp) {
  * Opciones:
  * - "--updated": indica que la tabla ya está actualizada, no hay nuevos datos, no tiene value
  * - "--error": indica que hubo un error en la sincronización, value contiene el mensaje de error
- * - "--data": contiene los datos de la tabla en formato CSV, value es el CSV con los campos:
+ * - "--node": contiene los datos de la tabla en formato CSV, value es el CSV con los campos:
  *  	rf_id, action, type, resource
  * actions:
  * - "ADD": agregar un dispositivo. El VREG no sabe ni debe intervenir en el puerto, 

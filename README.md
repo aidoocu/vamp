@@ -1044,7 +1044,7 @@ sequenceDiagram
         VREG-->>GW: gateway_sync_resp --error <mensaje_error>
         Note over GW: Manejar error, reintentar más tarde
     else Hay cambios disponibles
-        VREG-->>GW: gateway_sync_resp --data<br/>action,type,rf_id,resource<br/>ADD,2,A1B2C3D4E5,sensor.example.com/temp<br/>UPDATE,1,F6E7D8C9BA,actuator.io/valve<br/>REMOVE,0,1122334455,
+        VREG-->>GW: gateway_sync_resp --node<br/>action,type,rf_id,resource<br/>ADD,2,A1B2C3D4E5,sensor.example.com/temp<br/>UPDATE,1,F6E7D8C9BA,actuator.io/valve<br/>REMOVE,0,1122334455,
         
         loop Para cada acción en CSV
             alt Acción ADD
@@ -1103,7 +1103,7 @@ Indica que hubo un error durante la sincronización.
 #### 3. Datos de Sincronización
 
 ```text
-gateway_sync_resp --data
+gateway_sync_resp --node
 action,type,rf_id,resource
 ADD,2,A1B2C3D4E5,sensor.example.com/temp
 UPDATE,1,F6E7D8C9BA,actuator.io/valve

@@ -28,7 +28,7 @@
 
 // Tamaño estándar del buffer de internet (request/response)
 #ifndef VAMP_IFACE_BUFF_SIZE
-#define VAMP_IFACE_BUFF_SIZE 1024
+#define VAMP_IFACE_BUFF_SIZE 4096
 #endif // VAMP_IFACE_BUFF_SIZE
 
 /** @brief Longitud máxima del ID del gateway VAMP (en bytes) */

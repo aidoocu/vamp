@@ -8,7 +8,7 @@
  * y el controlador de red responderá con un mensaje de tipo
  * VAMP_JOIN_ACK, que contiene la dirección MAC del gateway.
  * Asi la dirección de destino se actualiza a la dirección del gateway
- * y se puede enviar mensajes de tipo VAMP_DATA.
+ * y se puede enviar mensajes de tipo VAMP_NODE.
  */
 
 #include "vamp_client.h"
