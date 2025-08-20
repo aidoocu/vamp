@@ -7,6 +7,7 @@
 #include "vamp_gw.h"
 #include "vamp_client.h"
 #include "vamp_callbacks.h"
+#include <ArduinoJson.h>
 #ifdef ARDUINO_ARCH_ESP8266
 #include <cstring>
 #include <cstdlib>
@@ -15,13 +16,15 @@
 // Tabla unificada VAMP (NAT + Device + Session)
 static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];
 
+/* Profile del recurso VREG */
+static vamp_profile_t vamp_vreg_profile;
+
 /* Fecha de la última actualización de la tabla en UTC */
 static char last_table_update[] = VAMP_TABLE_INIT_TSMP;
 
-/* PATH del recurso VREG */
-static char vamp_vreg_resource[VAMP_ENDPOINT_MAX_LEN];
 /* ID del gateway */
 static char vamp_gw_id[VAMP_GW_ID_MAX_LEN];
+
 
 /* Buffer para la solicitud y respuesta de internet */
 static char req_resp_internet_buff[VAMP_IFACE_BUFF_SIZE];
@@ -29,8 +32,50 @@ static char req_resp_internet_buff[VAMP_IFACE_BUFF_SIZE];
 // Contadores globales
 //static uint8_t vamp_device_count = 0;
 
+/* Declaracion de funciones locales  */
 
-// ======================== FUNCIONES VAMP TABLES ========================
+/** @brief respuesta de sincronización
+ * El buffer contiene la respuesta que debe tener el formato:
+ * gateway_sync_resp <--option> <value>
+ * <value> es el nuevo valor para la opción
+ * Opciones:
+ * - "--updated": indica que la tabla ya está actualizada, no hay nuevos datos, no tiene value
+ * - "--error": indica que hubo un error en la sincronización, value contiene el mensaje de error
+ * - "--node": contiene los datos de la tabla en formato JSON, value es el JSON con los campos:
+ *  	rf_id, action, type, resource
+ * actions:
+ * - "ADD": agregar un dispositivo. El VREG no sabe ni debe intervenir en el puerto, 
+ *          así que el gateway busca un slot vacío y asigna el nuevo nodo. Se revisa 
+ *          primero si el nodo ya estaba en la tabla.
+ * - "REMOVE": eliminar un dispositivo, se cambia el estado a libre y se pone a cero el rf_id
+ * - "UPDATE": actualizar un dispositivo existente
+ * @param json_data: puntero a los datos JSON de la respuesta
+ * @return true si la respuesta es válida, false en caso contrario
+ */
+bool vamp_process_sync_json_response(const char* json_data);
+
+
+/** @brief Funciones que manejan la tabla unificada VAMP
+ * 
+ * @param index Table index 0 <= index < VAMP_MAX_DEVICES
+ * @param rf_id WSN ID (have VAMP_ADDR_LEN bytes)
+ * @return true if the operation was successful, false otherwise
+ */
+bool vamp_remove_device(const uint8_t* rf_id);
+void vamp_clear_entry(int index);
+
+/** @return The index of the device if found, VAMP_MAX_DEVICES not 
+ *  found otherwise */
+uint8_t vamp_find_device(const uint8_t* rf_id);
+uint8_t vamp_add_device(const uint8_t* rf_id);
+uint8_t vamp_get_vreg_device(const uint8_t * rf_id);
+
+/** @brief Retornar el indice del dispositivo inactivo más antiguo o 
+ * 	VAMP_MAX_DEVICES si no hay dispositivos inactivos */
+uint8_t vamp_get_oldest_inactive(void);
+
+
+/* ======================= FUNCIONES VAMP TABLES ======================== */
 
 void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
 
@@ -40,26 +85,57 @@ void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
 	    strlen(vreg_url) >= VAMP_ENDPOINT_MAX_LEN || 
 	    strlen(gw_id) >= VAMP_GW_ID_MAX_LEN) {
 
-		/* Limpiar recursos */
-		vamp_vreg_resource[0] = '\0';
-		vamp_gw_id[0] = '\0';
-		
+		#ifdef VAMP_DEBUG
+		Serial.println("Parámetros inválidos para la inicialización de VAMP");
+		#endif /* VAMP_DEBUG */
 		return;
 	}
-	sprintf(vamp_vreg_resource, "%s", vreg_url);
-	sprintf(vamp_gw_id, "%s", gw_id);
+
+	vamp_vreg_profile.method = VAMP_HTTP_METHOD_GET;
+	if (vamp_vreg_profile.endpoint_resource) {
+		free(vamp_vreg_profile.endpoint_resource);
+	}
+	vamp_vreg_profile.endpoint_resource = strdup(vreg_url);
+	if (!vamp_vreg_profile.endpoint_resource) {
+		#ifdef VAMP_DEBUG
+		Serial.println("Error al asignar memoria para el recurso VREG");
+		#endif /* VAMP_DEBUG */
+		return;
+	}
+
+	if(vamp_vreg_profile.protocol_params) {
+		free(vamp_vreg_profile.protocol_params);
+	}
+
+	char protocol_params[VAMP_PROTOCOL_PARAMS_MAX_LEN];
+	snprintf(protocol_params, sizeof(protocol_params), VAMP_HTTP_VREG_HEADERS, gw_id);
+
+	vamp_vreg_profile.protocol_params = strdup(protocol_params);
+	if (!vamp_vreg_profile.protocol_params) {
+		#ifdef VAMP_DEBUG
+		Serial.println("Error al asignar memoria para los parámetros del protocolo VREG");
+		#endif /* VAMP_DEBUG */
+		return;
+	}
+
+	if(vamp_vreg_profile.query_params) {
+		free(vamp_vreg_profile.query_params);
+	}
+	vamp_vreg_profile.query_params = (char *)malloc(VAMP_QUERY_PARAMS_VREG_LEN);
+	if (!vamp_vreg_profile.query_params) {
+		#ifdef VAMP_DEBUG
+		Serial.println("Error al asignar memoria para los parámetros de consulta del VREG");
+		#endif /* VAMP_DEBUG */
+		return;
+	}
+
 }
 
-
-/** @todo CUANDO HAY UN ERROR ACTUALIZANDO LA TABLA YA SE QUEDA AHI Y NO SIGUE
- * ASI QUE DESPUES DEL ERROR NO SE ACTUALIZA LA TABLA NI SE INCORPORAN NUEVAS ENTRADAS
- * !!1!!!!!
- */
 // Inicializar todas las tablas VAMP con sincronización VREG
 void vamp_table_update() {
 
 	/* Verificar que los valores de los recursos no estén vacíos */
-	if (vamp_vreg_resource[0] == '\0' || vamp_gw_id[0] == '\0') {
+	if (vamp_vreg_profile.endpoint_resource[0] == '\0' || vamp_vreg_profile.protocol_params[0] == '\0') {
 		#ifdef VAMP_DEBUG
 		Serial.println("no gw resources defined");
 		#endif /* VAMP_DEBUG */
@@ -78,117 +154,34 @@ void vamp_table_update() {
 			vamp_table[i].status = VAMP_DEV_STATUS_FREE;
 		}
 	}
-	/*	 Formar la cadena de sincronización como un comando
-	  	"sync --gateway gateway_id --last_time last_update"*/
-	snprintf(req_resp_internet_buff, sizeof(req_resp_internet_buff), 
-		"%s %s %s %s %s", VAMP_GW_SYNC, VAMP_GATEWAY_ID, vamp_gw_id, VAMP_TIMESTAMP, last_table_update);
 
-		#ifdef VAMP_DEBUG
-		Serial.print("cmd: ");
-		Serial.println(req_resp_internet_buff);
-		#endif /* VAMP_DEBUG */
+	/* Pasar en el query_params */
+	snprintf(vamp_vreg_profile.query_params, VAMP_QUERY_PARAMS_VREG_LEN, "?last_update=%s", last_table_update);
 
 	/* Enviar request usando TELL y recibir respuesta */
-	if (vamp_iface_comm(vamp_vreg_resource, req_resp_internet_buff, strlen(req_resp_internet_buff))) {
+	if (vamp_iface_comm(&vamp_vreg_profile, req_resp_internet_buff, strlen(req_resp_internet_buff))) {
 
-		/* Primero hay que revisar se la respuesta es válida, mirando si contiene el prefijo esperado */
-		/* sync */
-		char * sync_resp = req_resp_internet_buff;
+		Serial.println("Enviando solicitud de sincronización VREG...");
+		Serial.print(req_resp_internet_buff);
 
-		if (!strstr(sync_resp, VAMP_GW_SYNC)){
-			#ifdef VAMP_DEBUG
-			Serial.println("No se recibió respuesta válida del VREG");
-			#endif /* VAMP_DEBUG */
-			return;
-		}
-		/* sync --updated */
-		/* Si la tabla ya está actualizada, no hay nada más que hacer */
-		if (strstr(sync_resp, VAMP_UPDATED)){
-			#ifdef VAMP_DEBUG
-			Serial.println("Tabla VAMP ya está actualizada, no hay nuevos datos");
-			#endif /* VAMP_DEBUG */
-			return;
-		}
-		/* sync --error <error> */
-		if (strstr(sync_resp, VAMP_ERROR)){
-			#ifdef VAMP_DEBUG
-			Serial.print("Error en la sincronización VREG: ");
-			Serial.println(sync_resp);
-			#endif /* VAMP_DEBUG */
-			return;
+		/* !!!!! Aqui se utiliza un buffer doble que habria que ver como se puede evitar, el problema es que la respuesta
+		viene en req_resp_internet_buff que ya es bastante grande y se le pasa al parser de json el cual crea su propio
+		buffer interno. Esto puede llevar a un uso excesivo de memoria y posibles problemas de rendimiento. */
+
+		/* Extraer los datos JSON de la respuesta */
+		if (vamp_process_sync_json_response(req_resp_internet_buff)) {
+			Serial.println("Sincronización VREG completada exitosamente");
+		} else {
+			Serial.println("Error procesando respuesta VREG");
 		}
 
-		/* sync --timestamp <timestamp> --node <csv_data> */
-
-		/* --timestamp <timestamp> */
-		sync_resp = strstr(sync_resp, VAMP_TIMESTAMP);
-		if (!sync_resp) {
-			#ifdef VAMP_DEBUG
-			Serial.println("No se encontró timestamp en la respuesta VREG");
-			#endif /* VAMP_DEBUG */
-			return;
-		}
-
-		/* !!!! Aqui hay un problema y es que si falla los datos mas abajo, ya no se puede recuperar el timestamp
-		y queda actualizado, hay que tener cuidado con eso !!!!! */
-		/* Extraer el timestamp de la respuesta */
-		sync_resp = sync_resp + strlen(VAMP_TIMESTAMP) + 1; // +1 para saltar el espacio después del prefijo
-		if (!vamp_get_timestamp(sync_resp)) {
-			#ifdef VAMP_DEBUG
-			Serial.println("Error extrayendo timestamp de la respuesta VREG");
-			#endif /* VAMP_DEBUG */
-			return;
-		}
-
-		/* Procesar la respuesta CSV (--node <csv_data>) */
-		sync_resp = strstr(req_resp_internet_buff, VAMP_NODE);
-		if (sync_resp) {
-
-			/* Mover el puntero al inicio de los datos CSV,
-			+1 para saltar el espacio después del prefijo */
-			sync_resp = sync_resp + strlen(VAMP_NODE);
-
-			/* Despues de --node'\n<csv_data> para enfatizar que son datos CSV */
-			if (*sync_resp != '\n') {
-				#ifdef VAMP_DEBUG
-				Serial.println("Error: No se encontró valor de --node en la respuesta VREG");
-				#endif /* VAMP_DEBUG */
-				return;
-			}
-
-			sync_resp++;
-
-			/* Esto se puede hacer mejor, mas elegante y manejar de paso el posible error */
-			#ifdef VAMP_DEBUG
-			Serial.print("Datos CSV recibidos: '\n'");
-			Serial.println(sync_resp);
-
-			/* Extraer los datos CSV de la respuesta */
-			if (vamp_process_sync_response(sync_resp)) {
-				Serial.println("Sincronización VREG completada exitosamente");
-			} else {
-				Serial.println("Error procesando respuesta VREG");
-			}
-			#endif /* VAMP_DEBUG */
-
-			#ifndef VAMP_DEBUG
-			vamp_process_sync_response(sync_resp);
-			#endif /* VAMP_DEBUG */
-
-			return;
-		}
-
-		/** @todo ESTO HAY QUE REFACTORIZANRLO */
-		/* Si llegamos aquí, la respuesta no es válida */
 		#ifdef VAMP_DEBUG
-		Serial.println("no --node en respuesta VREG");
+		vamp_process_sync_json_response(req_resp_internet_buff);
 		#endif /* VAMP_DEBUG */
 
-	} else {
-		#ifdef VAMP_DEBUG
-		Serial.println("Error comunicándose con servidor VREG");
-		#endif /* VAMP_DEBUG */
+		return;
 	}
+
 	return;
 
 }
@@ -218,7 +211,7 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	#endif /* VAMP_DEBUG */
 
 	// Enviar request usando TELL y recibir respuesta
-	if (vamp_iface_comm(vamp_vreg_resource, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
+	if (vamp_iface_comm(&vamp_vreg_profile, req_resp_internet_buff, sizeof(req_resp_internet_buff))) {
 
 		/* Primero hay que revisar se la respuesta es válida, mirando si contiene el prefijo esperado */
 		if (!strstr(req_resp_internet_buff, VAMP_GET_NODE)){
@@ -229,15 +222,15 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 		}
 
 		/* Si la respuesta contiene un error, mostrarlo */
-		char* csv_data = strstr(req_resp_internet_buff, VAMP_GW_SYNC);
-		if (csv_data) {
+		char * node_data = strstr(req_resp_internet_buff, VAMP_GW_SYNC);
+		if (node_data) {
 
-			/* Mover el puntero al inicio de los datos CSV,
+			/* Mover el puntero al inicio de los datos JSON,
 			+1 para saltar el espacio después del prefijo */
-			csv_data = csv_data + strlen(VAMP_GW_SYNC) + 1;
+			node_data = node_data + strlen(VAMP_GW_SYNC) + 1;
 
-			/* Extraer los datos CSV de la respuesta, aqui deberia venir unos solo */
-			if (vamp_process_sync_response(csv_data)) {
+			/* Extraer los datos JSON de la respuesta, aqui deberia venir unos solo */
+			if (vamp_process_sync_json_response(node_data)) {
 				#ifdef VAMP_DEBUG
 				Serial.println("Sincronización VREG completada exitosamente");
 				#endif /* VAMP_DEBUG */
@@ -326,12 +319,7 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		return VAMP_MAX_DEVICES;
 	}
 
-	/* Verificar si el dispositivo ya está en la tabla */
-	uint8_t table_index = vamp_find_device(rf_id);
-	if (table_index < VAMP_MAX_DEVICES) {
-		/* Ya existe, no hacer nada */
-		return table_index;
-	}
+	uint8_t table_index;
 
 	/* buscar un slot libre */
 	for (table_index = 0; table_index < VAMP_MAX_DEVICES; table_index++) {
@@ -343,6 +331,13 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 	/* Si no hubiera slots libres, buscamos el sensor inactivo mas antiguo */
 	if(table_index == VAMP_MAX_DEVICES) {
 		table_index = vamp_get_oldest_inactive();
+
+		if(table_index >= VAMP_MAX_DEVICES) {
+			#ifdef VAMP_DEBUG
+			Serial.println("No hay slots libres ni inactivos");
+			#endif /* VAMP_DEBUG */
+			return VAMP_MAX_DEVICES; // No hay espacio para un nuevo dispositivo
+		}
 	}
 
 	/* Si encontramos un slot libre o inactivo */
@@ -546,256 +541,258 @@ bool vamp_get_timestamp(char * timestamp) {
 
 
 /** 
- * Process the synchronization response from VREG.
- * El buffer contiene la respuesta que debe tener el formato:
- * gateway_sync_resp <--option> <value>
- * <value> es el nuevo valor para la opción
- * Opciones:
- * - "--updated": indica que la tabla ya está actualizada, no hay nuevos datos, no tiene value
- * - "--error": indica que hubo un error en la sincronización, value contiene el mensaje de error
- * - "--node": contiene los datos de la tabla en formato CSV, value es el CSV con los campos:
- *  	rf_id, action, type, resource
- * actions:
- * - "ADD": agregar un dispositivo. El VREG no sabe ni debe intervenir en el puerto, 
- *          así que el gateway busca un slot vacío y asigna el nuevo nodo. Se revisa 
- *          primero si el nodo ya estaba en la tabla.
- * - "REMOVE": eliminar un dispositivo, se cambia el estado a libre y se pone a cero el rf_id
- * - "UPDATE": actualizar un dispositivo existente
-*/
-bool vamp_process_sync_response(const char* csv_data) {
-	
-	if (csv_data == NULL) {
+ * Process the synchronization response from VREG.*/
+bool vamp_process_sync_json_response(const char* json_data) {
+
+	if (json_data == NULL) {
 		return false;
 	}
-  
-	/* Apuntamos a la primera linea */
-	const char * csv_ptr = csv_data; // VER probablemente csv_ptr no sea necesario
 
-	/* 	Procesar cada línea, que tiene la forma: 
-		rf_id,action,type,resource'\n' */
-	while (csv_ptr[0] != '\0' && csv_ptr != NULL) {
+	/* Crear buffer JSON dinámico */
+	DynamicJsonDocument doc(4096);
+	
+	/* Parsear el JSON */
+	DeserializationError error = deserializeJson(doc, json_data);
+	if (error) {
+		#ifdef VAMP_DEBUG
+		Serial.print("Error parseando JSON: ");
+		Serial.println(error.c_str());
+		#endif /* VAMP_DEBUG */
+		return false;
+	}
 
-		/* Si viene de un ciclo anterior hay que saltar el '\n' */
-		if (csv_ptr[0] == '\n') {
-			csv_ptr++;
+	/* Verificar que el JSON es un array */
+	if (!doc.is<JsonArray>()) {
+		#ifdef VAMP_DEBUG
+		Serial.println("JSON no es un array válido");
+		#endif /* VAMP_DEBUG */
+		return false;
+	}
+
+	JsonArray nodes = doc.as<JsonArray>();
+	
+	/* Procesar cada entrada en el array de cambios */
+	for (JsonObject node : nodes) {
+		
+		/* Verificar campos obligatorios y que no estén vacíos */
+		if (!node.containsKey("rf_id") || !node["rf_id"] || 
+			!node.containsKey("action") || !node["action"] ||
+			!node.containsKey("type") || !node["type"] ||
+			!node.containsKey("profiles") || !node["profiles"]) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Entrada JSON sin mandatory fields o con valores vacíos");
+			#endif /* VAMP_DEBUG */
+			continue; // Saltar esta entrada
 		}
 
-		/* El primer campo son 10 bytes con la direccion en HEX
-			que se traduciran a 5 bytes de RF_ID */
-		uint8_t rf_id[5];
-		char rf_id_hex[VAMP_ADDR_LEN * 2 + 1]; // 10 caracteres + '\0'
-		memcpy(rf_id_hex, csv_ptr, VAMP_ADDR_LEN * 2);
-		rf_id_hex[VAMP_ADDR_LEN * 2] = '\0'; // Asegurar terminación
-
-		#ifdef VAMP_DEBUG
-		Serial.print("RF_ID recibido: ");
-		Serial.println(rf_id_hex);
-		#endif /* VAMP_DEBUG */
-
-		/* convertir a RF_ID */
-		if(!hex_to_rf_id(rf_id_hex, rf_id)) {
+		/* Extraer RF_ID */
+		uint8_t rf_id[VAMP_ADDR_LEN];
+		if (!hex_to_rf_id(node["rf_id"], rf_id)) {
 			#ifdef VAMP_DEBUG
 			Serial.println("RF_ID inválido en la respuesta VREG");
 			#endif /* VAMP_DEBUG */
-			return false;
+			continue;
 		}
-		
-		csv_ptr = csv_ptr + (VAMP_ADDR_LEN * 2 + 1); // Saltar el campo rf_id y la coma
 
-		/* Si el ACTION es ADD */
-		if (!strncmp(csv_ptr, "ADD", 3)){
+		#ifdef VAMP_DEBUG
+		Serial.print("RF_ID recibido: ");
+		Serial.println(node["rf_id"].as<String>());
+		#endif /* VAMP_DEBUG */
 
-			/* Buscar slot libre y asignar para luego configurar sus campos */
-			uint8_t table_index = vamp_add_device(rf_id);
+		/* Buscar si el nodo ya esta en la tabla */
+		uint8_t table_index = vamp_find_device(rf_id);
+		if (table_index < VAMP_MAX_DEVICES) {
+			#ifdef VAMP_DEBUG
+			Serial.print("Nodo registrado ");
+			Serial.println(node["rf_id"].as<String>());
+			#endif /* VAMP_DEBUG */
+		}
+		if (table_index > VAMP_MAX_DEVICES) {
+			#ifdef VAMP_DEBUG
+			Serial.print("Error buscando al nodo en la tabla");
+			#endif /* VAMP_DEBUG */
+			continue;
+		}
 
-			/* Si se encontró un slot libre y se pudo adicionar el dispositivo se asigna 
-			el estado de cache */
-			if (table_index < VAMP_MAX_DEVICES) {
+		/* Procesar según la acción */
+		if (strcmp(node["action"], "ADD") == 0 || strcmp(node["action"], "UPDATE") == 0) {
 
-				/* Asignar el estado de cache */
-				vamp_table[table_index].status = VAMP_DEV_STATUS_CACHE;
+			/* !!! a partir de aqui el nodo aun cuando estubiera agregado, se actualiza
+			hay que ver lo conveniente o seguro de esta operacion, puede que sea mejor 
+			no hacer nada si el nodo ya existe y esta activo..... */
 
-				/* Saltar "ADD," */
-				csv_ptr += 4;
+			/* Si el nodo no está registrado, se agrega */
+			if (table_index == VAMP_MAX_DEVICES) {
+				table_index = vamp_add_device(rf_id);
+			}
+			/* Si el nodo ya está registrado, se actualiza, para eso
+			vamos a limpiar primero la entrada */
+			else {
+				vamp_clear_entry(table_index);
+			}
 
-				/* Poner el type que puede ser '0' - '3' (0x30 - 0x33)
-				(fijo, dinámico, auto, huérfano)*/
-				if( 0x30 <= csv_ptr[0] && csv_ptr[0] <= 0x33) { 
-					/* Si es un número, convertir ASCII a entero */
-					vamp_table[table_index].type = ((uint8_t)csv_ptr[0] - 0x30);
-				}
-				else {
-					#ifdef VAMP_DEBUG
-					Serial.println("Tipo inválido en la respuesta VREG");
-					#endif /* VAMP_DEBUG */
-					return false; // Error en el tipo
-				}
-
-				/* Saltar el tipo y la coma, e. g "2,", */
-				csv_ptr += 2;
-
-				/* 	A partir de aqui vendrán los profiles, que pueden estar entre 0 y 
-					VAMP_MAX_PROFILES, estos vendran en orden hasta el final de la linea
-					con la forma:
-					<protocol>,<method>,<endpoint_resource>,<protocol_params> */
-
-				/* Inicializar el contador de perfiles */
-				uint8_t profile_index = 0;
-				vamp_table[table_index].profile_count = 0;
-
-				/* Mientras que no se llegue al final de la linea o del archivo */
-				char * find_comma = NULL;
-				while (csv_ptr && (csv_ptr[0] != '\n') && (csv_ptr[0] != '\0')) {
-
-					//vamp_table[table_index].profiles[profile_index].protocol = atoi(csv_ptr);
-					//csv_ptr = strchr(csv_ptr, ',');
-					//if (!csv_ptr) break;
-					//csv_ptr++;
-
-					/* Método específico del protocolo */
-					vamp_table[table_index].profiles[profile_index].method = atoi(csv_ptr);
-					csv_ptr = strchr(csv_ptr, ',');
-					if (!csv_ptr) break;
-					csv_ptr++;
-
-					/* Endpoint resource */
-					find_comma = strchr(csv_ptr, ',');
-					if (!find_comma) { break; }
-					uint8_t field_len = (uint8_t)(find_comma - csv_ptr);
-					if (field_len >= VAMP_ENDPOINT_MAX_LEN) {
-						#ifdef VAMP_DEBUG
-						Serial.println("Endpoint resource demasiado largo en la respuesta VREG");
-						#endif /* VAMP_DEBUG */
-						break;
-					}
-					/* Liberar previo si existiera y asignar nuevo */
-					if (vamp_table[table_index].profiles[profile_index].endpoint_resource) {
-						free(vamp_table[table_index].profiles[profile_index].endpoint_resource);
-						vamp_table[table_index].profiles[profile_index].endpoint_resource = NULL;
-					}
-					vamp_table[table_index].profiles[profile_index].endpoint_resource = (char*)malloc(field_len + 1);
-					if (!vamp_table[table_index].profiles[profile_index].endpoint_resource) { break; }
-					memcpy(vamp_table[table_index].profiles[profile_index].endpoint_resource, csv_ptr, field_len);
-					vamp_table[table_index].profiles[profile_index].endpoint_resource[field_len] = '\0';
-					csv_ptr = find_comma + 1; // Mover al siguiente campo
-
-					find_comma = strchr(csv_ptr, ',');
-					if (!find_comma) { break; }
-					field_len = (uint8_t)(find_comma - csv_ptr);
-					if (field_len >= VAMP_PROTOCOL_PARAMS_MAX_LEN) {
-						#ifdef VAMP_DEBUG
-						Serial.println("Protocol params demasiado largo en la respuesta VREG");
-						#endif /* VAMP_DEBUG */
-						break;
-					}
-					/* Liberar previo si existiera y asignar nuevo */
-					if (vamp_table[table_index].profiles[profile_index].protocol_params) {
-						free(vamp_table[table_index].profiles[profile_index].protocol_params);
-						vamp_table[table_index].profiles[profile_index].protocol_params = NULL;
-					}
-					vamp_table[table_index].profiles[profile_index].protocol_params = (char*)malloc(field_len + 1);
-					if (!vamp_table[table_index].profiles[profile_index].protocol_params) { break; }
-					memcpy(vamp_table[table_index].profiles[profile_index].protocol_params, csv_ptr, field_len);
-					vamp_table[table_index].profiles[profile_index].protocol_params[field_len] = '\0';
-					csv_ptr = find_comma + 1; // Mover al siguiente campo
-
-					profile_index++;
-					vamp_table[table_index].profile_count = profile_index;
-					/** @todo este error hay que manejarlo mejor */
-					if (profile_index >= VAMP_MAX_PROFILES) break;
-
-				}
-
-			} else {
-				/* Si ya no hay más slots libre pues nada que hacer */
+			if (table_index >= VAMP_MAX_DEVICES) {
 				#ifdef VAMP_DEBUG
-				Serial.println("No hay slots libres para agregar el dispositivo");
+				Serial.print("Error agregando nodo a la tabla: ");
+				Serial.print(node["rf_id"].as<String>());
+				Serial.println(" - Sin slots disponibles o error interno");
 				#endif /* VAMP_DEBUG */
-				return false;
+				continue; // Saltar este dispositivo y continuar con el siguiente
 			}
 
-		/* Si el ACTION es REMOVE */	
-		} else if (!strncmp(csv_ptr, "REMOVE", 6)) {
+			#ifdef VAMP_DEBUG
+			Serial.print("Nodo agregado ");
+			Serial.println(node["rf_id"].as<String>());
+			#endif /* VAMP_DEBUG */
 
-			vamp_remove_device(rf_id);
+			/* Asignar el estado de cache */
+			vamp_table[table_index].status = VAMP_DEV_STATUS_CACHE;
 
-			/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
-			csv_ptr = strchr(csv_ptr, '\n');
+			/* Extraer tipo del dispositivo */		
+			if (!strcmp(node["type"], "fixed")) {
+				vamp_table[table_index].type = 0;
+			} else if (!strcmp(node["type"], "dynamic")) {
+				vamp_table[table_index].type = 1;
+			} else if (!strcmp(node["type"], "auto")) {
+				vamp_table[table_index].type = 2;
+			} else {
+				/* !!!!! valor por defecto ???? */
+				#ifdef VAMP_DEBUG
+				Serial.print("Tipo de dispositivo desconocido: ");
+				Serial.println(node["type"].as<String>());
+				#endif /* VAMP_DEBUG */
+				vamp_table[table_index].type = 0; // Valor por defecto
+			}
 
-		/* Si el ACTION es UPDATE */	
-		} else if (!strncmp(csv_ptr, "UPDATE", 6)) {
+			/* Procesar perfiles, debe haber al menos uno */
+			JsonArray profiles = node["profiles"];
+			if (profiles.size() == 0 || profiles.size() >= VAMP_MAX_PROFILES) {
+				#ifdef VAMP_DEBUG
+				Serial.print("Tiene que haber entre 1 y ");
+				Serial.print(VAMP_MAX_PROFILES);
+				Serial.println(" perfiles");
+				#endif /* VAMP_DEBUG */
+				continue; // Saltar este nodo si no hay perfiles
+			}
 
-			/* Buscar el dispositivo en la tabla */
-			uint8_t table_index = vamp_find_device(rf_id);
+			/* Inicializar contador de perfiles */
+			uint8_t profile_index = 0;
+			vamp_table[table_index].profile_count = 0;
 
-			if (table_index < VAMP_MAX_DEVICES) {
-				/* Si se encontró el dispositivo en la tabla, actualizarlo */
-				csv_ptr += 7; // Saltar "UPDATE,"
-				
-				/* Poner el tipo */
-				vamp_table[table_index].type = atoi(csv_ptr);
-				
-				/* Saltar el tipo y la coma, e. g "2," */
-				csv_ptr += 2; 
-				
-				/* Limpiar perfiles anteriores y reiniciar contador */
-				vamp_clear_device_profiles(table_index);
-				vamp_table[table_index].profile_count = 0;
-
-				/* Parsear perfiles como en ADD */
-				uint8_t profile_index = 0;
-				char * find_comma = NULL;
-				while (csv_ptr && (csv_ptr[0] != '\n') && (csv_ptr[0] != '\0')) {
-					/* Método */
-					vamp_table[table_index].profiles[profile_index].method = atoi(csv_ptr);
-					csv_ptr = strchr(csv_ptr, ',');
-					if (!csv_ptr) break;
-					csv_ptr++;
-
-					/* Endpoint resource */
-					find_comma = strchr(csv_ptr, ',');
-					if (!find_comma) break;
-					uint8_t field_len = (uint8_t)(find_comma - csv_ptr);
-					if (field_len >= VAMP_ENDPOINT_MAX_LEN) { break; }
-					if (vamp_table[table_index].profiles[profile_index].endpoint_resource) {
-						free(vamp_table[table_index].profiles[profile_index].endpoint_resource);
-						vamp_table[table_index].profiles[profile_index].endpoint_resource = NULL;
-					}
-					vamp_table[table_index].profiles[profile_index].endpoint_resource = (char*)malloc(field_len + 1);
-					if (!vamp_table[table_index].profiles[profile_index].endpoint_resource) break;
-					memcpy(vamp_table[table_index].profiles[profile_index].endpoint_resource, csv_ptr, field_len);
-					vamp_table[table_index].profiles[profile_index].endpoint_resource[field_len] = '\0';
-					csv_ptr = find_comma + 1;
-
-					/* Protocol params */
-					find_comma = strchr(csv_ptr, ',');
-					if (!find_comma) break;
-					field_len = (uint8_t)(find_comma - csv_ptr);
-					if (field_len >= VAMP_PROTOCOL_PARAMS_MAX_LEN) { break; }
-					if (vamp_table[table_index].profiles[profile_index].protocol_params) {
-						free(vamp_table[table_index].profiles[profile_index].protocol_params);
-						vamp_table[table_index].profiles[profile_index].protocol_params = NULL;
-					}
-					vamp_table[table_index].profiles[profile_index].protocol_params = (char*)malloc(field_len + 1);
-					if (!vamp_table[table_index].profiles[profile_index].protocol_params) break;
-					memcpy(vamp_table[table_index].profiles[profile_index].protocol_params, csv_ptr, field_len);
-					vamp_table[table_index].profiles[profile_index].protocol_params[field_len] = '\0';
-					csv_ptr = find_comma + 1;
-
-					profile_index++;
-					vamp_table[table_index].profile_count = profile_index;
-					if (profile_index >= VAMP_MAX_PROFILES) break;
+			/* Procesar cada perfil */
+			for (JsonObject profile : profiles) {
+				if (profile_index >= VAMP_MAX_PROFILES) {
+					#ifdef VAMP_DEBUG
+					Serial.println("Límite máximo de perfiles alcanzado");
+					#endif /* VAMP_DEBUG */
+					break;
 				}
 
-				/* Avanzar al final de la línea */
-				csv_ptr = strchr(csv_ptr, '\n');
-			} else {
-				/* Buscar el final de la línea o del buffer (csv_ptr = NULL) */
-				csv_ptr = strchr(csv_ptr, '\n');
+				/* Extraer method */
+				if (profile.containsKey("method")) {
+
+					/* Extraer el metodo (GET, POST...) */
+					if (!strcmp(profile["method"], "GET")) {
+						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_GET;
+					} else if (!strcmp(profile["method"], "POST")) {
+						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_POST;
+					} else if (!strcmp(profile["method"], "PUT")) {
+						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_PUT;
+					} else if (!strcmp(profile["method"], "DELETE")) {
+						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_DELETE;
+					} else {
+						#ifdef VAMP_DEBUG
+						Serial.print("Método desconocido: ");
+						Serial.println(profile["method"].as<String>());
+						#endif /* VAMP_DEBUG */
+						/* !!! no me gustan estos valores por defecto !!!  */
+						vamp_table[table_index].profiles[profile_index].method = 0; // Valor por defecto
+					}
+				} else {
+					/* !!! no me gustan estos valores por defecto !!!  */
+					vamp_table[table_index].profiles[profile_index].method = 0; // Valor por defecto
+				}
+
+				/* Extraer endpoint_resource */
+				if (profile.containsKey("endpoint")) {
+					const char* endpoint_str = profile["endpoint"];
+					if (endpoint_str && strlen(endpoint_str) > 0 && strlen(endpoint_str) < VAMP_ENDPOINT_MAX_LEN) {
+						/* Liberar memoria previa si existe */
+						if (vamp_table[table_index].profiles[profile_index].endpoint_resource) {
+							free(vamp_table[table_index].profiles[profile_index].endpoint_resource);
+						}
+						/* Asignar nueva memoria */
+						vamp_table[table_index].profiles[profile_index].endpoint_resource = strdup(endpoint_str);
+						if (!vamp_table[table_index].profiles[profile_index].endpoint_resource) {
+							#ifdef VAMP_DEBUG
+							Serial.println("Error asignando memoria para endpoint_resource");
+							#endif /* VAMP_DEBUG */
+							break;
+						}
+					} else {
+						#ifdef VAMP_DEBUG
+						Serial.println("Endpoint resource inválido o demasiado largo");
+						#endif /* VAMP_DEBUG */
+					}
+				}
+
+				/* Extraer protocol_params */
+				if (profile.containsKey("params")) {
+					const char* params_str = profile["params"];
+					if (params_str && strlen(params_str) > 0 && strlen(params_str) < VAMP_PROTOCOL_PARAMS_MAX_LEN) {
+						/* Liberar memoria previa si existe */
+						if (vamp_table[table_index].profiles[profile_index].protocol_params) {
+							free(vamp_table[table_index].profiles[profile_index].protocol_params);
+						}
+						/* Asignar nueva memoria */
+						vamp_table[table_index].profiles[profile_index].protocol_params = strdup(params_str);
+						if (!vamp_table[table_index].profiles[profile_index].protocol_params) {
+							#ifdef VAMP_DEBUG
+							Serial.println("Error asignando memoria para protocol_params");
+							#endif /* VAMP_DEBUG */
+							break;
+						}
+					} else {
+						#ifdef VAMP_DEBUG
+						Serial.println("Endpoint resource inválido o demasiado largo");
+						#endif /* VAMP_DEBUG */
+					}
+				}
+
+				profile_index++;
+				vamp_table[table_index].profile_count = profile_index;
 			}
+
+			#ifdef VAMP_DEBUG
+			Serial.print("Dispositivo ADD procesado con ");
+			Serial.print(profile_index);
+			Serial.println(" perfiles");
+			#endif /* VAMP_DEBUG */
+
+
+		} else if (strcmp(node["action"], "REMOVE") == 0) {
+
+			if (table_index == VAMP_MAX_DEVICES) {
+				/* Remover dispositivo de la tabla */
+				vamp_clear_entry(table_index);
+				#ifdef VAMP_DEBUG
+				Serial.println("Dispositivo REMOVE procesado exitosamente");
+				#endif /* VAMP_DEBUG */
+			} else {
+				#ifdef VAMP_DEBUG
+				Serial.println("Dispositivo REMOVE no encontrado en tabla");
+				#endif /* VAMP_DEBUG */
+			}
+
+		} else {
+			#ifdef VAMP_DEBUG
+			Serial.print("Acción desconocida en JSON: ");
+			Serial.println(node["action"].as<const char*>());
+			#endif /* VAMP_DEBUG */
 		}
 	}
-  return true; // Procesamiento exitoso
+
+	return true; // Procesamiento exitoso
 }
 
 

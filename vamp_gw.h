@@ -24,14 +24,25 @@
 /* Fecha de la última actualización de la tabla en UTC */
 #define VAMP_TABLE_INIT_TSMP "2020-01-01T00:00:00Z"
 
+
+/** @brief Headers HTTP para la comunicación con el VREG */
+#define VAMP_HTTP_VREG_HEADERS  "Accept: application/json\r\n" \
+                                "X-VAMP-Gateway-ID: %s\r\n" \
+                                "Cache-Control: no-cache" \
+                               // "Connection: close\r\n"
+
+#define VAMP_QUERY_PARAMS_VREG_LEN 128
+
 /* Máscaras y macros para el protocolo extendido [C][PP][LLLLL] */
 #define VAMP_WSN_PROFILE_MASK     0x60              // Bits 6-5: Perfil (00, 01, 10, 11)
 #define VAMP_WSN_LENGTH_MASK      0x1F              // Bits 4-0: Longitud (0-31)
 
-#define VAMP_HTTP_METHOD_GET  0
-#define VAMP_HTTP_METHOD_POST 1
+#define VAMP_HTTP_METHOD_GET  	0
+#define VAMP_HTTP_METHOD_POST 	1
+#define VAMP_HTTP_METHOD_PUT 	2
+#define VAMP_HTTP_METHOD_DELETE 3
 
-/* Protocolos soportados */
+/* Protocolos soportados  ??*/
 #define VAMP_PROTOCOL_HTTP    0
 #define VAMP_PROTOCOL_HTTPS   1
 #define VAMP_PROTOCOL_MQTT    2
@@ -56,6 +67,7 @@ typedef struct vamp_profile_t {
 	uint8_t method;					// Método específico del protocolo
 	char * endpoint_resource;    	// URL/URI del endpoint sin esquema (dinámica)
 	char * protocol_params;			// Parámetros específicos del protocolo (dinámica)
+	char * query_params;			// Parámetros de consulta (dinámica)
 //	char * payload_template;		// Plantilla de payload
 } vamp_profile_t;
 
@@ -159,20 +171,6 @@ typedef struct {
 
 /* ---------------------- Funciones de tabla ---------------------- */
 
-/** @brief Funciones que manejan la tabla unificada VAMP
- * 
- * @param index Table index 0 <= index < VAMP_MAX_DEVICES
- * @param rf_id WSN ID (have VAMP_ADDR_LEN bytes)
- * @return true if the operation was successful, false otherwise
- */
-bool vamp_remove_device(const uint8_t* rf_id);
-void vamp_clear_entry(int index);
-/** @return The index of the device if found, VAMP_MAX_DEVICES not 
- *  found otherwise */
-uint8_t vamp_find_device(const uint8_t* rf_id);
-uint8_t vamp_add_device(const uint8_t* rf_id);
-uint8_t vamp_get_vreg_device(const uint8_t * rf_id);
-
 /** @brief Actualiza la tabla VAMP desde el servidor VREG */
 void vamp_table_update(void);
 
@@ -180,10 +178,6 @@ void vamp_table_update(void);
  * Esta función debe ser llamada periódicamente para asegurar que la 
  * tabla VAMP se mantenga actualizada. */
 void vamp_detect_expired(void);
-
-/** @brief Retornar el indice del dispositivo inactivo más antiguo o 
- * 	VAMP_MAX_DEVICES si no hay dispositivos inactivos */
-uint8_t vamp_get_oldest_inactive(void);
 
 /* --------------------- Funciones tabla VAMP -------------------- */
 
@@ -204,7 +198,6 @@ uint8_t vamp_generate_id_byte(const uint8_t index);
 bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id);
 void rf_id_to_hex(const uint8_t* rf_id, char* hex_str);
 bool vamp_is_rf_id_valid(const uint8_t * rf_id);
-bool vamp_process_sync_response(const char* csv_data);
 bool vamp_get_timestamp(char * timestamp);
 
 

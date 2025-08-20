@@ -23,7 +23,7 @@
 
 /** @brief Longitud máxima del endpoint VAMP (en bytes) */
 #ifndef VAMP_PROTOCOL_PARAMS_MAX_LEN
-#define VAMP_PROTOCOL_PARAMS_MAX_LEN 128
+#define VAMP_PROTOCOL_PARAMS_MAX_LEN 512
 #endif // VAMP_PROTOCOL_PARAMS_MAX_LEN
 
 // Tamaño estándar del buffer de internet (request/response)
@@ -45,6 +45,17 @@
 
 /** @brief   Máximo de fallos consecutivos antes de re-join */
 #define MAX_SEND_FAILURES 3
+
+/* Parámetros para la comunicación del gateway VAMP con el VREG */
+/** @brief  ID del gateway VAMP */
+#ifndef VAMP_GW_ID
+#define VAMP_GW_ID  "GW_TEST_01"
+#endif
+
+/** @brief  URL del VAMP Registry */
+#ifndef VAMP_VREG_RESOURCE
+#define VAMP_VREG_RESOURCE	"http://10.1.111.249:8000/vreg/api/v1/gateway/sync/" // URL del VAMP Registry
+#endif
 
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
 #define VAMP_DEBUG

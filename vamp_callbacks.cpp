@@ -485,6 +485,12 @@ bool esp8266_check_conn() {
 	}
 }
 
+bool esp8266_http(const vamp_profile_t * profile, char * data, size_t data_size) {
+
+	
+
+}
+
 // Función para enviar datos por HTTPS
 bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size) {
 	if (!esp8266_check_conn()) {
@@ -497,43 +503,79 @@ bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size
 	/* Configurar cliente HTTPS (desactivar verificación SSL para testing) */
 	https_client.setInsecure(); // Solo para desarrollo - en producción usar certificados
 
-	/* Configurar HTTP client - reutilizar conexión si es posible */
-	https_http.begin(https_client, profile->endpoint_resource);
-	https_http.setTimeout(HTTPS_TIMEOUT);
-	https_http.setUserAgent(HTTPS_USER_AGENT);
+	String full_url = String(profile->endpoint_resource);
+	/* Añadir parámetros de consulta si existen */
+	if (profile->query_params && profile->query_params[0] == '?' ) {
+		full_url += String(profile->query_params);
+	} else {
+		#ifdef VAMP_DEBUG
+		Serial.println("Error: Endpoint resource no definido");
+		#endif /* VAMP_DEBUG */
+		return false;
+	}
+
+	Serial.print("Conectando a: ");
+	Serial.println(full_url);
+	Serial.print("params: ");
+	Serial.println(profile->protocol_params ? profile->protocol_params : "N/A");
 
 	/* Añadir headers personalizados si hubiera */
 	if (profile->protocol_params && profile->protocol_params[0] != '\0') {
 		const char * p = profile->protocol_params;
 		while (*p) {
-			// Encontrar fin de par header
+			// Encontrar separador de header (nombre:valor)
 			const char *sep = strchr(p, ':');
 			if (!sep) break;
-			const char *end = strchr(sep + 1, ',');
-			if (!end) end = p + strlen(p);
-			// Extraer nombre y valor
+			
+			// Buscar fin de línea (\r\n) o final de cadena
+			const char *end = strstr(sep + 1, "\r\n");
+			if (!end) {
+				// Si no hay \r\n, buscar solo \n
+				end = strchr(sep + 1, '\n');
+				if (!end) end = p + strlen(p);
+			}
+			
+			// Extraer nombre y valor del header
 			int name_len = (int)(sep - p);
 			int val_len = (int)(end - (sep + 1));
+			
 			if (name_len > 0 && val_len > 0) {
 				String hname = String(p).substring(0, name_len);
 				String hval = String(sep + 1).substring(0, val_len);
 				hname.trim();
 				hval.trim();
 				if (hname.length() > 0) {
+					#ifdef VAMP_DEBUG
+					Serial.print("Adding header: ");
+					Serial.print(hname);
+					Serial.print(" = ");
+					Serial.println(hval);
+					#endif /* VAMP_DEBUG */
 					https_http.addHeader(hname, hval);
 				}
 			}
-			if (*end == ',') end++;
-			p = end;
+			
+			// Avanzar al siguiente header
+			if (strstr(end, "\r\n") == end) {
+				p = end + 2; // Saltar \r\n
+			} else if (*end == '\n') {
+				p = end + 1; // Saltar \n
+			} else {
+				break; // Final de cadena
+			}
 		}
 	}
+
+	https_http.begin(https_client, full_url);
+	https_http.setTimeout(HTTPS_TIMEOUT);
+	https_http.setUserAgent(HTTPS_USER_AGENT);
 	
 	int httpResponseCode = -1;
-	
 	
 	switch (profile->method) {
 		/* GET */
 		case VAMP_HTTP_METHOD_GET:
+			Serial.println("Enviando GET request...");
 			httpResponseCode = https_http.GET();
 			break;
 		case VAMP_HTTP_METHOD_POST:
