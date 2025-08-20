@@ -485,14 +485,8 @@ bool esp8266_check_conn() {
 	}
 }
 
-bool esp8266_http(const vamp_profile_t * profile, char * data, size_t data_size) {
-
-	
-
-}
-
-// Función para enviar datos por HTTPS
-bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size) {
+// Función unificada para enviar datos por HTTP/HTTPS
+bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size) {
 	if (!esp8266_check_conn()) {
 		#ifdef VAMP_DEBUG
 		Serial.println("Error: WiFi no conectado");
@@ -500,24 +494,33 @@ bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size
 		return false;
 	}
 	
-	/* Configurar cliente HTTPS (desactivar verificación SSL para testing) */
-	https_client.setInsecure(); // Solo para desarrollo - en producción usar certificados
-
 	String full_url = String(profile->endpoint_resource);
+
 	/* Añadir parámetros de consulta si existen */
 	if (profile->query_params && profile->query_params[0] == '?' ) {
 		full_url += String(profile->query_params);
-	} else {
-		#ifdef VAMP_DEBUG
-		Serial.println("Error: Endpoint resource no definido");
-		#endif /* VAMP_DEBUG */
-		return false;
 	}
+
+	bool is_https = strncmp(profile->endpoint_resource, "https://", 8) == 0;
 
 	Serial.print("Conectando a: ");
 	Serial.println(full_url);
 	Serial.print("params: ");
 	Serial.println(profile->protocol_params ? profile->protocol_params : "N/A");
+
+	/* Discriminar entre HTTP y HTTPS */
+	if (is_https) {
+		/* Configurar cliente HTTPS */
+		https_client.setInsecure(); // Solo para desarrollo
+		https_http.begin(https_client, full_url);
+	} else {
+		/* Configurar cliente HTTP normal */
+		WiFiClient http_client;
+		https_http.begin(http_client, full_url);
+	}
+
+	https_http.setTimeout(HTTPS_TIMEOUT);
+	https_http.setUserAgent(HTTPS_USER_AGENT);
 
 	/* Añadir headers personalizados si hubiera */
 	if (profile->protocol_params && profile->protocol_params[0] != '\0') {
@@ -565,20 +568,19 @@ bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size
 			}
 		}
 	}
-
-	https_http.begin(https_client, full_url);
-	https_http.setTimeout(HTTPS_TIMEOUT);
-	https_http.setUserAgent(HTTPS_USER_AGENT);
 	
 	int httpResponseCode = -1;
 	
 	switch (profile->method) {
 		/* GET */
 		case VAMP_HTTP_METHOD_GET:
-			Serial.println("Enviando GET request...");
+			Serial.print("Enviando GET request ");
+			Serial.println(is_https ? "(HTTPS)..." : "(HTTP)...");
 			httpResponseCode = https_http.GET();
 			break;
 		case VAMP_HTTP_METHOD_POST:
+			Serial.print("Enviando POST request ");
+			Serial.println(is_https ? "(HTTPS)..." : "(HTTP)...");
 			httpResponseCode = https_http.POST((uint8_t*)data, data_size);
 			break;
 		default:
@@ -611,7 +613,8 @@ bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size
 	
 	} else {
 		#ifdef VAMP_DEBUG
-		Serial.print("Error en HTTPS ");
+		Serial.print("Error en ");
+		Serial.print(is_https ? "HTTPS" : "HTTP");
 		Serial.print(": ");
 		Serial.println(httpResponseCode);
 		#endif /* VAMP_DEBUG */
@@ -619,8 +622,6 @@ bool esp8266_https(const vamp_profile_t * profile, char * data, size_t data_size
 		return false;
 	}
 }
-
-
 
 #endif // ARDUINO_ARCH_ESP8266
 
@@ -669,7 +670,8 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	profile.protocol_params = NULL;
 
 	#if defined(ARDUINO_ARCH_ESP8266)
-	len = (uint8_t)esp8266_https(&profile, data, len);
+	/* Usar función unificada para HTTP/HTTPS */
+	len = (uint8_t)esp8266_http_request(&profile, data, len);
 	#else //#elif en caso de otras arquitecturas
 	/* Se devuelve 0 en caso de no tener ninguna arquitectura definida */
 	len = 0;
@@ -689,7 +691,8 @@ uint8_t vamp_iface_comm(const vamp_profile_t * profile, char * data, size_t len)
 	}
 
 	#if defined(ARDUINO_ARCH_ESP8266)
-		return esp8266_https(profile, data, len);
+	/* Usar función unificada para HTTP/HTTPS */
+	return esp8266_http_request(profile, data, len);
 	#endif
 
 	return 0;

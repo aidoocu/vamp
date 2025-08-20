@@ -28,7 +28,6 @@
 /** @brief Headers HTTP para la comunicación con el VREG */
 #define VAMP_HTTP_VREG_HEADERS  "Accept: application/json\r\n" \
                                 "X-VAMP-Gateway-ID: %s\r\n" \
-                                "Cache-Control: no-cache" \
                                // "Connection: close\r\n"
 
 #define VAMP_QUERY_PARAMS_VREG_LEN 128
