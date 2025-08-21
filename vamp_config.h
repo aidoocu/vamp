@@ -22,9 +22,9 @@
 #endif // VAMP_ENDPOINT_MAX_LEN
 
 /** @brief Longitud máxima del endpoint VAMP (en bytes) */
-#ifndef VAMP_PROTOCOL_PARAMS_MAX_LEN
-#define VAMP_PROTOCOL_PARAMS_MAX_LEN 512
-#endif // VAMP_PROTOCOL_PARAMS_MAX_LEN
+#ifndef VAMP_PROTOCOL_OPTIONS_MAX_LEN
+#define VAMP_PROTOCOL_OPTIONS_MAX_LEN 512
+#endif // VAMP_PROTOCOL_OPTIONS_MAX_LEN
 
 // Tamaño estándar del buffer de internet (request/response)
 #ifndef VAMP_IFACE_BUFF_SIZE

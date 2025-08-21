@@ -505,8 +505,8 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 
 	Serial.print("Conectando a: ");
 	Serial.println(full_url);
-	Serial.print("params: ");
-	Serial.println(profile->protocol_params ? profile->protocol_params : "N/A");
+	Serial.print("options: ");
+	Serial.println(profile->protocol_options ? profile->protocol_options : "N/A");
 
 	/* Discriminar entre HTTP y HTTPS */
 	if (is_https) {
@@ -523,8 +523,8 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 	https_http.setUserAgent(HTTPS_USER_AGENT);
 
 	/* Añadir headers personalizados si hubiera */
-	if (profile->protocol_params && profile->protocol_params[0] != '\0') {
-		const char * p = profile->protocol_params;
+	if (profile->protocol_options && profile->protocol_options[0] != '\0') {
+		const char * p = profile->protocol_options;
 		while (*p) {
 			// Encontrar separador de header (nombre:valor)
 			const char *sep = strchr(p, ':');
@@ -667,7 +667,7 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	profile.endpoint_resource[url_len] = '\0';
 
 	len ? profile.method = VAMP_HTTP_METHOD_POST : profile.method = VAMP_HTTP_METHOD_GET;
-	profile.protocol_params = NULL;
+	profile.protocol_options = NULL;
 
 	#if defined(ARDUINO_ARCH_ESP8266)
 	/* Usar función unificada para HTTP/HTTPS */

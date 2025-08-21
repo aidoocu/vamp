@@ -28,7 +28,7 @@
 /** @brief Headers HTTP para la comunicación con el VREG */
 #define VAMP_HTTP_VREG_HEADERS  "Accept: application/json\r\n" \
                                 "X-VAMP-Gateway-ID: %s\r\n" \
-                               // "Connection: close\r\n"
+                               /* "Connection: close\r\n" */
 
 #define VAMP_QUERY_PARAMS_VREG_LEN 128
 
@@ -50,6 +50,8 @@
 #define VAMP_PROTOCOL_CUSTOM  15    // Para protocolos definidos por usuario
 
 
+
+
 /** Perfil de comunicación VAMP
  * Este perfil se utiliza para definir la estructura de los mensajes que se reencaminan por
  * el gateway VAMP, desde los dispositivos y hasta el servidor final. Los dispositvos no pueden
@@ -65,7 +67,7 @@ typedef struct vamp_profile_t {
 //	uint8_t protocol;				// Protocolo (HTTP, MQTT, CoAP, etc.)
 	uint8_t method;					// Método específico del protocolo
 	char * endpoint_resource;    	// URL/URI del endpoint sin esquema (dinámica)
-	char * protocol_params;			// Parámetros específicos del protocolo (dinámica)
+	char * protocol_options;		// Opciones específicas del protocolo (dinámica)
 	char * query_params;			// Parámetros de consulta (dinámica)
 //	char * payload_template;		// Plantilla de payload
 } vamp_profile_t;

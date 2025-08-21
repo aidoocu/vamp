@@ -103,17 +103,17 @@ void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
 		return;
 	}
 
-	if(vamp_vreg_profile.protocol_params) {
-		free(vamp_vreg_profile.protocol_params);
+	if(vamp_vreg_profile.protocol_options) {
+		free(vamp_vreg_profile.protocol_options);
 	}
 
-	char protocol_params[VAMP_PROTOCOL_PARAMS_MAX_LEN];
-	snprintf(protocol_params, sizeof(protocol_params), VAMP_HTTP_VREG_HEADERS, gw_id);
+	char protocol_options[VAMP_PROTOCOL_OPTIONS_MAX_LEN];
+	snprintf(protocol_options, sizeof(protocol_options), VAMP_HTTP_VREG_HEADERS, gw_id);
 
-	vamp_vreg_profile.protocol_params = strdup(protocol_params);
-	if (!vamp_vreg_profile.protocol_params) {
+	vamp_vreg_profile.protocol_options = strdup(protocol_options);
+	if (!vamp_vreg_profile.protocol_options) {
 		#ifdef VAMP_DEBUG
-		Serial.println("Error al asignar memoria para los parámetros del protocolo VREG");
+		Serial.println("Error al asignar memoria para las opciones del protocolo VREG");
 		#endif /* VAMP_DEBUG */
 		return;
 	}
@@ -135,7 +135,7 @@ void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
 void vamp_table_update() {
 
 	/* Verificar que los valores de los recursos no estén vacíos */
-	if (vamp_vreg_profile.endpoint_resource[0] == '\0' || vamp_vreg_profile.protocol_params[0] == '\0') {
+	if (vamp_vreg_profile.endpoint_resource[0] == '\0' || vamp_vreg_profile.protocol_options[0] == '\0') {
 		#ifdef VAMP_DEBUG
 		Serial.println("no gw resources defined");
 		#endif /* VAMP_DEBUG */
@@ -736,25 +736,48 @@ bool vamp_process_sync_json_response(const char* json_data) {
 					}
 				}
 
-				/* Extraer protocol_params */
-				if (profile.containsKey("params")) {
-					const char* params_str = profile["params"];
-					if (params_str && strlen(params_str) > 0 && strlen(params_str) < VAMP_PROTOCOL_PARAMS_MAX_LEN) {
+				/* Extraer protocol_options */
+				if (profile.containsKey("options")) {
+					const char* options_str = profile["options"];
+					if (options_str && strlen(options_str) > 0 && strlen(options_str) < VAMP_PROTOCOL_OPTIONS_MAX_LEN) {
 						/* Liberar memoria previa si existe */
-						if (vamp_table[table_index].profiles[profile_index].protocol_params) {
-							free(vamp_table[table_index].profiles[profile_index].protocol_params);
+						if (vamp_table[table_index].profiles[profile_index].protocol_options) {
+							free(vamp_table[table_index].profiles[profile_index].protocol_options);
 						}
 						/* Asignar nueva memoria */
-						vamp_table[table_index].profiles[profile_index].protocol_params = strdup(params_str);
-						if (!vamp_table[table_index].profiles[profile_index].protocol_params) {
+						vamp_table[table_index].profiles[profile_index].protocol_options = strdup(options_str);
+						if (!vamp_table[table_index].profiles[profile_index].protocol_options) {
 							#ifdef VAMP_DEBUG
-							Serial.println("Error asignando memoria para protocol_params");
+							Serial.println("Error asignando memoria para protocol_options");
 							#endif /* VAMP_DEBUG */
 							break;
 						}
 					} else {
 						#ifdef VAMP_DEBUG
-						Serial.println("Endpoint resource inválido o demasiado largo");
+						Serial.println("Protocol options inválido o demasiado largo");
+						#endif /* VAMP_DEBUG */
+					}
+				}
+
+				/* Extraer los protocols query */
+				if (profile.containsKey("params")) {
+					const char* query_str = profile["params"];
+					if (query_str && strlen(query_str) > 0 && strlen(query_str) < VAMP_PROTOCOL_OPTIONS_MAX_LEN) {
+						/* Liberar memoria previa si existe */
+						if (vamp_table[table_index].profiles[profile_index].query_params) {
+							free(vamp_table[table_index].profiles[profile_index].query_params);
+						}
+						/* Asignar nueva memoria */
+						vamp_table[table_index].profiles[profile_index].query_params = strdup(query_str);
+						if (!vamp_table[table_index].profiles[profile_index].query_params) {
+							#ifdef VAMP_DEBUG
+							Serial.println("Error asignando memoria para query_params");
+							#endif /* VAMP_DEBUG */
+							break;
+						}
+					} else {
+						#ifdef VAMP_DEBUG
+						Serial.println("Protocol query inválido o demasiado largo");
 						#endif /* VAMP_DEBUG */
 					}
 				}
@@ -798,11 +821,10 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 /* --------------- WSN --------------- */
 
-/* Buffer para datos WSN */
-static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
-
-
 bool vamp_gw_wsn(void) {
+
+	/* Buffer para datos WSN */
+	static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 
     /* Extraer el mensaje de la interface via callback */
 	uint8_t data_recv = vamp_wsn_comm(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
@@ -1135,9 +1157,9 @@ bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const 
         free(vamp_table[device_index].profiles[profile_index].endpoint_resource);
         vamp_table[device_index].profiles[profile_index].endpoint_resource = NULL;
     }
-    if (vamp_table[device_index].profiles[profile_index].protocol_params) {
-        free(vamp_table[device_index].profiles[profile_index].protocol_params);
-        vamp_table[device_index].profiles[profile_index].protocol_params = NULL;
+    if (vamp_table[device_index].profiles[profile_index].protocol_options) {
+        free(vamp_table[device_index].profiles[profile_index].protocol_options);
+        vamp_table[device_index].profiles[profile_index].protocol_options = NULL;
     }
     
     // Configurar el nuevo perfil
@@ -1153,12 +1175,12 @@ bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const 
         }
     }
     
-    // Copiar protocol_params si no es NULL
-    if (profile->protocol_params) {
-        size_t len = strlen(profile->protocol_params);
-        vamp_table[device_index].profiles[profile_index].protocol_params = (char*)malloc(len + 1);
-        if (vamp_table[device_index].profiles[profile_index].protocol_params) {
-            strcpy(vamp_table[device_index].profiles[profile_index].protocol_params, profile->protocol_params);
+    // Copiar protocol_options si no es NULL
+    if (profile->protocol_options) {
+        size_t len = strlen(profile->protocol_options);
+        vamp_table[device_index].profiles[profile_index].protocol_options = (char*)malloc(len + 1);
+        if (vamp_table[device_index].profiles[profile_index].protocol_options) {
+            strcpy(vamp_table[device_index].profiles[profile_index].protocol_options, profile->protocol_options);
         }
     }
     
@@ -1182,9 +1204,9 @@ void vamp_clear_device_profiles(uint8_t device_index) {
             free(vamp_table[device_index].profiles[i].endpoint_resource);
             vamp_table[device_index].profiles[i].endpoint_resource = NULL;
         }
-        if (vamp_table[device_index].profiles[i].protocol_params) {
-            free(vamp_table[device_index].profiles[i].protocol_params);
-            vamp_table[device_index].profiles[i].protocol_params = NULL;
+        if (vamp_table[device_index].profiles[i].protocol_options) {
+            free(vamp_table[device_index].profiles[i].protocol_options);
+            vamp_table[device_index].profiles[i].protocol_options = NULL;
         }
         //vamp_table[device_index].profiles[i].protocol = 0;
         vamp_table[device_index].profiles[i].method = 0;
