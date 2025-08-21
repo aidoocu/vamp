@@ -17,7 +17,7 @@
 #ifndef _VAMP_GW_H_
 #define _VAMP_GW_H_
 
-
+#include <ArduinoJson.h>
 #include "vamp.h"
 
 
@@ -52,6 +52,19 @@
 
 
 
+/** Estructura para pares key-value */
+typedef struct vamp_key_value_pair_t {
+    char key[VAMP_KEY_MAX_LEN];
+    char value[VAMP_VALUE_MAX_LEN];
+} vamp_key_value_pair_t;
+
+/** Estructura para almacenar múltiples pares key-value - Asignación dinámica */
+typedef struct vamp_key_value_store_t {
+    vamp_key_value_pair_t* pairs;    // Puntero a array dinámico
+    uint8_t count;                   // Número actual de pares
+    uint8_t capacity;                // Capacidad máxima actual
+} vamp_key_value_store_t;
+
 /** Perfil de comunicación VAMP
  * Este perfil se utiliza para definir la estructura de los mensajes que se reencaminan por
  * el gateway VAMP, desde los dispositivos y hasta el servidor final. Los dispositvos no pueden
@@ -67,8 +80,8 @@ typedef struct vamp_profile_t {
 //	uint8_t protocol;				// Protocolo (HTTP, MQTT, CoAP, etc.)
 	uint8_t method;					// Método específico del protocolo
 	char * endpoint_resource;    	// URL/URI del endpoint sin esquema (dinámica)
-	char * protocol_options;		// Opciones específicas del protocolo (dinámica)
-	char * query_params;			// Parámetros de consulta (dinámica)
+	vamp_key_value_store_t protocol_options;	// Opciones específicas del protocolo (key-value)
+	vamp_key_value_store_t query_params;		// Parámetros de consulta (key-value)
 //	char * payload_template;		// Plantilla de payload
 } vamp_profile_t;
 
@@ -125,8 +138,8 @@ typedef struct {
 #define VAMP_DEV_STATUS_ADDED		0x04	// Recién agregado, y NO configurado
 #define VAMP_DEV_STATUS_CACHE		0x05	// En caché y configurado
 
-// Configuración de tablas y direccionamiento
-#define VAMP_MAX_DEVICES 32          // Máximo número de dispositivos (5 bits)
+// Configuración de tablas y direccionamiento - Optimizado para ESP8266
+#define VAMP_MAX_DEVICES 16          // Reducido de 32 a 16 dispositivos (4 bits)
 #define VAMP_PORT_BASE 8000          // Puerto base para NAT
 #define VAMP_DEVICE_TIMEOUT 600000   // Timeout de dispositivo (10 minutos)
 
@@ -233,6 +246,9 @@ bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const 
 /** @brief Limpiar todos los perfiles de un dispositivo */
 void vamp_clear_device_profiles(uint8_t device_index);
 
+/** @brief Limpiar un perfil específico liberando memoria */
+void vamp_clear_profile(vamp_profile_t* profile);
+
 /* --------------------- Funciones para manejo de protocolos -------------------- */
 
 /** @brief Obtener nombre legible del protocolo */
@@ -243,6 +259,38 @@ void vamp_clear_device_profiles(uint8_t device_index);
 
 /** @brief Verificar si la tabla ha sido inicializada */
 bool vamp_is_table_initialized(void);
+
+/* ===== Funciones para manejo de key-value pairs - Con asignación dinámica ===== */
+
+/** @brief Inicializar un store de key-value */
+void vamp_kv_init(vamp_key_value_store_t* store);
+
+/** @brief Liberar memoria de un store de key-value */
+void vamp_kv_free(vamp_key_value_store_t* store);
+
+/** @brief Añadir o actualizar un par key-value */
+bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* value);
+
+/** @brief Obtener valor por clave */
+const char* vamp_kv_get(const vamp_key_value_store_t* store, const char* key);
+
+/** @brief Verificar si existe una clave */
+bool vamp_kv_exists(const vamp_key_value_store_t* store, const char* key);
+
+/** @brief Eliminar un par por clave */
+bool vamp_kv_remove(vamp_key_value_store_t* store, const char* key);
+
+/** @brief Limpiar todos los pares */
+void vamp_kv_clear(vamp_key_value_store_t* store);
+
+/** @brief Parsear JSON object y llenar store */
+bool vamp_kv_parse_json(vamp_key_value_store_t* store, JsonObject json_obj);
+
+/** @brief Convertir store a string para HTTP headers */
+size_t vamp_kv_to_http_headers(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);
+
+/** @brief Convertir store a string para query parameters */
+size_t vamp_kv_to_query_string(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);
 
 
 /** Inicializar el gateway VAMP con la configuración del servidor VREG

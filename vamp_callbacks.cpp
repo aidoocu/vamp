@@ -497,16 +497,22 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 	String full_url = String(profile->endpoint_resource);
 
 	/* Añadir parámetros de consulta si existen */
-	if (profile->query_params && profile->query_params[0] == '?' ) {
-		full_url += String(profile->query_params);
+	if (profile->query_params.count > 0) {
+		// Convertir query_params a query string
+		char query_buffer[256];
+		size_t len = vamp_kv_to_query_string(&profile->query_params, query_buffer, sizeof(query_buffer));
+		if (len > 0) {
+			full_url += "?";
+			full_url += String(query_buffer);
+		}
 	}
 
 	bool is_https = strncmp(profile->endpoint_resource, "https://", 8) == 0;
 
 	Serial.print("Conectando a: ");
 	Serial.println(full_url);
-	Serial.print("options: ");
-	Serial.println(profile->protocol_options ? profile->protocol_options : "N/A");
+	Serial.print("options count: ");
+	Serial.println(profile->protocol_options.count);
 
 	/* Discriminar entre HTTP y HTTPS */
 	if (is_https) {
@@ -522,50 +528,20 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 	https_http.setTimeout(HTTPS_TIMEOUT);
 	https_http.setUserAgent(HTTPS_USER_AGENT);
 
-	/* Añadir headers personalizados si hubiera */
-	if (profile->protocol_options && profile->protocol_options[0] != '\0') {
-		const char * p = profile->protocol_options;
-		while (*p) {
-			// Encontrar separador de header (nombre:valor)
-			const char *sep = strchr(p, ':');
-			if (!sep) break;
+	/* Añadir headers personalizados desde key-value store */
+	for (uint8_t i = 0; i < profile->protocol_options.count; i++) {
+		const char* key = profile->protocol_options.pairs[i].key;
+		const char* value = profile->protocol_options.pairs[i].value;
+		
+		if (key[0] != '\0' && value[0] != '\0') {
+			https_http.addHeader(key, value);
 			
-			// Buscar fin de línea (\r\n) o final de cadena
-			const char *end = strstr(sep + 1, "\r\n");
-			if (!end) {
-				// Si no hay \r\n, buscar solo \n
-				end = strchr(sep + 1, '\n');
-				if (!end) end = p + strlen(p);
-			}
-			
-			// Extraer nombre y valor del header
-			int name_len = (int)(sep - p);
-			int val_len = (int)(end - (sep + 1));
-			
-			if (name_len > 0 && val_len > 0) {
-				String hname = String(p).substring(0, name_len);
-				String hval = String(sep + 1).substring(0, val_len);
-				hname.trim();
-				hval.trim();
-				if (hname.length() > 0) {
-					#ifdef VAMP_DEBUG
-					Serial.print("Adding header: ");
-					Serial.print(hname);
-					Serial.print(" = ");
-					Serial.println(hval);
-					#endif /* VAMP_DEBUG */
-					https_http.addHeader(hname, hval);
-				}
-			}
-			
-			// Avanzar al siguiente header
-			if (strstr(end, "\r\n") == end) {
-				p = end + 2; // Saltar \r\n
-			} else if (*end == '\n') {
-				p = end + 1; // Saltar \n
-			} else {
-				break; // Final de cadena
-			}
+			#ifdef VAMP_DEBUG
+			Serial.print("Adding header: ");
+			Serial.print(key);
+			Serial.print(" = ");
+			Serial.println(value);
+			#endif /* VAMP_DEBUG */
 		}
 	}
 	
@@ -667,7 +643,8 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	profile.endpoint_resource[url_len] = '\0';
 
 	len ? profile.method = VAMP_HTTP_METHOD_POST : profile.method = VAMP_HTTP_METHOD_GET;
-	profile.protocol_options = NULL;
+	vamp_kv_init(&profile.protocol_options);
+	vamp_kv_init(&profile.query_params);
 
 	#if defined(ARDUINO_ARCH_ESP8266)
 	/* Usar función unificada para HTTP/HTTPS */

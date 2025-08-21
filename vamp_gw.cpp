@@ -103,39 +103,21 @@ void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
 		return;
 	}
 
-	if(vamp_vreg_profile.protocol_options) {
-		free(vamp_vreg_profile.protocol_options);
-	}
+	// Inicializar y configurar protocol_options
+	vamp_kv_init(&vamp_vreg_profile.protocol_options);
+	vamp_kv_set(&vamp_vreg_profile.protocol_options, "Accept", "application/json");
+	vamp_kv_set(&vamp_vreg_profile.protocol_options, "X-VAMP-Gateway-ID", gw_id);
 
-	char protocol_options[VAMP_PROTOCOL_OPTIONS_MAX_LEN];
-	snprintf(protocol_options, sizeof(protocol_options), VAMP_HTTP_VREG_HEADERS, gw_id);
-
-	vamp_vreg_profile.protocol_options = strdup(protocol_options);
-	if (!vamp_vreg_profile.protocol_options) {
-		#ifdef VAMP_DEBUG
-		Serial.println("Error al asignar memoria para las opciones del protocolo VREG");
-		#endif /* VAMP_DEBUG */
-		return;
-	}
-
-	if(vamp_vreg_profile.query_params) {
-		free(vamp_vreg_profile.query_params);
-	}
-	vamp_vreg_profile.query_params = (char *)malloc(VAMP_QUERY_PARAMS_VREG_LEN);
-	if (!vamp_vreg_profile.query_params) {
-		#ifdef VAMP_DEBUG
-		Serial.println("Error al asignar memoria para los parámetros de consulta del VREG");
-		#endif /* VAMP_DEBUG */
-		return;
-	}
+	// Inicializar query_params (se configurará dinámicamente en vamp_table_update)
+	vamp_kv_init(&vamp_vreg_profile.query_params);
 
 }
 
 // Inicializar todas las tablas VAMP con sincronización VREG
 void vamp_table_update() {
 
-	/* Verificar que los valores de los recursos no estén vacíos */
-	if (vamp_vreg_profile.endpoint_resource[0] == '\0' || vamp_vreg_profile.protocol_options[0] == '\0') {
+	/* Verificar que los valores de los recursos no estén vacíos (!!!! No estoy seguro que la validación correcta !!!!) */
+	if (vamp_vreg_profile.endpoint_resource[0] == '\0' || vamp_vreg_profile.protocol_options.count == 0) {
 		#ifdef VAMP_DEBUG
 		Serial.println("no gw resources defined");
 		#endif /* VAMP_DEBUG */
@@ -155,8 +137,9 @@ void vamp_table_update() {
 		}
 	}
 
-	/* Pasar en el query_params */
-	snprintf(vamp_vreg_profile.query_params, VAMP_QUERY_PARAMS_VREG_LEN, "?last_update=%s", last_table_update);
+	/* Configurar query_params con last_update */
+	vamp_kv_clear(&vamp_vreg_profile.query_params);
+	vamp_kv_set(&vamp_vreg_profile.query_params, "last_update", last_table_update);
 
 	/* Enviar request usando TELL y recibir respuesta */
 	if (vamp_iface_comm(&vamp_vreg_profile, req_resp_internet_buff, strlen(req_resp_internet_buff))) {
@@ -561,22 +544,36 @@ bool vamp_process_sync_json_response(const char* json_data) {
 		return false;
 	}
 
-	/* Verificar que el JSON es un array */
-	if (!doc.is<JsonArray>()) {
+	/* Verificar que el JSON es un objeto válido */
+	if (!doc.is<JsonObject>()) {
 		#ifdef VAMP_DEBUG
-		Serial.println("JSON no es un array válido");
+		Serial.println("JSON no es un objeto válido");
 		#endif /* VAMP_DEBUG */
 		return false;
 	}
 
-	JsonArray nodes = doc.as<JsonArray>();
-	
-	/* Procesar cada entrada en el array de cambios */
+	/* Verificar que contiene los campos obligatorios */
+	if (!doc.containsKey("timestamp") || !doc.containsKey("nodes")) {
+		#ifdef VAMP_DEBUG
+		Serial.println("JSON no contiene campos timestamp y/o nodes");
+		#endif /* VAMP_DEBUG */
+		return false;
+	}
+
+	/* Extraer el timestamp */
+	const char* timestamp = doc["timestamp"];
+	if (timestamp) {
+		strncpy(last_table_update, timestamp, sizeof(last_table_update) - 1);
+		last_table_update[sizeof(last_table_update) - 1] = '\0'; // Asegurar terminación
+	}
+
+	/* Procesar cada entrada en el array de nodos */
+	JsonArray nodes = doc["nodes"];
 	for (JsonObject node : nodes) {
 		
 		/* Verificar campos obligatorios y que no estén vacíos */
-		if (!node.containsKey("rf_id") || !node["rf_id"] || 
-			!node.containsKey("action") || !node["action"] ||
+		if (!node.containsKey("action") || !node["action"] ||
+			!node.containsKey("rf_id") || !node["rf_id"] || 
 			!node.containsKey("type") || !node["type"] ||
 			!node.containsKey("profiles") || !node["profiles"]) {
 			#ifdef VAMP_DEBUG
@@ -738,46 +735,36 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 				/* Extraer protocol_options */
 				if (profile.containsKey("options")) {
-					const char* options_str = profile["options"];
-					if (options_str && strlen(options_str) > 0 && strlen(options_str) < VAMP_PROTOCOL_OPTIONS_MAX_LEN) {
-						/* Liberar memoria previa si existe */
-						if (vamp_table[table_index].profiles[profile_index].protocol_options) {
-							free(vamp_table[table_index].profiles[profile_index].protocol_options);
-						}
-						/* Asignar nueva memoria */
-						vamp_table[table_index].profiles[profile_index].protocol_options = strdup(options_str);
-						if (!vamp_table[table_index].profiles[profile_index].protocol_options) {
-							#ifdef VAMP_DEBUG
-							Serial.println("Error asignando memoria para protocol_options");
-							#endif /* VAMP_DEBUG */
-							break;
-						}
+					if (profile["options"].is<JsonObject>()) {
+						JsonObject options_obj = profile["options"];
+						vamp_kv_parse_json(&vamp_table[table_index].profiles[profile_index].protocol_options, options_obj);
+						
+						#ifdef VAMP_DEBUG
+						Serial.print("Protocol options parseadas: ");
+						Serial.print(vamp_table[table_index].profiles[profile_index].protocol_options.count);
+						Serial.println(" pares");
+						#endif /* VAMP_DEBUG */
 					} else {
 						#ifdef VAMP_DEBUG
-						Serial.println("Protocol options inválido o demasiado largo");
+						Serial.println("Protocol options no es un objeto JSON válido");
 						#endif /* VAMP_DEBUG */
 					}
 				}
 
 				/* Extraer los protocols query */
 				if (profile.containsKey("params")) {
-					const char* query_str = profile["params"];
-					if (query_str && strlen(query_str) > 0 && strlen(query_str) < VAMP_PROTOCOL_OPTIONS_MAX_LEN) {
-						/* Liberar memoria previa si existe */
-						if (vamp_table[table_index].profiles[profile_index].query_params) {
-							free(vamp_table[table_index].profiles[profile_index].query_params);
-						}
-						/* Asignar nueva memoria */
-						vamp_table[table_index].profiles[profile_index].query_params = strdup(query_str);
-						if (!vamp_table[table_index].profiles[profile_index].query_params) {
-							#ifdef VAMP_DEBUG
-							Serial.println("Error asignando memoria para query_params");
-							#endif /* VAMP_DEBUG */
-							break;
-						}
+					if (profile["params"].is<JsonObject>()) {
+						JsonObject params_obj = profile["params"];
+						vamp_kv_parse_json(&vamp_table[table_index].profiles[profile_index].query_params, params_obj);
+						
+						#ifdef VAMP_DEBUG
+						Serial.print("Query params parseados: ");
+						Serial.print(vamp_table[table_index].profiles[profile_index].query_params.count);
+						Serial.println(" pares");
+						#endif /* VAMP_DEBUG */
 					} else {
 						#ifdef VAMP_DEBUG
-						Serial.println("Protocol query inválido o demasiado largo");
+						Serial.println("Query params no es un objeto JSON válido");
 						#endif /* VAMP_DEBUG */
 					}
 				}
@@ -1157,10 +1144,9 @@ bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const 
         free(vamp_table[device_index].profiles[profile_index].endpoint_resource);
         vamp_table[device_index].profiles[profile_index].endpoint_resource = NULL;
     }
-    if (vamp_table[device_index].profiles[profile_index].protocol_options) {
-        free(vamp_table[device_index].profiles[profile_index].protocol_options);
-        vamp_table[device_index].profiles[profile_index].protocol_options = NULL;
-    }
+    // Limpiar key-value stores
+    vamp_kv_clear(&vamp_table[device_index].profiles[profile_index].protocol_options);
+    vamp_kv_clear(&vamp_table[device_index].profiles[profile_index].query_params);
     
     // Configurar el nuevo perfil
     //vamp_table[device_index].profiles[profile_index].protocol = profile->protocol;
@@ -1175,14 +1161,13 @@ bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const 
         }
     }
     
-    // Copiar protocol_options si no es NULL
-    if (profile->protocol_options) {
-        size_t len = strlen(profile->protocol_options);
-        vamp_table[device_index].profiles[profile_index].protocol_options = (char*)malloc(len + 1);
-        if (vamp_table[device_index].profiles[profile_index].protocol_options) {
-            strcpy(vamp_table[device_index].profiles[profile_index].protocol_options, profile->protocol_options);
-        }
-    }
+    // Copiar protocol_options - usar memcpy para copiar toda la estructura
+    memcpy(&vamp_table[device_index].profiles[profile_index].protocol_options, 
+           &profile->protocol_options, sizeof(vamp_key_value_store_t));
+    
+    // Copiar query_params - usar memcpy para copiar toda la estructura
+    memcpy(&vamp_table[device_index].profiles[profile_index].query_params, 
+           &profile->query_params, sizeof(vamp_key_value_store_t));
     
     // Actualizar profile_count si es necesario
     if (profile_index >= vamp_table[device_index].profile_count) {
@@ -1200,19 +1185,28 @@ void vamp_clear_device_profiles(uint8_t device_index) {
     
     // Liberar memoria de todos los perfiles
     for (uint8_t i = 0; i < VAMP_MAX_PROFILES; i++) {
-        if (vamp_table[device_index].profiles[i].endpoint_resource) {
-            free(vamp_table[device_index].profiles[i].endpoint_resource);
-            vamp_table[device_index].profiles[i].endpoint_resource = NULL;
-        }
-        if (vamp_table[device_index].profiles[i].protocol_options) {
-            free(vamp_table[device_index].profiles[i].protocol_options);
-            vamp_table[device_index].profiles[i].protocol_options = NULL;
-        }
-        //vamp_table[device_index].profiles[i].protocol = 0;
-        vamp_table[device_index].profiles[i].method = 0;
+        vamp_clear_profile(&vamp_table[device_index].profiles[i]);
     }
     
     vamp_table[device_index].profile_count = 0;
+}
+
+/** @brief Limpiar un perfil específico liberando memoria */
+void vamp_clear_profile(vamp_profile_t* profile) {
+    if (!profile) return;
+    
+    // Liberar endpoint_resource si existe
+    if (profile->endpoint_resource) {
+        free(profile->endpoint_resource);
+        profile->endpoint_resource = NULL;
+    }
+    
+    // Limpiar key-value stores
+    vamp_kv_free(&profile->protocol_options);
+    vamp_kv_free(&profile->query_params);
+    
+    // Limpiar otros campos
+    profile->method = 0;
 }
 
 /* --------------------- Funciones para manejo de protocolos -------------------- */
@@ -1285,4 +1279,199 @@ void vamp_clear_device_profiles(uint8_t device_index) {
             return 0;
     }
 } */
+
+/* ================= FUNCIONES PARA MANEJO DE KEY-VALUE PAIRS ================= */
+
+/** @brief Inicializar un store de key-value */
+void vamp_kv_init(vamp_key_value_store_t* store) {
+    if (!store) return;
+    store->pairs = NULL;
+    store->count = 0;
+    store->capacity = 0;
+}
+
+/** @brief Liberar memoria de un store de key-value */
+void vamp_kv_free(vamp_key_value_store_t* store) {
+    if (!store) return;
+    if (store->pairs) {
+        free(store->pairs);
+        store->pairs = NULL;
+    }
+    store->count = 0;
+    store->capacity = 0;
+}
+
+/** @brief Añadir o actualizar un par key-value */
+bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* value) {
+    if (!store || !key || !value) return false;
+    
+    if (strlen(key) >= VAMP_KEY_MAX_LEN || strlen(value) >= VAMP_VALUE_MAX_LEN) {
+        return false; // Key o value demasiado largo
+    }
+
+	Serial.print("Añadiendo/actualizando key-value: ");
+	Serial.print(key);
+	Serial.print(" = ");
+	Serial.println(value);
+	Serial.print("Total pares actuales: ");
+	Serial.println(store->count);
+
+    // Buscar si la key ya existe
+    for (uint8_t i = 0; i < store->count; i++) {
+        if (strcmp(store->pairs[i].key, key) == 0) {
+            // Actualizar valor existente
+            strncpy(store->pairs[i].value, value, VAMP_VALUE_MAX_LEN - 1);
+            store->pairs[i].value[VAMP_VALUE_MAX_LEN - 1] = '\0';
+            return true;
+        }
+    }
+    
+    // Necesita expandir la capacidad?
+    if (store->count >= store->capacity) {
+        uint8_t new_capacity = (store->capacity == 0) ? 1 : store->capacity * 2;
+        if (new_capacity > VAMP_MAX_KEY_VALUE_PAIRS) {
+            new_capacity = VAMP_MAX_KEY_VALUE_PAIRS;
+        }
+        
+        if (store->count >= new_capacity) {
+            return false; // Límite máximo alcanzado
+        }
+        
+        // Reallocar memoria
+        vamp_key_value_pair_t* new_pairs = (vamp_key_value_pair_t*)realloc(
+            store->pairs, new_capacity * sizeof(vamp_key_value_pair_t));
+        if (!new_pairs) {
+            return false; // Error de memoria
+        }
+        
+        store->pairs = new_pairs;
+        store->capacity = new_capacity;
+        
+        // Limpiar nueva memoria
+        memset(&store->pairs[store->count], 0, 
+               (new_capacity - store->count) * sizeof(vamp_key_value_pair_t));
+    }
+    
+    // Añadir nueva entrada
+    strncpy(store->pairs[store->count].key, key, VAMP_KEY_MAX_LEN - 1);
+    store->pairs[store->count].key[VAMP_KEY_MAX_LEN - 1] = '\0';
+    strncpy(store->pairs[store->count].value, value, VAMP_VALUE_MAX_LEN - 1);
+    store->pairs[store->count].value[VAMP_VALUE_MAX_LEN - 1] = '\0';
+    store->count++;
+
+	Serial.print("Añadido key-value: ");
+	Serial.print(key);
+	Serial.print(" = ");
+	Serial.println(value);
+	Serial.print("Total pares: ");
+	Serial.println(store->count);
+
+    return true;
+}
+
+/** @brief Obtener valor por clave */
+const char* vamp_kv_get(const vamp_key_value_store_t* store, const char* key) {
+    if (!store || !key) return NULL;
+    
+    for (uint8_t i = 0; i < store->count; i++) {
+        if (strcmp(store->pairs[i].key, key) == 0) {
+            return store->pairs[i].value;
+        }
+    }
+    return NULL; // No encontrado
+}
+
+/** @brief Verificar si existe una clave */
+bool vamp_kv_exists(const vamp_key_value_store_t* store, const char* key) {
+    return vamp_kv_get(store, key) != NULL;
+}
+
+/** @brief Eliminar un par por clave */
+bool vamp_kv_remove(vamp_key_value_store_t* store, const char* key) {
+    if (!store || !key) return false;
+    
+    for (uint8_t i = 0; i < store->count; i++) {
+        if (strcmp(store->pairs[i].key, key) == 0) {
+            // Mover los elementos siguientes una posición hacia atrás
+            for (uint8_t j = i; j < store->count - 1; j++) {
+                memcpy(&store->pairs[j], &store->pairs[j + 1], sizeof(vamp_key_value_pair_t));
+            }
+            store->count--;
+            // Limpiar el último elemento
+            memset(&store->pairs[store->count], 0, sizeof(vamp_key_value_pair_t));
+            return true;
+        }
+    }
+    return false; // No encontrado
+}
+
+/** @brief Limpiar todos los pares */
+void vamp_kv_clear(vamp_key_value_store_t* store) {
+    if (!store) return;
+    if (store->pairs) {
+        free(store->pairs);
+        store->pairs = NULL;
+    }
+    store->count = 0;
+    store->capacity = 0;
+}
+
+/** @brief Parsear JSON object y llenar store */
+bool vamp_kv_parse_json(vamp_key_value_store_t* store, JsonObject json_obj) {
+    if (!store) return false;
+    
+    vamp_kv_clear(store); // Limpiar store antes de llenar
+    
+    for (JsonPair kv : json_obj) {
+        const char* key = kv.key().c_str();
+        const char* value = kv.value().as<const char*>();
+        
+        if (!vamp_kv_set(store, key, value)) {
+            #ifdef VAMP_DEBUG
+            Serial.print("Error añadiendo key-value: ");
+            Serial.print(key);
+            Serial.print(" = ");
+            Serial.println(value);
+            #endif
+            // Continuar con el siguiente par aunque este falle
+        }
+    }
+    
+    return true;
+}
+
+/** @brief Convertir store a string para HTTP headers */
+size_t vamp_kv_to_http_headers(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size) {
+    if (!store || !buffer || buffer_size == 0) return 0;
+    
+    size_t pos = 0;
+    for (uint8_t i = 0; i < store->count; i++) {
+        int written = snprintf(buffer + pos, buffer_size - pos, "%s: %s\r\n", 
+                              store->pairs[i].key, store->pairs[i].value);
+        if (written < 0 || (size_t)written >= (buffer_size - pos)) {
+            break; // Buffer lleno
+        }
+        pos += written;
+    }
+    
+    return pos;
+}
+
+/** @brief Convertir store a string para query parameters */
+size_t vamp_kv_to_query_string(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size) {
+    if (!store || !buffer || buffer_size == 0) return 0;
+    
+    size_t pos = 0;
+    for (uint8_t i = 0; i < store->count; i++) {
+        const char* separator = (i == 0) ? "" : "&";
+        int written = snprintf(buffer + pos, buffer_size - pos, "%s%s=%s", 
+                              separator, store->pairs[i].key, store->pairs[i].value);
+        if (written < 0 || (size_t)written >= (buffer_size - pos)) {
+            break; // Buffer lleno
+        }
+        pos += written;
+    }
+    
+    return pos;
+}
 
