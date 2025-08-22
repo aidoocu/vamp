@@ -8,7 +8,9 @@
 #include "vamp_callbacks.h"
 #include "vamp.h"
 #include "vamp_gw.h"
-#include "vamp_client.h"
+
+//#include "lib/vamp_kv.h"
+#include "lib/vamp_table.h"
 
 #ifdef RF24_AVAILABLE
 #include "arch/vamp_nrf24.h"
@@ -166,6 +168,11 @@ uint8_t vamp_wsn_comm(uint8_t * data, size_t len) {
 
 
 /* ----------------------------- gateway --------------------------------- */
+
+
+#if defined(ARDUINO_ARCH_ESP8266)
+#include "arch/vamp_esp8266.h"
+#endif
 
 bool vamp_iface_init(void) {
 

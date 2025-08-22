@@ -11,6 +11,9 @@
 #include <cstring>
 #include <cstdlib>
 
+//#include "vamp_kv.h"
+#include "vamp_table.h"
+
 #include "../vamp_gw.h"
 
  /** @brief Parsear JSON object y llenar store */
@@ -76,9 +79,11 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 	/* Extraer el timestamp */
 	const char* timestamp = doc["timestamp"];
+
+	/** @todo Aqui hay un problema con el manejo de timestamps y la actualizacion
+	 * exitosa o no, esto no esta bien manejado asi y puede llevar a inconsistencias */
 	if (timestamp) {
-		strncpy(last_table_update, timestamp, sizeof(last_table_update) - 1);
-		last_table_update[sizeof(last_table_update) - 1] = '\0'; // Asegurar terminación
+		vamp_set_last_sync_timestamp(timestamp);
 	}
 
 	/* Procesar cada entrada en el array de nodos */
@@ -156,23 +161,31 @@ bool vamp_process_sync_json_response(const char* json_data) {
 			Serial.println(node["rf_id"].as<String>());
 			#endif /* VAMP_DEBUG */
 
+			vamp_entry_t * entry = vamp_get_table_entry(table_index);
+			if (!entry) {
+				#ifdef VAMP_DEBUG
+				Serial.println("Error al obtener la entrada de la tabla");
+				#endif /* VAMP_DEBUG */
+				continue;
+			}
+
 			/* Asignar el estado de cache */
-			vamp_table[table_index].status = VAMP_DEV_STATUS_CACHE;
+			entry->status = VAMP_DEV_STATUS_CACHE;
 
 			/* Extraer tipo del dispositivo */		
 			if (!strcmp(node["type"], "fixed")) {
-				vamp_table[table_index].type = 0;
+				entry->type = 0;
 			} else if (!strcmp(node["type"], "dynamic")) {
-				vamp_table[table_index].type = 1;
+				entry->type = 1;
 			} else if (!strcmp(node["type"], "auto")) {
-				vamp_table[table_index].type = 2;
+				entry->type = 2;
 			} else {
 				/* !!!!! valor por defecto ???? */
 				#ifdef VAMP_DEBUG
 				Serial.print("Tipo de dispositivo desconocido: ");
 				Serial.println(node["type"].as<String>());
 				#endif /* VAMP_DEBUG */
-				vamp_table[table_index].type = 0; // Valor por defecto
+				entry->type = 0; // Valor por defecto
 			}
 
 			/* Procesar perfiles, debe haber al menos uno */
@@ -188,7 +201,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 			/* Inicializar contador de perfiles */
 			uint8_t profile_index = 0;
-			vamp_table[table_index].profile_count = 0;
+			entry->profile_count = 0;
 
 			/* Procesar cada perfil */
 			for (JsonObject profile : profiles) {
@@ -204,24 +217,24 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 					/* Extraer el metodo (GET, POST...) */
 					if (!strcmp(profile["method"], "GET")) {
-						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_GET;
+						entry->profiles[profile_index].method = VAMP_HTTP_METHOD_GET;
 					} else if (!strcmp(profile["method"], "POST")) {
-						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_POST;
+						entry->profiles[profile_index].method = VAMP_HTTP_METHOD_POST;
 					} else if (!strcmp(profile["method"], "PUT")) {
-						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_PUT;
+						entry->profiles[profile_index].method = VAMP_HTTP_METHOD_PUT;
 					} else if (!strcmp(profile["method"], "DELETE")) {
-						vamp_table[table_index].profiles[profile_index].method = VAMP_HTTP_METHOD_DELETE;
+						entry->profiles[profile_index].method = VAMP_HTTP_METHOD_DELETE;
 					} else {
 						#ifdef VAMP_DEBUG
 						Serial.print("Método desconocido: ");
 						Serial.println(profile["method"].as<String>());
 						#endif /* VAMP_DEBUG */
 						/* !!! no me gustan estos valores por defecto !!!  */
-						vamp_table[table_index].profiles[profile_index].method = 0; // Valor por defecto
+						entry->profiles[profile_index].method = 0; // Valor por defecto
 					}
 				} else {
 					/* !!! no me gustan estos valores por defecto !!!  */
-					vamp_table[table_index].profiles[profile_index].method = 0; // Valor por defecto
+					entry->profiles[profile_index].method = 0; // Valor por defecto
 				}
 
 				/* Extraer endpoint_resource */
@@ -229,12 +242,12 @@ bool vamp_process_sync_json_response(const char* json_data) {
 					const char* endpoint_str = profile["endpoint"];
 					if (endpoint_str && strlen(endpoint_str) > 0 && strlen(endpoint_str) < VAMP_ENDPOINT_MAX_LEN) {
 						/* Liberar memoria previa si existe */
-						if (vamp_table[table_index].profiles[profile_index].endpoint_resource) {
-							free(vamp_table[table_index].profiles[profile_index].endpoint_resource);
+						if (entry->profiles[profile_index].endpoint_resource) {
+							free(entry->profiles[profile_index].endpoint_resource);
 						}
 						/* Asignar nueva memoria */
-						vamp_table[table_index].profiles[profile_index].endpoint_resource = strdup(endpoint_str);
-						if (!vamp_table[table_index].profiles[profile_index].endpoint_resource) {
+						entry->profiles[profile_index].endpoint_resource = strdup(endpoint_str);
+						if (!entry->profiles[profile_index].endpoint_resource) {
 							#ifdef VAMP_DEBUG
 							Serial.println("Error asignando memoria para endpoint_resource");
 							#endif /* VAMP_DEBUG */
@@ -251,11 +264,11 @@ bool vamp_process_sync_json_response(const char* json_data) {
 				if (profile.containsKey("options")) {
 					if (profile["options"].is<JsonObject>()) {
 						JsonObject options_obj = profile["options"];
-						vamp_kv_parse_json(&vamp_table[table_index].profiles[profile_index].protocol_options, options_obj);
-						
+						vamp_kv_parse_json(&entry->profiles[profile_index].protocol_options, options_obj);
+
 						#ifdef VAMP_DEBUG
 						Serial.print("Protocol options parseadas: ");
-						Serial.print(vamp_table[table_index].profiles[profile_index].protocol_options.count);
+						Serial.print(entry->profiles[profile_index].protocol_options.count);
 						Serial.println(" pares");
 						#endif /* VAMP_DEBUG */
 					} else {
@@ -269,11 +282,11 @@ bool vamp_process_sync_json_response(const char* json_data) {
 				if (profile.containsKey("params")) {
 					if (profile["params"].is<JsonObject>()) {
 						JsonObject params_obj = profile["params"];
-						vamp_kv_parse_json(&vamp_table[table_index].profiles[profile_index].query_params, params_obj);
-						
+						vamp_kv_parse_json(&entry->profiles[profile_index].query_params, params_obj);
+
 						#ifdef VAMP_DEBUG
 						Serial.print("Query params parseados: ");
-						Serial.print(vamp_table[table_index].profiles[profile_index].query_params.count);
+						Serial.print(entry->profiles[profile_index].query_params.count);
 						Serial.println(" pares");
 						#endif /* VAMP_DEBUG */
 					} else {
@@ -284,7 +297,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 				}
 
 				profile_index++;
-				vamp_table[table_index].profile_count = profile_index;
+				entry->profile_count = profile_index;
 			}
 
 			#ifdef VAMP_DEBUG

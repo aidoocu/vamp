@@ -6,38 +6,10 @@
 #ifndef _VAMP_CONFIG_H_
 #define _VAMP_CONFIG_H_
 
-/* Longitud de la dirección VAMP (en bytes) */
-#ifndef VAMP_ADDR_LEN
-#define VAMP_ADDR_LEN 5
-#endif // VAMP_ADDR_LEN
-
 /** @brief Longitud máxima del payload VAMP (en bytes) */
 #ifndef VAMP_MAX_PAYLOAD_SIZE
 #define VAMP_MAX_PAYLOAD_SIZE 30
 #endif // VAMP_MAX_PAYLOAD_SIZE
-
-/** @brief Longitud máxima del endpoint VAMP (en bytes) */
-#ifndef VAMP_ENDPOINT_MAX_LEN
-#define VAMP_ENDPOINT_MAX_LEN 128
-#endif // VAMP_ENDPOINT_MAX_LEN
-
-/** @brief Longitud máxima del endpoint VAMP (en bytes) */
-#ifndef VAMP_PROTOCOL_OPTIONS_MAX_LEN
-#define VAMP_PROTOCOL_OPTIONS_MAX_LEN 512
-#endif // VAMP_PROTOCOL_OPTIONS_MAX_LEN
-
-/** @brief Configuración para pares key-value - Optimizado para ESP8266 */
-#ifndef VAMP_MAX_KEY_VALUE_PAIRS
-#define VAMP_MAX_KEY_VALUE_PAIRS 4  // Reducido de 8 a 4 pares máximo
-#endif // VAMP_MAX_KEY_VALUE_PAIRS
-
-#ifndef VAMP_KEY_MAX_LEN
-#define VAMP_KEY_MAX_LEN 32  // Reducido de 32 a 16 caracteres
-#endif // VAMP_KEY_MAX_LEN
-
-#ifndef VAMP_VALUE_MAX_LEN
-#define VAMP_VALUE_MAX_LEN 32  // Reducido de 64 a 32 caracteres
-#endif // VAMP_VALUE_MAX_LEN
 
 // Tamaño estándar del buffer de internet (request/response) - Optimizado para ESP8266
 #ifndef VAMP_IFACE_BUFF_SIZE

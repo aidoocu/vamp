@@ -11,8 +11,11 @@
  * y se puede enviar mensajes de tipo VAMP_NODE.
  */
 
+#include "vamp.h"
 #include "vamp_client.h"
 #include "vamp_callbacks.h"
+
+#include "lib/vamp_table.h"
 
 /* Dirección MAC del gateway por defecto, direccion de broadcast */
 static uint8_t vamp_gw_addr[VAMP_ADDR_LEN] = VAMP_BROADCAST_ADDR;

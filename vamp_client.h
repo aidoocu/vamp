@@ -8,7 +8,7 @@
 #ifndef _VAMP_CLIENT_H_
 #define _VAMP_CLIENT_H_
 
-#include "vamp.h"
+#include <Arduino.h>
 
 /**
  * @brief Initialize VAMP client with VREG URL and gateway ID

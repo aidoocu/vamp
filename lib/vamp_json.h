@@ -7,6 +7,7 @@
 */
 
 #ifndef _VAMP_JSON_H_
+#define _VAMP_JSON_H_
 
 
 /** @brief respuesta de sincronización

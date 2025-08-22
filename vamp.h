@@ -20,9 +20,6 @@
 #define VAMP_RMODE_A 0b00000001 // Modo low power A
 #define VAMP_RMODE_B 0b00000010 // Modo always listen B
 
-/* Máximo 4 perfiles por dispositivo o dos bits */
-#define VAMP_MAX_PROFILES 4
-
 /* Perfil por defecto */
 #define VAMP_DEFAULT_PROFILE 0
 

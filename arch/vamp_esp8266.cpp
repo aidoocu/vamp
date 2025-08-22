@@ -12,6 +12,11 @@
 
 #if defined(ARDUINO_ARCH_ESP8266)
 
+#include "../vamp_gw.h"
+#include "../vamp_client.h"
+#include "../vamp_callbacks.h"
+#include "../lib/vamp_table.h"
+
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>

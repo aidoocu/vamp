@@ -17,11 +17,12 @@
 #ifndef _VAMP_GW_H_
 #define _VAMP_GW_H_
 
-#include "vamp.h"
-
-
-/* Fecha de la última actualización de la tabla en UTC */
-#define VAMP_TABLE_INIT_TSMP "2020-01-01T00:00:00Z"
+/* Verificar disponibilidad de ArduinoJson */
+#ifdef  __has_include
+	#if __has_include(<ArduinoJson.h>)
+		#define ARDUINOJSON_AVAILABLE
+	#endif
+#endif
 
 
 /** @brief Headers HTTP para la comunicación con el VREG */
@@ -50,169 +51,23 @@
 
 
 
-
-/** Estructura para pares key-value */
-typedef struct vamp_key_value_pair_t {
-    char key[VAMP_KEY_MAX_LEN];
-    char value[VAMP_VALUE_MAX_LEN];
-} vamp_key_value_pair_t;
-
-/** Estructura para almacenar múltiples pares key-value - Asignación dinámica */
-typedef struct vamp_key_value_store_t {
-    vamp_key_value_pair_t* pairs;    // Puntero a array dinámico
-    uint8_t count;                   // Número actual de pares
-    uint8_t capacity;                // Capacidad máxima actual
-} vamp_key_value_store_t;
-
-/** Perfil de comunicación VAMP
- * Este perfil se utiliza para definir la estructura de los mensajes que se reencaminan por
- * el gateway VAMP, desde los dispositivos y hasta el servidor final. Los dispositvos no pueden
- * gestionar ninguna de las estructuras ip-tcp-http... por lo que depende de este perfil.
- * 		@field protocol: 	Protocolo de comunicación (HTTP, MQTT, CoAP, etc.)
- * 		@field method: 		Método específico del protocolo (GET/POST para HTTP, PUB/SUB para MQTT, etc.)
- * 		@field endpoint_resource: URL/URI del endpoint (sin esquema de protocolo)
- * 		@field protocol_params:	Parámetros específicos del protocolo (headers HTTP, topics MQTT, options CoAP, etc.)
- * 		@field payload_template: Es la forma que se espera que tenga el payload, o sea, la forma
- * 						en que deberia estar organizado el mensaje que viene del dispositivo.
- */
-typedef struct vamp_profile_t {
-//	uint8_t protocol;				// Protocolo (HTTP, MQTT, CoAP, etc.)
-	uint8_t method;					// Método específico del protocolo
-	char * endpoint_resource;    	// URL/URI del endpoint sin esquema (dinámica)
-	vamp_key_value_store_t protocol_options;	// Opciones específicas del protocolo (key-value)
-	vamp_key_value_store_t query_params;		// Parámetros de consulta (key-value)
-//	char * payload_template;		// Plantilla de payload
-} vamp_profile_t;
-
-/**                                     Tabla VAMP
- * La tabla VAMP se utiliza para almacenar información sobre los dispositivos en la red,
- * incluyendo su estado, dirección RF y otra información relevante. Esta tabla es
- * fundamental para el funcionamiento del gateway VAMP y su interacción con los
- * dispositivos.
- * Tiene la siguiente estructura:
- * | Puerto |  Estado  |  Tipo    |  Dirección RF  |  Resource          | last_activity (milis) |
- * |--------|----------|----------|----------------|--------------------|-----------------------|
- * | 8128   | Libre    | Fijo     | 01:23:45:67:89 | dev1.org/local     |		107360  		|
- * | 8161   | Activo   | Dinámico | AA:BB:CC:DD:EE | my.io/sense/temp   | 		201565	 		|
- * | 8226   | Inactivo | Auto     | 10:20:30:40:50 | tiny.net/hot       | 		300000  		|
- * | 8035   | Libre    | Fijo     | DE:AD:BE:EF:00 | hot.dog/ups        | 		400507		 	|
- *
- * Los puerto se forman para buscar compatibilidad (aparente) con NAT a partir de un prefijo
- * (el 8) + número de verificación de 3 bits (0-7) y un índice de dispositivo de 5 bits (0-31).
- * Por ejemplo, el puerto 8161 al corresponde 8 + 161 (0b10100001) donde el número de verificación
- * es 5 (0b101) y un índice de dispositivo de 1 (0b00001).
- * Se utiliza un prefijo de 8 para evitar conflictos con puertos reservados y asegurar que
- * los puertos generados no se superpongan con otros servicios.
- * El indice de dispositivo se utiliza para localizar el dispositivo en la tabla VAMP sin tener que
- * buscar.
- * El numero de verificación se utiliza para poder reutilizar los indices. Interfaces como la
- * nRF24 no exponen su dirección RF al receptor y enviarla en el payload es demasiado costoso.
- * En este caso con el número de verificación (3 bits) + índice (5 bit) se puede identificar 
- * el dispositivo con solo un byte de ID compacto.
- */
-typedef struct {
-	uint8_t wsn_id;                                 // ID en la forma [VVV][IIIII]
-	uint8_t status;                                 // Estado: 
-	uint8_t type;                                   // Tipo: 0=fijo, 1=dínamico, 2=auto, 3=huérfano
-	uint8_t rf_id[VAMP_ADDR_LEN];                   // RF_ID del dispositivo (5 bytes)
-	uint32_t last_activity;                         // Timestamp de última actividad en millis()
-	uint8_t profile_count;                         	// Número de perfiles configurados (1-4)
-	vamp_profile_t profiles[VAMP_MAX_PROFILES];  	// Array de perfiles de comunicación
-	char * data_buff;     							// Buffer para datos
-	uint16_t ticket;                              	// Ticket de comunicación
-	//uint32_t join_time;                          	// Timestamp de cuando se unió
-} vamp_entry_t;
-
-
 /* Type */
 #define VAMP_DEV_TYPE_FIXED		'0'
 #define VAMP_DEV_TYPE_DYNAMIC	'1'
 #define VAMP_DEV_TYPE_AUTO		'2'
 #define VAMP_DEV_TYPE_ORPHAN	'3'
 
-/* Status */
-#define VAMP_DEV_STATUS_FREE		0x01	// Libre, un dispositivo así deberá ignorarse sus campos 
-#define VAMP_DEV_STATUS_INACTIVE	0x02	// Inactivo y configurado
-#define VAMP_DEV_STATUS_ACTIVE		0x03	// Activo y configurado
-#define VAMP_DEV_STATUS_ADDED		0x04	// Recién agregado, y NO configurado
-#define VAMP_DEV_STATUS_CACHE		0x05	// En caché y configurado
+
 
 // Configuración de tablas y direccionamiento - Optimizado para ESP8266
-#define VAMP_MAX_DEVICES 16          // Reducido de 32 a 16 dispositivos (4 bits)
 #define VAMP_PORT_BASE 8000          // Puerto base para NAT
 #define VAMP_DEVICE_TIMEOUT 600000   // Timeout de dispositivo (10 minutos)
 
-/**
- * Macros para manejo de ID compacto (verification + index en 1 byte)
- * 
- * El ID compacto permite:
- * - Acceso directo a tabla: tabla[VAMP_GET_INDEX(id_byte)]
- * - Verificación de consistencia: VAMP_GET_VERIFICATION(id_byte) 
- * - Generación automática de puerto: VAMP_MAKE_PORT(verification, index)
- * 
- * Formato del byte ID: [VVV][IIIII] donde V=verificación (3 bits), I=índice (5 bits)
- */
-#define VAMP_MAKE_ID_BYTE(verification, index) (((verification & 0x07) << 5) | (index & 0x1F))
-#define VAMP_GET_INDEX(id_byte) (id_byte & 0x1F)
-#define VAMP_GET_VERIFICATION(id_byte) ((id_byte >> 5) & 0x07)
-//#define VAMP_MAKE_PORT(verification, index) (VAMP_PORT_BASE + (verification << 5) + index)
+
+void vamp_table_init(void);
 
 
-
-/** VREG Command types
-* Estos comandos se utilizan para la comunicación con el VREG (Virtual REGistry).
-*/
-#define VAMP_GW_SYNC	 "sync"				// Sincronización con el VREG
-#define VAMP_GET_NODE	 "get_node"		// Obtener nodo VREG
-#define VAMP_SET_NODE	 "set_node"		// Establecer nodo VREG
-
-/* Opciones */
-#define VAMP_GATEWAY_ID	"--gateway"        // ID del gateway
-#define VAMP_TIMESTAMP	"--timestamp"      // Última actualización de la tabla VAMP
-#define VAMP_NODE_ID	"--node_rf_id"     // ID del nodo VREG
-#define VAMP_DEV_COUNT	"--device_count"   // Cantidad de dispositivos en la tabla VAMP
-
-/** VREG Response types
- * Respuestas del VREG (Virtual REGistry).
- */
-#define VAMP_NODE   		"--node"		// Sincronización exitosa
-#define VAMP_UPDATED		"--updated"		// Tabla ya está actualizada
-#define VAMP_ERROR			"--error"		// Error en la sincronización
-
-
-
-
-/* ---------------------- Funciones de tabla ---------------------- */
-
-/** @brief Actualiza la tabla VAMP desde el servidor VREG */
-void vamp_table_update(void);
-
-/** @brief Buscar dispositivos expirados para marcarlos como inactivos. 
- * Esta función debe ser llamada periódicamente para asegurar que la 
- * tabla VAMP se mantenga actualizada. */
-void vamp_detect_expired(void);
-
-/* --------------------- Funciones tabla VAMP -------------------- */
-
-/** @brief Obtener número de dispositivos activos en la tabla */
-uint8_t vamp_get_device_count(void);
-
-/** @brief Obtener entrada de la tabla por índice
- * @param index Índice del dispositivo (0-31)
- * @return Puntero a la entrada o NULL si índice inválido */
-const vamp_entry_t* vamp_get_table_entry(uint8_t index);
-
-/* --------------------- Funciones ID compacto -------------------- */
-uint8_t vamp_generate_id_byte(const uint8_t index);
-
-
-/* --------------------- Funciones auxiliares --------------------- */
-
-bool hex_to_rf_id(const char* hex_str, uint8_t* rf_id);
-void rf_id_to_hex(const uint8_t* rf_id, char* hex_str);
-bool vamp_is_rf_id_valid(const uint8_t * rf_id);
-bool vamp_get_timestamp(char * timestamp);
-
+void vamp_table_sync(void);
 
 /* ------------------- Gestion de mensajes WSN ------------------- */
 
@@ -225,68 +80,8 @@ bool vamp_gw_wsn(void);
 
 /* --------------------- Funciones públicas para web server -------------------- */
 
-/** @brief Obtener timestamp de la última sincronización */
-const char* vamp_get_last_sync_timestamp(void);
 
-/** @brief Obtener número de dispositivos activos en la tabla */
-uint8_t vamp_get_device_count(void);
 
-/** @brief Obtener entrada de la tabla por índice */
-const vamp_entry_t* vamp_get_table_entry(uint8_t index);
-
-/* --------------------- Funciones para manejo de múltiples perfiles -------------------- */
-
-/** @brief Obtener perfil específico de un dispositivo */
-const vamp_profile_t* vamp_get_device_profile(uint8_t device_index, uint8_t profile_index);
-
-/** @brief Configurar perfil específico de un dispositivo */
-bool vamp_set_device_profile(uint8_t device_index, uint8_t profile_index, const vamp_profile_t* profile);
-
-/** @brief Limpiar todos los perfiles de un dispositivo */
-void vamp_clear_device_profiles(uint8_t device_index);
-
-/** @brief Limpiar un perfil específico liberando memoria */
-void vamp_clear_profile(vamp_profile_t* profile);
-
-/* --------------------- Funciones para manejo de protocolos -------------------- */
-
-/** @brief Obtener nombre legible del protocolo */
-//const char* vamp_get_protocol_string(uint8_t protocol);
-
-/** @brief Enviar datos usando el protocolo específico del perfil */
-//uint8_t vamp_send_with_profile(const vamp_profile_t* profile, char* data, size_t len);
-
-/** @brief Verificar si la tabla ha sido inicializada */
-bool vamp_is_table_initialized(void);
-
-/* ===== Funciones para manejo de key-value pairs - Con asignación dinámica ===== */
-
-/** @brief Inicializar un store de key-value */
-void vamp_kv_init(vamp_key_value_store_t* store);
-
-/** @brief Liberar memoria de un store de key-value */
-void vamp_kv_free(vamp_key_value_store_t* store);
-
-/** @brief Añadir o actualizar un par key-value */
-bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* value);
-
-/** @brief Obtener valor por clave */
-const char* vamp_kv_get(const vamp_key_value_store_t* store, const char* key);
-
-/** @brief Verificar si existe una clave */
-bool vamp_kv_exists(const vamp_key_value_store_t* store, const char* key);
-
-/** @brief Eliminar un par por clave */
-bool vamp_kv_remove(vamp_key_value_store_t* store, const char* key);
-
-/** @brief Limpiar todos los pares */
-void vamp_kv_clear(vamp_key_value_store_t* store);
-
-/** @brief Convertir store a string para HTTP headers */
-size_t vamp_kv_to_http_headers(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);
-
-/** @brief Convertir store a string para query parameters */
-size_t vamp_kv_to_query_string(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);
 
 
 /** Inicializar el gateway VAMP con la configuración del servidor VREG

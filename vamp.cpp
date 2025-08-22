@@ -30,18 +30,14 @@ void vamp_gw_init(char * vreg_url, char * gw_id, uint8_t * wsn_id) {
 	vamp_wsn_init(wsn_id);
 
     /* Inicializar la tabla VAMP */
-    vamp_table_update();
+    vamp_table_init();
 
 	return;
 }
 
 void vamp_gw_sync(void) {
 
-    /* Synchronize VAMP Gateway with VREG */
-    vamp_table_update();
-
-    /* Detect expired VAMP devices */
-    vamp_detect_expired();
+	vamp_table_sync();
 }
 
 /* -------------------------------------- WSN -------------------------------------- */
