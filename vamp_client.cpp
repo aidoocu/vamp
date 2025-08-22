@@ -46,9 +46,10 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 
 }
 
+/*  --------------------------- Funciones internas de manejo de conexion -------------------- */
 
-/* Función para resetear la conexión con el gateway */
-void vamp_reset_connection(void) {
+/* Resetear la conexión con el gateway */
+void vamp_clear_connection(void) {
 	/* Resetear dirección del gateway a broadcast */
 	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
 		vamp_gw_addr[i] = 0xFF;
@@ -58,25 +59,7 @@ void vamp_reset_connection(void) {
 	id_in_gateway = 0;
 }
 
-/*  ----------------------------------------------------------------- */
-bool vamp_is_joined(void) {
-	// Verificar si la dirección del gateway es válida (no broadcast)
-	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-		if (vamp_gw_addr[i] != 0xFF) {
-			return true; // Si la dirección del gateway no es la de broadcast, está unido
-		}
-	}
-	return false; // Si la dirección del gateway es la de broadcast, no está unido
-}
-
-/*  ----------------------------------------------------------------- */
-/* Función para forzar un re-join (útil para testing o recuperación manual) */
-bool vamp_force_rejoin(void) {
-	vamp_reset_connection();
-	return vamp_join_network();
-}
-
-/*  ----------------------------------------------------------------- */
+/* Función para unirse a la red VAMP */
 bool vamp_join_network(void) {
 	// Verificar si ya se ha unido previamente
 	if (vamp_is_joined()) {
@@ -84,7 +67,7 @@ bool vamp_join_network(void) {
 	}
 
 	/* Resetear la conexión */
-	vamp_reset_connection();
+	vamp_clear_connection();
 
 	#ifdef VAMP_DEBUG
 	Serial.print("GW? ");
@@ -129,7 +112,7 @@ bool vamp_join_network(void) {
 
 			/* 	Resetear conexión si la dirección es inválida para mantener los chequeos
 				consistentes */
-			vamp_reset_connection();
+			vamp_clear_connection();
 			return false;
 		}
 	}
@@ -143,6 +126,23 @@ bool vamp_join_network(void) {
 	send_failure_count = 0;
 
 	return true; // Unión exitosa
+}
+
+/* Verifica si el cliente está unido a la red */
+bool vamp_is_joined(void) {
+	// Verificar si la dirección del gateway es válida (no broadcast)
+	for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+		if (vamp_gw_addr[i] != 0xFF) {
+			return true; // Si la dirección del gateway no es la de broadcast, está unido
+		}
+	}
+	return false; // Si la dirección del gateway es la de broadcast, no está unido
+}
+
+/* Función para forzar un re-join (útil para testing o recuperación manual) */
+bool vamp_force_rejoin(void) {
+	vamp_clear_connection();
+	return vamp_join_network();
 }
 
 /* Verificar si el cliente está activo en la red VAMP */
@@ -166,7 +166,7 @@ bool vamp_fail_handle(void){
 	
 	/* Si hay demasiados fallos consecutivos, resetear conexión */
 	if (send_failure_count >= MAX_SEND_FAILURES) {
-		vamp_reset_connection();
+		vamp_clear_connection();
 		
 		/* Intentar re-join inmediatamente */
 		if (vamp_join_network()) {
@@ -187,8 +187,10 @@ bool vamp_fail_handle(void){
 	return false; // Fallo en el re-join o en el reenvío después de re-join
 }
 
-/*  ----------------------------------------------------------------- */
 
+/*  ------------------------ Funciones externas del cliente VAMP ------------------------- */
+
+/* Dile al gateway que envíe un mensaje que le diga (POST/PUBLISH) "data" al endpoint del "profile" */
 uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t len) {
 
 	/* Verificar que los datos no sean nulos y esten dentro del rango permitido */
@@ -252,11 +254,15 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
 
 }
 
+/* Dile al gateway que envíe un mensaje que le diga (POST/PUBLISH) "data" al endpoint del profile por defecto */
 uint8_t vamp_client_tell(const uint8_t * data, uint8_t len){
 	/* Hacer un tell con el profile por defecto */
 	return vamp_client_tell(VAMP_DEFAULT_PROFILE, data, len);
 }
 
+/* Preguntale al gateway que le solicite (GET) al endpoint del "profile". Aqui el gateway debe responder solo con
+un ACK + ticket que indique que ha recibido la solicitud. Si hay respuesta del profile (endpoint), se solicita con 
+un POLL */
 bool vamp_client_ask(uint8_t profile) {
 	/* Hacer un tell con el profile especificado y una cadena vacia */
 	uint8_t data[1] = {'\0'};
@@ -266,12 +272,13 @@ bool vamp_client_ask(uint8_t profile) {
 	return false;
 }
 
+/* Preguntale al gateway que le solicite (GET) al endpoint del profile por defecto */
 bool vamp_client_ask(void) {
 	/* Hacer un ask con el profile por defecto */
 	return vamp_client_ask(VAMP_DEFAULT_PROFILE);
 }
 
-/* Simplemente enviar el comando de poll */
+/* Simplemente enviar el comando de POLL + ticket y sera respondido con un ACK + respuesta si hay o un '\0' */
 uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 
 	if(data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) {

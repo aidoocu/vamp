@@ -17,7 +17,6 @@
 #ifndef _VAMP_GW_H_
 #define _VAMP_GW_H_
 
-#include <ArduinoJson.h>
 #include "vamp.h"
 
 
@@ -282,9 +281,6 @@ bool vamp_kv_remove(vamp_key_value_store_t* store, const char* key);
 
 /** @brief Limpiar todos los pares */
 void vamp_kv_clear(vamp_key_value_store_t* store);
-
-/** @brief Parsear JSON object y llenar store */
-bool vamp_kv_parse_json(vamp_key_value_store_t* store, JsonObject json_obj);
 
 /** @brief Convertir store a string para HTTP headers */
 size_t vamp_kv_to_http_headers(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);

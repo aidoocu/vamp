@@ -1,8 +1,13 @@
-/* 
-
-
-
-*/
+/** 
+ * 
+ * definiendo procesos de comunicación
+ * ASK pedir al extremo que reencamine datos al endpoint
+ * TELL enviar datos al extremo
+ * POLL sondear si el extremo tiene una respuesta para, o simplemente si esta disponible. pudiera funcionar como un keep-alive
+ *
+ * READ leer datos desde la interface de red
+ * WRITE enviar datos a la interface de red
+ */
 
 #ifndef VAMP_CALLBACKS_H
 #define VAMP_CALLBACKS_H
@@ -49,6 +54,13 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len);
 #endif /* VAMP_DEBUG */
 
 /* ---------------------------------- wsn ---------------------------------- */
+
+
+#ifdef  __has_include
+	#if __has_include(<RF24.h>)
+		#define RF24_AVAILABLE
+	#endif
+#endif
 
 
 /**
