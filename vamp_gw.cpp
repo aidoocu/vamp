@@ -7,7 +7,7 @@
 #include "vamp_gw.h"
 #include "vamp_client.h"
 #include "vamp_callbacks.h"
-#include <ArduinoJson.h>
+
 #ifdef ARDUINO_ARCH_ESP8266
 #include <cstring>
 #include <cstdlib>
@@ -1209,76 +1209,6 @@ void vamp_clear_profile(vamp_profile_t* profile) {
     profile->method = 0;
 }
 
-/* --------------------- Funciones para manejo de protocolos -------------------- */
-
-/** @brief Obtener nombre legible del protocolo */
-/* const char* vamp_get_protocol_string(uint8_t protocol) {
-    switch (protocol) {
-        case VAMP_PROTOCOL_HTTP:
-            return "HTTP";
-        case VAMP_PROTOCOL_HTTPS:
-            return "HTTPS";
-        case VAMP_PROTOCOL_MQTT:
-            return "MQTT";
-        case VAMP_PROTOCOL_COAP:
-            return "CoAP";
-        case VAMP_PROTOCOL_WEBSOCKET:
-            return "WebSocket";
-        case VAMP_PROTOCOL_CUSTOM:
-            return "Custom";
-        default:
-            return "Unknown";
-    }
-} */
-
-/** @brief Enviar datos usando el protocolo específico del perfil */
-/* uint8_t vamp_send_with_profile(const vamp_profile_t* profile, char* data, size_t len) {
-    if (!profile || !profile->endpoint_resource) {
-        return 0;
-    }
-    
-    switch (profile->protocol) {
-        case VAMP_PROTOCOL_HTTP:
-        case VAMP_PROTOCOL_HTTPS:
-            // Usar la implementación HTTP existente
-            return vamp_iface_comm(profile->endpoint_resource, data, len);
-            
-        case VAMP_PROTOCOL_MQTT:
-            // TODO: Implementar MQTT
-            #ifdef VAMP_DEBUG
-            Serial.println("MQTT no implementado aún");
-            #endif
-            return 0;
-            
-        case VAMP_PROTOCOL_COAP:
-            // TODO: Implementar CoAP  
-            #ifdef VAMP_DEBUG
-            Serial.println("CoAP no implementado aún");
-            #endif
-            return 0;
-            
-        case VAMP_PROTOCOL_WEBSOCKET:
-            // TODO: Implementar WebSocket
-            #ifdef VAMP_DEBUG
-            Serial.println("WebSocket no implementado aún");
-            #endif
-            return 0;
-            
-        case VAMP_PROTOCOL_CUSTOM:
-            // TODO: Permitir protocolos definidos por usuario
-            #ifdef VAMP_DEBUG
-            Serial.println("Protocolo custom no implementado aún");
-            #endif
-            return 0;
-            
-        default:
-            #ifdef VAMP_DEBUG
-            Serial.print("Protocolo desconocido: ");
-            Serial.println(profile->protocol);
-            #endif
-            return 0;
-    }
-} */
 
 /* ================= FUNCIONES PARA MANEJO DE KEY-VALUE PAIRS ================= */
 
