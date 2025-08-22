@@ -913,7 +913,6 @@ void vamp_clear_profile(vamp_profile_t* profile) {
 }
 
 
-
 /* ================= FUNCIONES PARA MANEJO DE KEY-VALUE PAIRS ================= */
 
 /** @brief Inicializar un store de key-value */
