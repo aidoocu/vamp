@@ -23,10 +23,10 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr);
 /** @brief Envía una solicitud al módulo NRF24L01 y espera una respuesta
  * 
  * @param dst_addr Dirección de destino
- * @param len Longitud de los datos
  * @param wsn_buff Puntero a los datos a enviar/recibir
+ * @param len Longitud de los datos
  * @return Tamaño de los datos recibidos, 0 en caso de error
  */
-uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * data);
+uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len);
 
 #endif /* ARCH_NRF24_H_ */

@@ -124,7 +124,7 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	#endif /* VAMP_DEBUG */
 
 	#ifdef RF24_AVAILABLE
-	len = nrf_comm(dst_addr, len, data);
+	len = nrf_comm(dst_addr, data, len);
 	#else //#elif en caso de otras arquitecturas
 	len = 0; //y un else final por falta de soporte
 	#endif
@@ -156,7 +156,7 @@ bool vamp_wsn_send_ack(uint8_t * dst_addr, uint8_t ticket) {
 	uint8_t send[] = { VAMP_ACK | VAMP_IS_CMD_MASK, ticket };
 
 	#ifdef RF24_AVAILABLE
-	nrf_comm(dst_addr, sizeof(send), send);
+	nrf_comm(dst_addr, send, sizeof(send));
 	#endif
 
 	return true;
@@ -170,7 +170,7 @@ uint8_t vamp_wsn_recv(uint8_t * data, size_t len) {
 	}
 
 	#ifdef RF24_AVAILABLE
-	len = nrf_comm(NULL, len, data);
+	len = nrf_comm(NULL, data, len);
 	#else //#elif en caso de otras arquitecturas
 	len = 0; //y un else final por falta de soporte
 	#endif
