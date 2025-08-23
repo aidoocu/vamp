@@ -112,13 +112,13 @@ bool esp8266_check_conn() {
 	}
 }
 
-// Función unificada para enviar datos por HTTP/HTTPS
-bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size) {
+/* Función unificada para enviar datos por HTTP/HTTPS */
+size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size) {
 	if (!esp8266_check_conn()) {
 		#ifdef VAMP_DEBUG
 		Serial.println("Error: WiFi no conectado");
 		#endif /* VAMP_DEBUG */
-		return false;
+		return 0;
 	}
 	
 	String full_url = String(profile->endpoint_resource);
@@ -199,7 +199,16 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 			#ifdef VAMP_DEBUG
 			Serial.println("Error: Respuesta inválida");
 			#endif /* VAMP_DEBUG */
-			return false;
+			return 0;
+		}
+		
+		/* Verificar que el buffer proporcionado sea suficiente */
+		if (VAMP_IFACE_BUFF_SIZE < response.length()) {
+			#ifdef VAMP_DEBUG
+			Serial.println("Error: Buffer insuficiente");
+			#endif /* VAMP_DEBUG */
+			return 0;
+
 		}
 		/* Copiar respuesta al buffer proporcionado */
 		sprintf(data, "%s", response.c_str());
@@ -211,9 +220,9 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 		Serial.println(httpResponseCode);
 		#endif /* VAMP_DEBUG */
 		https_http.end();
-		
-		return true; // Éxito
-	
+
+		return strlen(data); // Éxito
+
 	} else {
 		#ifdef VAMP_DEBUG
 		Serial.print("Error en ");
@@ -222,7 +231,7 @@ bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t da
 		Serial.println(httpResponseCode);
 		#endif /* VAMP_DEBUG */
 		https_http.end(); // Cerrar conexión solo en caso de error
-		return false;
+		return 0;
 	}
 }
 

@@ -12,6 +12,6 @@ bool esp8266_init(void);
  * @param profile Perfil de comunicación
  * @param data Datos a enviar
  * @param data_size Tamaño de los datos
- * @return true si la solicitud fue exitosa, false en caso contrario
+ * @return Tamaño de los datos recibidos, 0 en caso de error
  */
-bool esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size);
+size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size);

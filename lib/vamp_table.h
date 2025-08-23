@@ -46,6 +46,7 @@
 #define VAMP_DEV_STATUS_ACTIVE		0x03	// Activo y configurado
 #define VAMP_DEV_STATUS_ADDED		0x04	// Recién agregado, y NO configurado
 #define VAMP_DEV_STATUS_CACHE		0x05	// En caché y configurado
+#define VAMP_DEV_STATUS_REQUEST		0x06	// Dispositivo que solicita unirse y aun no ha confirmado la unión
 
 /** Perfil de comunicación VAMP
  * Este perfil se utiliza para definir la estructura de los mensajes que se reencaminan por

@@ -40,8 +40,7 @@ bool vamp_kv_parse_json(vamp_key_value_store_t* store, JsonObject json_obj) {
     return true;
 }
 
-
-/* Process the synchronization response from VREG.*/
+/* Procesar la respuesta de sincronización de VREG */
 bool vamp_process_sync_json_response(const char* json_data) {
 
 	if (json_data == NULL) {
@@ -80,8 +79,8 @@ bool vamp_process_sync_json_response(const char* json_data) {
 	/* Extraer el timestamp */
 	const char* timestamp = doc["timestamp"];
 
-	/** @todo Aqui hay un problema con el manejo de timestamps y la actualizacion
-	 * exitosa o no, esto no esta bien manejado asi y puede llevar a inconsistencias */
+	/** @todo !!!!! Aqui hay un problema con el manejo de timestamps y la actualizacion
+	 * exitosa o no, esto no esta bien manejado asi y puede llevar a inconsistencias !!!!!*/
 	if (timestamp) {
 		vamp_set_last_sync_timestamp(timestamp);
 	}

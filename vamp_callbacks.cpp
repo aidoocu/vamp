@@ -143,6 +143,28 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	return len;
 }
 
+bool vamp_wsn_send_ack(uint8_t * dst_addr, uint8_t ticket) {
+	/* Verificar que no sea nulo */
+	if (!dst_addr) {
+		return false;
+	}
+
+	#ifdef VAMP_DEBUG
+	Serial.print("wsn send ack: ");
+	#endif /* VAMP_DEBUG */
+
+	uint8_t send[] = { VAMP_ACK | VAMP_IS_CMD_MASK, ticket };
+	uint8_t len = 0;
+
+	#ifdef RF24_AVAILABLE
+	len = nrf_comm(dst_addr, sizeof(send), send);
+	#else //#elif en caso de otras arquitecturas
+	len = 0; //y un else final por falta de soporte
+	#endif
+
+	return true;
+}
+
 /* Callback para READ */
 uint8_t vamp_wsn_recv(uint8_t * data, size_t len) {
 	/* Verificar que no sea nulo */

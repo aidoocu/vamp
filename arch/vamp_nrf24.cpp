@@ -17,7 +17,7 @@
 RF24 wsn_radio;
 
 /* Buffer para datos WSN */
-uint8_t * nrf_buff = NULL; 
+static uint8_t nrf_buff [VAMP_MAX_PAYLOAD_SIZE]; 
 
 
 /** @todo HAY QUE IMPLEMENTARLO PARA QUE USE EL MECAMISMO DE ACK NATIVO DEL NRF24
@@ -66,7 +66,12 @@ void nrf_set_address(uint8_t * rf_id) {
 	wsn_radio.openReadingPipe(0, rf_id);
 }
 
-
+/** @brief Lee datos del nRF24
+ * 
+ * @return 	Número de bytes leídos si hay datos disponibles, 
+ * 			0 en caso contrario
+ * 			VAMP_MAX_PAYLOAD_SIZE + 1 si se recibe un ACK 
+ */
 uint8_t nrf_read(void) {
 
 	/* Recibiendo datos desde el nRF24 */
@@ -75,12 +80,19 @@ uint8_t nrf_read(void) {
 	}
 	
 	/* Leer datos del nRF24 */
-	uint8_t bytes_read = wsn_radio.getDynamicPayloadSize();//hay un getPayloadsize??
+	uint8_t bytes_read = wsn_radio.getDynamicPayloadSize();
 	if (!bytes_read)
 		return 0;
 	if (bytes_read > VAMP_MAX_PAYLOAD_SIZE) 
 		bytes_read = VAMP_MAX_PAYLOAD_SIZE;
 	wsn_radio.read(nrf_buff, bytes_read);
+
+	/* Si bytes_read == 1 probablemente se recibió un ACK */
+	if (bytes_read == 1) {
+		if (nrf_buff[0] == (VAMP_ACK | VAMP_IS_CMD_MASK)) {
+			bytes_read = VAMP_MAX_PAYLOAD_SIZE + 1;
+		}
+	}	
 
 	return bytes_read; // Éxito al recibir datos
 }
@@ -97,23 +109,16 @@ uint8_t nrf_listen_window(void) {
 	wsn_radio.flush_rx();
 	wsn_radio.startListening();
 
-	uint8_t len = 0;
+	uint8_t bytes_read = 0;
 
 	uint32_t start_time = millis();
-	while ((millis() - start_time) < VAMP_ANSW_TIMEOUT && !len) {
-		len = nrf_read();
+	while ((millis() - start_time) < VAMP_ANSW_TIMEOUT && !bytes_read) {
+		bytes_read = nrf_read();
 	}
 
 	wsn_radio.stopListening();
 
-	/* Si len == 1 probablemente se recibió un ACK */
-	if (len == 1) {
-		if (nrf_buff[0] == (VAMP_ACK | VAMP_IS_CMD_MASK)) {
-			len = VAMP_MAX_PAYLOAD_SIZE + 1;
-		}
-	}
-
-	return len; // Timeout - no respuesta
+	return bytes_read; // Timeout - no respuesta
 }
 
 bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
@@ -127,7 +132,7 @@ bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 	return true; // Éxito al enviar datos		
 }
 
-uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * wsn_buff) {
+uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * data) {
 
 	/* Verificar que el chip está conectado */
 	if (!wsn_radio.isChipConnected()) {
@@ -137,16 +142,14 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * wsn_buff) {
 		return 0;
 	}
 
-	if (!wsn_buff) {
+	if (!data) {
 		return 0;
 	}
 
-	nrf_buff = wsn_buff;
-
-	/* Mode ASK */
+	/* Mode RECEIVE (READ/listening nRF24) */
 	if (!dst_addr) {
 
-		len = 0;
+		uint8_t recv_len = 0;
 		/* Si está en modo bajo consumo, hay que abrir una ventana de
 			escucha. Esto exige un mecanismo de sincronización que no es
 			parte de estas funciones */
@@ -154,19 +157,25 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * wsn_buff) {
 			/* Encender el chip */
 			wsn_radio.powerUp();
 			/* ... abrir ventana de escucha */
-			len = nrf_listen_window();
+			recv_len = nrf_listen_window();
 			/* Apagar el chip */
 			wsn_radio.powerDown();
 		} else {
 			// Modo siempre leer, no hay que abrir ventana
-			len = nrf_read();
+			recv_len = nrf_read();
 		}
 
-		return len; // Retornar el número de bytes leídos
+		/* Verificar que lo que se recibió cabe en el buffer */
+		if (recv_len <= len) {
+			/* Procesar el mensaje recibido */
+			memcpy(data, nrf_buff, recv_len);
+		}
+
+		return recv_len; // Retornar el número de bytes leídos
 	}
 
 	/* Mode TELL */
-	if (len) {
+	if (len && len <= VAMP_MAX_PAYLOAD_SIZE) {
 
 		/** @todo este mecanismo que parece logico tiene problemas, por ejemplo:
 		 * el ACK payload puede sustituir la ventana de escucha

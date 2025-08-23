@@ -13,6 +13,7 @@
 		* handling communication with VREG, and facilitating data exchange
  */
 
+#include <Arduino.h>
 
 #ifndef _VAMP_GW_H_
 #define _VAMP_GW_H_
@@ -30,7 +31,6 @@
                                 "X-VAMP-Gateway-ID: %s\r\n" \
                                /* "Connection: close\r\n" */
 
-#define VAMP_QUERY_PARAMS_VREG_LEN 128
 
 /* Máscaras y macros para el protocolo extendido [C][PP][LLLLL] */
 #define VAMP_WSN_PROFILE_MASK     0x60              // Bits 6-5: Perfil (00, 01, 10, 11)
@@ -81,15 +81,18 @@ bool vamp_gw_wsn(void);
 /* --------------------- Funciones públicas para web server -------------------- */
 
 
-
-
-
 /** Inicializar el gateway VAMP con la configuración del servidor VREG
  * @param vreg_url Recurso VREG
  * @param gw_id ID del gateway
 */
 void vamp_gw_vreg_init(char * vreg_url, char * gw_id);
 
+
+/** Obtener el dispositivo VREG correspondiente al RF_ID
+ * @param rf_id Identificador del dispositivo RF
+ * @return Índice del dispositivo en la tabla VAMP o VAMP_MAX_DEVICES si no se encuentra
+ */
+uint8_t vamp_get_vreg_device(const uint8_t * rf_id);
 
 
 
