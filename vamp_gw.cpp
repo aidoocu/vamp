@@ -486,7 +486,7 @@ bool vamp_gw_wsn(void) {
 
 
 	/* --------------------- Si es un comando --------------------- */
-	if (wsn_buffer[0] & VAMP_IS_CMD_MASK) {
+	if (wsn_buffer[0] & VAMP_WSN_CMD_MASK) {
 
 		#ifdef VAMP_DEBUG
 		Serial.println("Comando recibido del WSN");
