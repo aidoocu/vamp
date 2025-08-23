@@ -129,14 +129,11 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	len = 0; //y un else final por falta de soporte
 	#endif
 
-	/* Si se recibió un mensaje se copia al buffer de datos */
-	/** ???? @todo el 1 en el tamaño del payload significaria un ACK para el modo A
-	 * y un simplemente enviado en modo B, esto hay que implementarlo
-	 */
-
 	#ifdef VAMP_DEBUG
-	Serial.print("wsn tell resp: ");
-	vamp_debug_msg(data, len);
+	if (vamp_get_settings() & VAMP_RMODE_A) {
+		Serial.print("wsn tell resp: ");
+		vamp_debug_msg(data, len);
+	}
 	#endif /* VAMP_DEBUG */
 
 	/* De lo contrario, o no se recibió un mensaje o se recibió un ACK */

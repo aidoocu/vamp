@@ -193,7 +193,10 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 			/* Modo siempre escucha asi que que dejar de escuchar */
 			wsn_radio.stopListening();
 			/* Enviar datos */
-			len = (uint8_t)nrf_tell(dst_addr, len);
+			if (!nrf_tell(dst_addr, len)) {
+				/* Si falló, se devuelve 0 */
+				len = 0;
+			}
 			/* Volver a escuchar */
 			wsn_radio.startListening();
 
@@ -203,6 +206,10 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 
 		/* Modo bajo consumo, esperamos respuesta */
 		if (vamp_get_settings() & VAMP_RMODE_A) {
+
+			#ifdef VAMP_DEBUG
+			Serial.println("wds open");
+			#endif /* VAMP_DEBUG */
 
 			/* Encender el chip */
 			wsn_radio.powerUp();
@@ -216,6 +223,11 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 			
 			/* Apagar el chip */
 			wsn_radio.powerDown();
+
+			#ifdef VAMP_DEBUG
+			Serial.println("wds close");
+			#endif /* VAMP_DEBUG */
+
 			return len; // Retornar el número de bytes leídos
 		}
 	}
