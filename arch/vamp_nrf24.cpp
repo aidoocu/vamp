@@ -177,6 +177,8 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 	/* Mode TELL */
 	if (len && len <= VAMP_MAX_PAYLOAD_SIZE) {
 
+		memcpy(nrf_buff, data, len);
+
 		/** @todo este mecanismo que parece logico tiene problemas, por ejemplo:
 		 * el ACK payload puede sustituir la ventana de escucha
 		 * que pasa cuando se envia sin esperar ACK?
