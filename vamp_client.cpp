@@ -73,14 +73,14 @@ bool vamp_join_network(void) {
 	vamp_clear_connection();
 
 	#ifdef VAMP_DEBUG
-	Serial.print("GW? ");
+	Serial.print("GW: ");
 	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
 
 	uint8_t payload_len = 0;
 
 	/*  Pseudoencabezado: T=1 (comando), Comando ID=0x01 (JOIN_REQ) = 0x81 */
-	req_resp_wsn_buff[payload_len++] = VAMP_JOIN_REQ | VAMP_IS_CMD_MASK;
+	req_resp_wsn_buff[payload_len++] = (VAMP_JOIN_REQ | VAMP_IS_CMD_MASK);
 
 	/* Copiar dirección local */
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
@@ -119,6 +119,11 @@ bool vamp_join_network(void) {
 			return false;
 		}
 	}
+
+	payload_len = 2;
+	req_resp_wsn_buff[0] = (VAMP_JOIN_ACK | VAMP_IS_CMD_MASK);
+	req_resp_wsn_buff[1] = id_in_gateway;
+	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 
 	#ifdef VAMP_DEBUG
 	Serial.print("joined! GW: ");

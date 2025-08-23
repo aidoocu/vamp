@@ -104,10 +104,13 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	// Enviar request usando TELL y recibir respuesta
 	if (vamp_iface_comm(&vamp_vreg_profile, dev_response, VAMP_IFACE_BUFF_SIZE)) {
 
+		/* Extraer los datos JSON de la respuesta */
+		#ifdef ARDUINOJSON_AVAILABLE
 		if (vamp_process_sync_json_response(dev_response)) {
 			/* Buscar el dispositivo en la tabla */
 			return vamp_find_device(rf_id);
 		}
+		#endif /* ARDUINOJSON_AVAILABLE */
 	}
 
 	#ifdef VAMP_DEBUG
