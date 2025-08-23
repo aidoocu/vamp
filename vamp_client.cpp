@@ -93,7 +93,7 @@ bool vamp_join_network(void) {
 	#endif /* VAMP_DEBUG */
 
 	/*  Enviar mensaje de unión al gateway */
-	payload_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
+	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 	/* El mensaje recibido debe ser un JOIN_ACK (0x82) + ID_IN_GW (1 byte) + dirección del gateway (5 bytes) */
 	if ((!payload_len) || (req_resp_wsn_buff[0] != (VAMP_JOIN_ACK | VAMP_IS_CMD_MASK)) || (payload_len != (2 + VAMP_ADDR_LEN))) {
 		Serial.println("JOIN_REQ failed");
@@ -233,7 +233,7 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
 	}
 
 	/*  Enviar el mensaje */    
-	len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
+	len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 
 	if (len == 0) {
 		/* Si el envío falla, manejar el fallo */
@@ -242,7 +242,7 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
 			return 0;
 		}
 		/* Si el re-join fue exitoso, intentar enviar de nuevo */
-		len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, payload_len);
+		len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 		if(!len) {
 			/* Si vuelve a fallar, incrementar contador de fallos y salir */
 			send_failure_count ++;
@@ -304,7 +304,7 @@ uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 	req_resp_wsn_buff[3] = ticket & 0xFF;
 
 	/*  Enviar el mensaje */    
-	uint8_t response_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, 4);
+	uint8_t response_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, 4);
 
 	if(!response_len) {
 		if(!vamp_fail_handle()) {
@@ -312,7 +312,7 @@ uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 			return 0;
 		}
 		/* Si el re-join fue exitoso, intentar enviar de nuevo */
-		response_len = vamp_wsn_comm(vamp_gw_addr, req_resp_wsn_buff, 2);
+		response_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, 2);
 		if(!response_len) {
 			/* Si vuelve a fallar, incrementar contador de fallos y salir */
 			send_failure_count ++;

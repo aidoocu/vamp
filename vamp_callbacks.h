@@ -80,7 +80,7 @@ bool vamp_wsn_init(const uint8_t * wsn_addr);
  * @return If mode is VAMP_TELL, returns 1 on success, 0 on failure.
  *         If mode is VAMP_ASK, returns amount of data received, 0 means no data received.
  */
-uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len);
+uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len);
 
 /**
  * @brief Function for ASK WSN radio communication
@@ -88,7 +88,7 @@ uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len);
  * @param len Length of data buffer
  * @return Tamaño de los datos recibidos
  */
-uint8_t vamp_wsn_comm(uint8_t * data, size_t len);
+uint8_t vamp_wsn_recv(uint8_t * data, size_t len);
 
 
 

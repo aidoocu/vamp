@@ -116,7 +116,10 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	return VAMP_MAX_DEVICES; // No se espera respuesta de datos
 }
 
+/* Procesar comando */
+void vamp_gw_process_command(uint8_t *cmd, uint8_t len) {
 
+}
 
 /* --------------- WSN --------------- */
 
@@ -126,7 +129,7 @@ bool vamp_gw_wsn(void) {
 	static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 
     /* Extraer el mensaje de la interface via callback */
-	uint8_t data_recv = vamp_wsn_comm(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
+	uint8_t data_recv = vamp_wsn_recv(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
 
 	if (data_recv == 0) {
 		return false; // No hay datos disponibles
@@ -189,7 +192,7 @@ bool vamp_gw_wsn(void) {
 
 					entry = vamp_get_table_entry(table_index);
 					/* Reportamos al nodo solicitante */
-					vamp_wsn_comm(entry->rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN);
+					vamp_wsn_send(entry->rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN);
 
 				} else {
 					#ifdef VAMP_DEBUG
@@ -208,7 +211,7 @@ bool vamp_gw_wsn(void) {
 						wsn_buffer[i + 2] = (uint8_t)local_wsn_addr[i]; // Asignar el ID del gateway
 					}
 					/* Reportamos al nodo solicitante */
-					if (vamp_wsn_comm(entry->rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN)) {
+					if (vamp_wsn_send(entry->rf_id, wsn_buffer, 2 + VAMP_ADDR_LEN)) {
 						entry->status = VAMP_DEV_STATUS_ACTIVE; // Marcar como activo
 						entry->last_activity = millis(); // Actualizar última actividad
 					}
@@ -355,7 +358,7 @@ bool vamp_gw_wsn(void) {
 		*/		
 		entry->ticket++;
 		uint8_t ack_buffer[3] = { (uint8_t)(VAMP_ACK | VAMP_IS_CMD_MASK), (uint8_t)(entry->ticket & 0xFF), (uint8_t)((entry->ticket >> 8) & 0xFF) };
-		vamp_wsn_comm(entry->rf_id, ack_buffer, 3);
+		vamp_wsn_send(entry->rf_id, ack_buffer, 3);
 
 
 		/* Copiar los datos recibidos al buffer de internet si es que hay datos */

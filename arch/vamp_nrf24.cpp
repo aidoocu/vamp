@@ -116,7 +116,7 @@ uint8_t nrf_listen_window(void) {
 	return len; // Timeout - no respuesta
 }
 
-bool nrf_tell(uint8_t * dst_addr, size_t len) {
+bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 
 	wsn_radio.openWritingPipe(dst_addr);
 
@@ -127,7 +127,7 @@ bool nrf_tell(uint8_t * dst_addr, size_t len) {
 	return true; // Éxito al enviar datos		
 }
 
-uint8_t nrf_comm(uint8_t * dst_addr, size_t len, uint8_t * wsn_buff) {
+uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * wsn_buff) {
 
 	/* Verificar que el chip está conectado */
 	if (!wsn_radio.isChipConnected()) {

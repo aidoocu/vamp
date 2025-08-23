@@ -112,7 +112,7 @@ bool vamp_wsn_init(const uint8_t * wsn_addr) {
 }
 
 /* Callback para TELL/ASK */
-uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
+uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	/* Verificar que no sea nulo */
 	if (!data || !len || !dst_addr) {
 		return 0;
@@ -144,7 +144,7 @@ uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len) {
 }
 
 /* Callback para READ */
-uint8_t vamp_wsn_comm(uint8_t * data, size_t len) {
+uint8_t vamp_wsn_recv(uint8_t * data, size_t len) {
 	/* Verificar que no sea nulo */
 	if (!data || !len) {
 		return 0;

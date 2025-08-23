@@ -27,6 +27,6 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr);
  * @param wsn_buff Puntero a los datos a enviar/recibir
  * @return Tamaño de los datos recibidos, 0 en caso de error
  */
-uint8_t nrf_comm(uint8_t * dst_addr, size_t len, uint8_t * wsn_buff);
+uint8_t nrf_comm(uint8_t * dst_addr, uint8_t len, uint8_t * wsn_buff);
 
 #endif /* ARCH_NRF24_H_ */
