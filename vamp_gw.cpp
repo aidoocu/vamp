@@ -195,9 +195,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 			cmd[i + 2] = (uint8_t)local_wsn_addr[i]; // Asignar el ID del gateway
 		}
 		/* Reportamos al nodo solicitante */
-		Serial.print("Enviando respuesta JOIN_OK a: ");
-		Serial.println(vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN));
-		//vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN);
+		vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN);
 
 
 		return true;
@@ -466,7 +464,7 @@ bool vamp_gw_wsn(void) {
 	}
 
 	/* --------------------- Si es un comando --------------------- */
-	if (wsn_buffer[0] & VAMP_WSN_CMD_MASK) {
+	if (wsn_buffer[0] & VAMP_IS_CMD_MASK) {
 
 		#ifdef VAMP_DEBUG
 		Serial.println("Comando recibido del WSN");
