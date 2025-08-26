@@ -4,7 +4,7 @@ El objetivo es integrar dispositivos nRF24L01+ (y chips similares) directamente 
 Creando una abstracción donde cada nodo físico tiene un **gemelo digital** en un gateway que actúa como su representante se puede lograr una comunicación semi-transparente entre el nodo y el extremo IP a nivel de aplicación donde el GW funciona como un NAT.
 
 > [!IMPORTANT]
-> ⚠️ TODO!!! Hay que arreglar las representaciones de los frames que no son correctas
+> ⚠️ 
 
 ## Arquitectura
 
@@ -24,13 +24,14 @@ Tenemos tres roles:
 
 ## Protocolo VAMP
 
-El protocolo contiene un pseudoencabezado de un solo byte que combina el tipo de mensaje con el largo del mismo.
-Hay dos tipos de mensajes: el de datos y el de comandos.
+Vamp tiene dos tipos de mensajes: datos y comandos.
 
 Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 
-- **Byte 0**: Tipo de mensaje + tamaño de payload (como antes)
-- **Byte 1**: ID compacto (verificación + índice) - solo en mensajes de datos
+- **Byte 0**: El bit mas significativo (MSB) marca el Tipo de mensaje: 
+  - Valor **0** mensaje tipo *dato*. bits 5 y 6 contienen el profile y los bits 0 - 4 contienen la longitud del payload.
+  - Valor **1** mensaje tipo *comando*. El resto del byte contiene el mensaje y el resto del mensaje se comporta segun el comando.
+- **Byte 1**: ID compacto para el nodo en el gatetaway al que se ha unido. Tiene dos partes, bits 0 - 4 contienen el indice dentro de la tabla en el gateway y los bits del 5 - 7 contienen un numero de verificicacion. 
 
 ```text
  0             1               2               3               4
@@ -46,16 +47,16 @@ Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 
 ### Pseudoencabezado
 
-**Byte 0 (Tipo + Tamaño/Comando)**:
+**Byte 0**:
 
 ```text
  0   1   2   3   4   5   6   7
 +---+---+---+---+---+---+---+---+
-| T |     Tamaño/Comando ID     |
+| T |     profile+len/cmd       |
 +---+---+---+---+---+---+---+---+
 ```
 
-**Byte 1 (ID Compacto - solo datos)**:
+**Byte 1 (ID Compacto)**:
 
 ```text
  0   1   2   3   4   5   6   7
@@ -64,11 +65,13 @@ Se utiliza un pseudoencabezado de **2 bytes** para optimizar la comunicación:
 +---+---+---+---+---+---+---+---+
 ```
 
-## Sistema de Identificación Compacta
+# Sistema de Identificación Compacta
 
-VAMP utiliza un sistema eficiente de identificación que permite acceso directo a la tabla de dispositivos y verificación de consistencia usando solo **1 byte adicional** en el payload.
+Devido a las restricciones del payload no es eficiente enviar toda la direccion del nodo. Para ello utilizamos un solo byte para identificar el nodo en el una vez que este se registra y el gateway sepa quien le esta consultando y como se le puede responder.
+Pese a que esta solucion es idenpendiente a la impentacion, donde tan solo hay que asegurarse que no existan coliciones cuando se reutilice un ID, a continuación se muestra la forma con la que se implementó buscando robustez y eficiencia.
 
-### Estructura del ID Compacto
+## Recomendaciones de implementacion
+Hemos asumido que la forma mas simple y eficiente es una tabla donde el ID coincide con el indice en la tabla (el nodo registrado en la posicion *X* tiene ID *X*) así el nodo que se reporta como es es simplemente *table[x]*. Como esto puede crear coliciones en el ID, se ha utlizado una estructura como la sguiente:
 
 ```text
 Byte de ID (8 bits):
@@ -82,20 +85,58 @@ Byte de ID (8 bits):
 - **Bits 7-5**: Número de verificación (0-7)
 - **Bits 4-0**: Índice en tabla (0-31)
 
-### Formato del Puerto NAT
+Los bits de verificación pueden ser optenidos como se estime en cada caso solo evitando la posibilidad de no repetición. Para ello probablemente lo más simple y seguro sea generando de forma cosecutiva. Así obtener en nodo será:
 
-El puerto NAT se genera automáticamente:
-
-```text
-Puerto = 8000 + (Verificación << 5) + Índice
+```c++
+uint8_t id = msg[1];
+uint8_t node_index = id & 0b00011111;
+vamp_entry_t * entry = &table[node_index];
+if (entry.id != id)
+  return false;
 ```
 
-**Ejemplo**:
+## Formato del Puerto NAT
 
-- ID Byte = 0xA5 (10100101)
-- Verificación = 5 (bits 7-5)
-- Índice = 5 (bits 4-0)
-- Puerto = 8000 + (5 × 32) + 5 = 8165
+????
+
+
+# Unirse a la red
+
+## Asociación a la Red
+Cuando un nodo reinicia necesita unirse a la red. Unirse a la red implica obtener un ID y la dirección del gateway. El proceso es como sigue:
+
+```text
+1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
+2. Gateway → Ente Central: Consulta mapeo para RF_ID
+3. Gateway → Nodo: [0x82] [ID_COMPACTO] [ID_GATEWAY] (JOIN_OK con ID compacto + ID del gateway)
+4. Nodo → Gateway: [0x82] [ID_COMPACTO] (JOIN_OK con ID compacto)
+```
+
+**Proceso detallado:**
+
+- **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID
+- **Paso 2**: Gateway consulta su tabla local y si el nodo no esta en cache le pregunta al Ente Central si tiene mapeo para ese RF_ID.
+- **Paso 3**: Gateway genera ID compacto (verificación + índice) y responde JOIN_OK al nodo incluyendo el ID del nodo y su propio ID. Aquí el gateway pondrá la entrada de ese nodo con status JOIN_REQUESTED a la espera de la respuesta del nodo. 
+- **Paso 4**: Nodo envía al gateway un JOIN_OK y su ID compacto en señal de que está correctamente configurado, solo así el gateway pone el estado de activo al nodo en su tabla y la conexión se da por hecha en ambas partes.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Protocolo de Datos con ID
 
@@ -654,25 +695,7 @@ Authorization: Bearer <federation_token>
 }
 ```
 
-## Asociación a la Red
 
-```text
-1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
-2. Gateway → Ente Central: Consulta mapeo para RF_ID
-3. Ente Central → Gateway: Respuesta con puerto y endpoints
-4. Gateway → Nodo: [0x82] [ID_COMPACTO] [ID_GATEWAY] (JOIN_OK con ID compacto + ID del gateway)
-5. Nodo → Gateway (directo): [0x04] [ID_COMPACTO] [0x20] [0x25] [0x30] (Datos con ID compacto)
-6. Gateway → Endpoints: Distribuye datos según permisos usando puerto calculado
-```
-
-**Proceso detallado:**
-
-- **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID
-- **Paso 2**: Gateway consulta al Ente Central si tiene mapeo para ese RF_ID
-- **Paso 3**: Ente Central responde con puerto asignado y lista de endpoints autorizados
-- **Paso 4**: Gateway genera ID compacto (verificación + índice) y responde JOIN_OK al nodo
-- **Paso 5**: Nodo envía datos incluyendo su ID compacto en el byte 1
-- **Paso 6**: Gateway valida ID compacto, calcula puerto y distribuye datos a endpoints
 
 ### Manejo de Permisos en Comunicación Bidireccional
 
