@@ -27,15 +27,16 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 		// Configuración mínima necesaria para funcionar
 		wsn_radio.enableDynamicPayloads(); 	// NECESARIO para getDynamicPayloadSize()
 		wsn_radio.disableAckPayload();		// Sin payload en ACKs
-		wsn_radio.setAutoAck(false);		// DESHABILITAR ACKs completamente
-
-		/* ✅ Pipe 0 direccion local */
+		
+		/* ✅ Pipe 0 direccion local con ACK activos */
+		wsn_radio.setAutoAck(0, true);
 		wsn_radio.openReadingPipe(0, addr);
+
 		/* ✅ Pipe 1 acepta dirección completa diferente (broadcast) */
+		wsn_radio.setAutoAck(1, false);
 		uint8_t broadcast_addr[5] = VAMP_BROADCAST_ADDR;
 		wsn_radio.openReadingPipe(1, broadcast_addr);
 		
-		wsn_radio.setAutoAck(1, false);
 		wsn_radio.flush_rx();
 
 		#ifdef VAMP_DEBUG
