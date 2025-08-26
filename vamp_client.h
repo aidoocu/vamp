@@ -54,12 +54,13 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len);
  *  @param data Pointer to the data to be sent
  *  @param len Length of the data to be sent
  *  @param profile The profile to be used for sending the data
+ *  @return  Datos recibidos del gateway
  */
 uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t len);
 
 /** @brief Ask for data with VAMP using a specific profile
  *  @param profile The profile to be used for asking the data
- *  @return true if the request was successful, false otherwise
+ *  @return The ticket number, or 0 on failure
  *  @note   This function makes a TELL request with the form
  * *        data[1] = { '\0' } or a empty string. This is because 
  * *        the target profile is assumed to be a GET, which will 
@@ -68,12 +69,12 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
  * *        only an TICKET, so it should be followed by the poll to know 
  * *        if there are messages returning from the endpoint via gateway.
  */
-bool vamp_client_ask(uint8_t profile);
+uint16_t vamp_client_ask(uint8_t profile);
 
 /** @overload Ask for data with VAMP using a default profile
- *  @return true if the request was successful, false otherwise
+ *  @return The ticket number, or 0 on failure
  */
-bool vamp_client_ask(void);
+uint16_t vamp_client_ask(void);
 
 /** @brief Polling gateway asking for data using VAMP
  * 

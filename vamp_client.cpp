@@ -271,17 +271,22 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len){
 /* Preguntale al gateway que le solicite (GET) al endpoint del "profile". Aqui el gateway debe responder solo con
 un TICKET que indique que ha recibido la solicitud. Si hay respuesta del profile (endpoint), se solicita con
 un POLL */
-bool vamp_client_ask(uint8_t profile) {
+uint16_t vamp_client_ask(uint8_t profile) {
 	/* Hacer un tell con el profile especificado y una cadena vacia */
 	uint8_t data[1] = {'\0'};
 	if (vamp_client_tell(profile, data, 1)) {
-		return true;
+		/* Si el tell fue exitoso, verificar que hay un ticket */
+		if (data[0] != VAMP_TICKET | VAMP_IS_CMD_MASK) {
+			uint16_t ticket = (uint16_t)data[1];
+			ticket |= ((uint16_t)data[2] << 8);
+			return ticket;
+		}
 	}
-	return false;
+	return 0; // Fallo en el ask
 }
 
 /* Preguntale al gateway que le solicite (GET) al endpoint del profile por defecto */
-bool vamp_client_ask(void) {
+uint16_t vamp_client_ask(void) {
 	/* Hacer un ask con el profile por defecto */
 	return vamp_client_ask(VAMP_DEFAULT_PROFILE);
 }
