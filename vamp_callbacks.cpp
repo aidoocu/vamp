@@ -147,7 +147,7 @@ bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint8_t ticket) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.print("wsn send ack: ");
+	Serial.print("wsn send ticket: ");
 	#endif /* VAMP_DEBUG */
 
 	uint8_t send[] = { VAMP_TICKET | VAMP_IS_CMD_MASK, ticket };

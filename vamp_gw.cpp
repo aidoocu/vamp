@@ -23,10 +23,6 @@
 static vamp_profile_t vamp_vreg_profile;
 
 
-/* ID del gateway */
-static char vamp_gw_id[VAMP_GW_ID_MAX_LEN];
-
-
 /* Buffer para la solicitud y respuesta de internet */
 static char req_resp_internet_buff[VAMP_IFACE_BUFF_SIZE];
 
@@ -147,69 +143,62 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		/* Asumimos que el RF_ID está después del comando */
 		node_index = vamp_find_device(&cmd[1]);
 
-		/* Si indice es menor que el maximo de dispositivos es que se ha encontrado en el cache */
-		if (node_index < VAMP_MAX_DEVICES) {
+		/* Si indice es mayor o igual que el maximo de dispositivos es que NO se ha 
+		encontrado en el cache */
+		if (node_index >= VAMP_MAX_DEVICES) {
 
-			vamp_entry_t * entry = vamp_get_table_entry(node_index);
-
+			/* Dispositivo no encontrado en caché, hay que solicitarlo al VREG */
 			#ifdef VAMP_DEBUG
-			Serial.print("Dev in cache, id: ");
-			Serial.println(entry->wsn_id);
+			Serial.println("no in cache, asking VREG");
 			#endif /* VAMP_DEBUG */
 
-			/* Formamos la respuesta para el nodo solicitante */
+					/* Si no esta en el cache hay que preguntarle al VREG */
+			node_index = vamp_get_vreg_device(&cmd[1]);
 
-			/* El comando JOIN_OK es 0x02, byte completo es 0x82 */
-			cmd[0] = VAMP_JOIN_OK | VAMP_IS_CMD_MASK;
-			/* Enviar el identificador del nodo WSN en el gateway */
-			cmd[1] = entry->wsn_id; // Asignar el ID del nodo WSN
-			/* Asignar el ID del gateway */
-			for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-				uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
-				cmd[i + 2] = (uint8_t)local_wsn_addr[i]; // Asignar el ID del gateway
-			}
-			/* Reportamos al nodo solicitante */
-			if (vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN)) {
-				entry->status = VAMP_DEV_STATUS_REQUEST; // Marcar como en solicitud
-				entry->last_activity = millis(); // Actualizar última actividad
+			if (node_index == VAMP_MAX_DEVICES) {
+				#ifdef VAMP_DEBUG
+				Serial.println("VREG: no device found");
+				#endif /* VAMP_DEBUG */
+				return false; // Error al obtener el dispositivo
 			}
 
-			return true;
+			#ifdef VAMP_DEBUG
+			Serial.print("Dev found in VREG: ");
+			#endif /* VAMP_DEBUG */
 
-		}
 
-		/* Dispositivo no encontrado en caché, hay que solicitarlo al VREG */
-
+		} 
 		#ifdef VAMP_DEBUG
-		Serial.println("no in cache, asking VREG");
-		#endif /* VAMP_DEBUG */
-
-		/* Si no esta en el cache hay que preguntarle al VREG */
-		node_index = vamp_get_vreg_device(&cmd[1]);
-
-		if (node_index == VAMP_MAX_DEVICES) {
-			#ifdef VAMP_DEBUG
-			Serial.println("VREG: no device found");
-			#endif /* VAMP_DEBUG */
-			return false; // Error al obtener el dispositivo
+		else {
+			Serial.print("Dev in cache: ");
 		}
-
+		#endif /* VAMP_DEBUG */
+		
 		vamp_entry_t * entry = vamp_get_table_entry(node_index);
 
 		#ifdef VAMP_DEBUG
-		Serial.print("Dev in cache, id: ");
 		Serial.println(entry->wsn_id);
 		#endif /* VAMP_DEBUG */
 
-		/* Formamos la respuesta para el nodo solicitante */
-		cmd[0] = VAMP_JOIN_OK | VAMP_IS_CMD_MASK;
-		cmd[1] = node_index;
-		for (int i = 0; i < VAMP_ADDR_LEN; i++) {
-			cmd[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
-		}
+		entry->status = VAMP_DEV_STATUS_REQUEST; // Marcar como en solicitud
+		entry->last_activity = millis(); // Actualizar última actividad
 
+		/* Formamos la respuesta para el nodo solicitante */
+
+		/* El comando JOIN_OK es 0x02, byte completo es 0x82 */
+		cmd[0] = VAMP_JOIN_OK | VAMP_IS_CMD_MASK;
+		/* Enviar el identificador del nodo WSN en el gateway */
+		cmd[1] = entry->wsn_id; // Asignar el ID del nodo WSN
+		/* Asignar el ID del gateway */
+		for (int i = 0; i < VAMP_ADDR_LEN; i++) {
+			uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
+			cmd[i + 2] = (uint8_t)local_wsn_addr[i]; // Asignar el ID del gateway
+		}
 		/* Reportamos al nodo solicitante */
-		vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN);
+		Serial.print("Enviando respuesta JOIN_OK a: ");
+		Serial.println(vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN));
+		//vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN);
+
 
 		return true;
 	}
@@ -249,9 +238,6 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 		/* Marcar como activo */
 		entry->status = VAMP_DEV_STATUS_ACTIVE; 
-
-		/* Reportamos al nodo solicitante */
-		vamp_wsn_send_ticket(entry->rf_id, 0);
 
 		return true;
 	}
