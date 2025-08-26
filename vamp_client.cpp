@@ -6,7 +6,7 @@
  * la direccion de broadcast. Lo que se hace es enviar un mensaje
  * de tipo VAMP_JOIN_REQ, que es un mensaje de solicitud de unión a la red
  * y el controlador de red responderá con un mensaje de tipo
- * VAMP_JOIN_ACK, que contiene la dirección MAC del gateway.
+ * VAMP_JOIN_OK, que contiene la dirección MAC del gateway.
  * Asi la dirección de destino se actualiza a la dirección del gateway
  * y se puede enviar mensajes de tipo VAMP_NODE.
  */
@@ -94,8 +94,8 @@ bool vamp_join_network(void) {
 
 	/*  Enviar mensaje de unión al gateway */
 	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
-	/* El mensaje recibido debe ser un JOIN_ACK (0x82) + ID_IN_GW (1 byte) + dirección del gateway (5 bytes) */
-	if ((!payload_len) || (req_resp_wsn_buff[0] != (VAMP_JOIN_ACK | VAMP_IS_CMD_MASK)) || (payload_len != (2 + VAMP_ADDR_LEN))) {
+	/* El mensaje recibido debe ser un JOIN_OK (0x82) + ID_IN_GW (1 byte) + dirección del gateway (5 bytes) */
+	if ((!payload_len) || (req_resp_wsn_buff[0] != (VAMP_JOIN_OK | VAMP_IS_CMD_MASK)) || (payload_len != (2 + VAMP_ADDR_LEN))) {
 		Serial.println("JOIN_REQ failed");
 		return false;
 	}
@@ -121,7 +121,7 @@ bool vamp_join_network(void) {
 	}
 
 	payload_len = 2;
-	req_resp_wsn_buff[0] = (VAMP_JOIN_ACK | VAMP_IS_CMD_MASK);
+	req_resp_wsn_buff[0] = (VAMP_JOIN_OK | VAMP_IS_CMD_MASK);
 	req_resp_wsn_buff[1] = id_in_gateway;
 	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 
@@ -269,7 +269,7 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len){
 }
 
 /* Preguntale al gateway que le solicite (GET) al endpoint del "profile". Aqui el gateway debe responder solo con
-un ACK + ticket que indique que ha recibido la solicitud. Si hay respuesta del profile (endpoint), se solicita con 
+un TICKET que indique que ha recibido la solicitud. Si hay respuesta del profile (endpoint), se solicita con
 un POLL */
 bool vamp_client_ask(uint8_t profile) {
 	/* Hacer un tell con el profile especificado y una cadena vacia */
@@ -286,7 +286,7 @@ bool vamp_client_ask(void) {
 	return vamp_client_ask(VAMP_DEFAULT_PROFILE);
 }
 
-/* Simplemente enviar el comando de POLL + ticket y sera respondido con un ACK + respuesta si hay o un '\0' */
+/* Simplemente enviar el comando de POLL + ticket y sera respondido con un TICKET + respuesta si hay o un '\0' */
 uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 
 	if(data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) {
@@ -326,7 +326,7 @@ uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 	}
 
 	if(response_len > VAMP_MAX_PAYLOAD_SIZE) {
-		/* Es una respuesta vacia, o un ACK, o un error en la respuesta */
+		/* Es una respuesta vacia, o un error en la respuesta */
 		return 0;
 	}
 

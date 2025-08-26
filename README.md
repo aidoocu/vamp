@@ -222,7 +222,7 @@ Payload completo: [0x81] [datos del comando...]
 | Comando   | Valor | Descripción                          |
 |-----------|-------|--------------------------------------|
 | JOIN_REQ  | 0x81  | Solicitud de unión a la red          |
-| JOIN_ACK  | 0x82  | Confirmación de unión                |
+| JOIN_OK  | 0x82  | Confirmación de unión                |
 | PING      | 0x83  | Mensaje de verificación de conexión  |
 | PONG      | 0x84  | Respuesta a mensaje PING             |
 
@@ -238,7 +238,7 @@ Payload completo: [0x81] [datos del comando...]
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-#### JOIN_ACK (0x82)
+#### JOIN_OK (0x82)
 
 ```text
  0                   1                   2                   3
@@ -252,7 +252,7 @@ Payload completo: [0x81] [datos del comando...]
 
 **Campos**:
 
-- **Byte 0**: `0x82` (comando JOIN_ACK)
+- **Byte 0**: `0x82` (comando JOIN_OK)
 - **Byte 1**: ID compacto asignado (verificación + índice)
 - **Bytes 2-6**: ID del gateway (5 bytes)
 
@@ -660,7 +660,7 @@ Authorization: Bearer <federation_token>
 1. Nodo → Gateway (broadcast): [0x81] [ID_NODO] (JOIN_REQ con ID del nodo)
 2. Gateway → Ente Central: Consulta mapeo para RF_ID
 3. Ente Central → Gateway: Respuesta con puerto y endpoints
-4. Gateway → Nodo: [0x82] [ID_COMPACTO] [ID_GATEWAY] (JOIN_ACK con ID compacto + ID del gateway)
+4. Gateway → Nodo: [0x82] [ID_COMPACTO] [ID_GATEWAY] (JOIN_OK con ID compacto + ID del gateway)
 5. Nodo → Gateway (directo): [0x04] [ID_COMPACTO] [0x20] [0x25] [0x30] (Datos con ID compacto)
 6. Gateway → Endpoints: Distribuye datos según permisos usando puerto calculado
 ```
@@ -670,7 +670,7 @@ Authorization: Bearer <federation_token>
 - **Paso 1**: El nodo envía JOIN_REQ por broadcast incluyendo su propio ID
 - **Paso 2**: Gateway consulta al Ente Central si tiene mapeo para ese RF_ID
 - **Paso 3**: Ente Central responde con puerto asignado y lista de endpoints autorizados
-- **Paso 4**: Gateway genera ID compacto (verificación + índice) y responde JOIN_ACK al nodo
+- **Paso 4**: Gateway genera ID compacto (verificación + índice) y responde JOIN_OK al nodo
 - **Paso 5**: Nodo envía datos incluyendo su ID compacto en el byte 1
 - **Paso 6**: Gateway valida ID compacto, calcula puerto y distribuye datos a endpoints
 
@@ -840,7 +840,7 @@ Envío → Fallo → Contador = 3 → Reset conexión → Re-join → Reintento
 Nodo A (endpoint: api.empresa-x.com) → Broadcast: JOIN_REQ
 ├── Gateway 1 (empresa-y): No tiene registro → Query otros gateways
 ├── Gateway 2 (empresa-z): No tiene registro → Query otros gateways  
-└── Gateway 3 (empresa-x): Tiene registro → Responde JOIN_ACK
+└── Gateway 3 (empresa-x): Tiene registro → Responde JOIN_OK
 
 Resultado: Nodo A se conecta a Gateway 3 (su propietario)
 ```
@@ -867,7 +867,7 @@ Nodo C (endpoint: api.empresa-x.com) → Broadcast: JOIN_REQ
 ├── Gateway A: No registrado → Query red de gateways
 │   └── Gateway A → Gateway X: GATEWAY_QUERY(node_id=C)
 │       └── Gateway X → Gateway A: GATEWAY_RESPONSE(endpoint=empresa-x.com)
-└── Gateway A → Nodo C: JOIN_ACK (actuando como proxy)
+└── Gateway A → Nodo C: JOIN_OK (actuando como proxy)
 
 Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 ```
@@ -888,7 +888,7 @@ Resultado: Gateway A hace proxy para Nodo C hacia Gateway X
 3. Nodo → Broadcast: JOIN_REQ
 4. Gateway local → Red de gateways: GATEWAY_QUERY
 5. Gateway propietario → Gateway local: GATEWAY_RESPONSE(endpoint=api.factory.com)
-6. Gateway local → Nodo: JOIN_ACK (proxy mode)
+6. Gateway local → Nodo: JOIN_OK (proxy mode)
 7. Nodo → Gateway local: Datos de temperatura
 8. Gateway local → VAMP Bridge: Datos + endpoint info
 9. VAMP Bridge → api.factory.com: POST /temp (HTTP)

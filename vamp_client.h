@@ -46,7 +46,7 @@ bool vamp_force_rejoin(void);
  *  @param len Length of the data to be sent
  *  @return  0 on failure, 
  *          0 < return <= VAMP_MAX_PAYLOAD_SIZE data contained a msg from the gateway
- *          > VAMP_MAX_PAYLOAD_SIZE (VAMP_MAX_PAYLOAD_SIZE + 1) success (just ACK)          
+ *          > VAMP_MAX_PAYLOAD_SIZE (VAMP_MAX_PAYLOAD_SIZE + 1) success        
  */
 uint8_t vamp_client_tell(const uint8_t * data, uint8_t len);
 
@@ -65,7 +65,7 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
  * *        the target profile is assumed to be a GET, which will 
  * *        ignore the payload data.
  * *        This function does not expect a response from the gateway, 
- * *        only an ACK, so it should be followed by the poll to know 
+ * *        only an TICKET, so it should be followed by the poll to know 
  * *        if there are messages returning from the endpoint via gateway.
  */
 bool vamp_client_ask(uint8_t profile);

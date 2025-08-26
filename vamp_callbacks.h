@@ -83,10 +83,10 @@ bool vamp_wsn_init(const uint8_t * wsn_addr);
 uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len);
 
 
-/** @brief Callback para enviar ACK 
+/** @brief Callback para enviar TICKET
  *  @return true si se envió correctamente, false en caso contrario
  */
-bool vamp_wsn_send_ack(uint8_t * dst_addr, uint8_t ticket);
+bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint8_t ticket);
 
 /**
  * @brief Function for ASK WSN radio communication

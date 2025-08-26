@@ -52,11 +52,11 @@
 #define VAMP_WSN_CMD_MASK   0x7F
 
 #define VAMP_JOIN_REQ       0x01
-#define VAMP_JOIN_ACK       0x02
+#define VAMP_JOIN_OK        0x02
 #define VAMP_PING           0x03
 #define VAMP_PONG           0x04
 #define VAMP_POLL           0x05
-#define VAMP_ACK            0x06
+#define VAMP_TICKET         0x06
 
 /*  Largo que deberian tener cada uno de los mensajes de comando para poder 
     verificarlos */

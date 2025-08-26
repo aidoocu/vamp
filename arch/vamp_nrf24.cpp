@@ -20,10 +20,7 @@ RF24 wsn_radio;
 static uint8_t nrf_buff [VAMP_MAX_PAYLOAD_SIZE]; 
 
 
-/** @todo HAY QUE IMPLEMENTARLO PARA QUE USE EL MECAMISMO DE ACK NATIVO DEL NRF24
- * PUES ES MAS EFICIENTE ENERGETICAMENTE !!!!
- */
-
+/* Inicializar el nRF24 */
 bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 
 	if (wsn_radio.begin(ce_pin, csn_pin)) {
@@ -70,7 +67,6 @@ void nrf_set_address(uint8_t * rf_id) {
  * 
  * @return 	Número de bytes leídos si hay datos disponibles, 
  * 			0 en caso contrario
- * 			VAMP_MAX_PAYLOAD_SIZE + 1 si se recibe un ACK 
  */
 uint8_t nrf_read(void) {
 
@@ -87,21 +83,13 @@ uint8_t nrf_read(void) {
 		bytes_read = VAMP_MAX_PAYLOAD_SIZE;
 	wsn_radio.read(nrf_buff, bytes_read);
 
-	/* Si bytes_read == 1 probablemente se recibió un ACK */
-	if (bytes_read == 1) {
-		if (nrf_buff[0] == (VAMP_ACK | VAMP_IS_CMD_MASK)) {
-			bytes_read = VAMP_MAX_PAYLOAD_SIZE + 1;
-		}
-	}	
-
 	return bytes_read; // Éxito al recibir datos
 }
 
 /** 
- * Escuchar en una ventana por si hay alguna solicitud o un simple ACK
+ * Escuchar en una ventana por si hay alguna solicitud TICKET
  * @return 	Número de bytes leídos si hay datos disponibles, 
  * 			0 en caso contrario
- * 			VAMP_MAX_PAYLOAD_SIZE + 1 si se recibe un ACK
  * @note	Esta función abre una ventana de escucha y espera por datos.
  */
 uint8_t nrf_listen_window(void) {
@@ -121,17 +109,19 @@ uint8_t nrf_listen_window(void) {
 	return bytes_read; // Timeout - no respuesta
 }
 
+/* Enviar datos a un dispositivo (!!! aqui es donde habria que implementar el mecanismo de ACK !!!!) */
 bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 
 	wsn_radio.openWritingPipe(dst_addr);
 
 	// Enviar datos
-	if (!wsn_radio.write(nrf_buff, len)){  // Sin tercer parámetro = no ACK
+	if (!wsn_radio.write(nrf_buff, len)){
 		return false;
 	}
 	return true; // Éxito al enviar datos		
 }
 
+/* Comunicación nRF24 */
 uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 
 	/* Verificar que el chip está conectado */
@@ -179,16 +169,6 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 
 		memcpy(nrf_buff, data, len);
 
-		/** @todo este mecanismo que parece logico tiene problemas, por ejemplo:
-		 * el ACK payload puede sustituir la ventana de escucha
-		 * que pasa cuando se envia sin esperar ACK?
-		 * hay que unificar las formas de respuestas de la funcion macro pues puede pasar:
-		 * ACK simple (sin payload)
-		 * ACK con payload
-		 * ACK con payload y ventana
-		 * No ACK
-		 * y esto no esta bien diferenciado
-		 */
 		if(vamp_get_settings() & VAMP_RMODE_B) {
 			/* Modo siempre escucha asi que que dejar de escuchar */
 			wsn_radio.stopListening();

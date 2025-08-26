@@ -159,8 +159,8 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 			/* Formamos la respuesta para el nodo solicitante */
 
-			/* El comando JOIN_ACK es 0x02, byte completo es 0x82 */
-			cmd[0] = VAMP_JOIN_ACK | VAMP_IS_CMD_MASK;
+			/* El comando JOIN_OK es 0x02, byte completo es 0x82 */
+			cmd[0] = VAMP_JOIN_OK | VAMP_IS_CMD_MASK;
 			/* Enviar el identificador del nodo WSN en el gateway */
 			cmd[1] = entry->wsn_id; // Asignar el ID del nodo WSN
 			/* Asignar el ID del gateway */
@@ -202,7 +202,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		#endif /* VAMP_DEBUG */
 
 		/* Formamos la respuesta para el nodo solicitante */
-		cmd[0] = VAMP_JOIN_ACK | VAMP_IS_CMD_MASK;
+		cmd[0] = VAMP_JOIN_OK | VAMP_IS_CMD_MASK;
 		cmd[1] = node_index;
 		for (int i = 0; i < VAMP_ADDR_LEN; i++) {
 			cmd[i + 2] = (uint8_t)vamp_gw_id[i]; // Asignar el ID del gateway
@@ -214,11 +214,11 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		return true;
 	}
 
-	/* Comando JOIN_ACK */
-	if (cmd[0] ==  VAMP_JOIN_ACK) {
+	/* Comando JOIN_OK */
+	if (cmd[0] ==  VAMP_JOIN_OK) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("JOIN_ACK");
+		Serial.println("JOIN_OK");
 		#endif /* VAMP_DEBUG */
 
 		/* Este mensaje solo contiene el ID compacto para confirmar la unión */
@@ -228,21 +228,21 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 		if (!entry) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_ACK: entrada no encontrada");
+			Serial.println("JOIN_OK: entrada no encontrada");
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no encontrada
 		}
 
 		if (entry->wsn_id != cmd[1]) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_ACK: no coincide ID");
+			Serial.println("JOIN_OK: no coincide ID");
 			#endif /* VAMP_DEBUG */
 			return false; // ID no válido
 		}
 
 		if (entry->status != VAMP_DEV_STATUS_REQUEST) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_ACK: entrada no solicitada");
+			Serial.println("JOIN_OK: entrada no solicitada");
 			#endif /* VAMP_DEBUG */
 			return false; // Estado no válido
 		}
@@ -251,7 +251,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		entry->status = VAMP_DEV_STATUS_ACTIVE; 
 
 		/* Reportamos al nodo solicitante */
-		vamp_wsn_send_ack(entry->rf_id, 0);
+		vamp_wsn_send_ticket(entry->rf_id, 0);
 
 		return true;
 	}
@@ -401,15 +401,15 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 
 		/** Como la respuesta del servidor puede demorar y 
 		probablemente el mote no resuelva nada con ella
-		le respondemos y ack para que el mote sepa que 
-		al menos su tarea fue recibida 
-		@note que por cada ACK que se envie se incrementa el ticket
+		le respondemos con un TICKET para que el mote sepa que
+		al menos su tarea fue recibida
+		@note que por cada TICKET que se envie se incrementa el ticket
 		y como en este caso hay un solo buffer, pues se recuerda un
 		solo ticket por cada comunicación, si no se hace polling el 
 		ticket se pierde.
 		*/		
 		entry->ticket++;
-		vamp_wsn_send_ack(entry->rf_id, entry->ticket);
+		vamp_wsn_send_ticket(entry->rf_id, entry->ticket);
 
 
 		/* Copiar los datos recibidos al buffer de internet si es que hay datos */
@@ -478,15 +478,6 @@ bool vamp_gw_wsn(void) {
 	if (recv_len == 0) {
 		return false; // No hay datos disponibles
 	}
-
-	/* !!! el ACK tiene qe ser tratado de alguna manera !!! */
-	if (recv_len == VAMP_MAX_PAYLOAD_SIZE + 1) {
-		#ifdef VAMP_DEBUG
-		Serial.println("ACK");
-		#endif /* VAMP_DEBUG */
-		return true; // Solo se recibió un ACK
-	}
-
 
 	/* --------------------- Si es un comando --------------------- */
 	if (wsn_buffer[0] & VAMP_WSN_CMD_MASK) {
