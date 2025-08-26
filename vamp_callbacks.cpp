@@ -150,7 +150,7 @@ bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint16_t ticket) {
 	Serial.print("wsn send ticket: ");
 	#endif /* VAMP_DEBUG */
 
-	uint8_t send[] = { VAMP_TICKET | VAMP_IS_CMD_MASK, (uint8_t)(ticket & 0xFF), (uint8_t)((ticket >> 8) & 0xFF) };
+	uint8_t send[] = { VAMP_TICKET | VAMP_IS_CMD_MASK, (uint8_t)((ticket >> 8) & 0xFF), (uint8_t)(ticket & 0xFF) };
 
 	#ifdef RF24_AVAILABLE
 	nrf_comm(dst_addr, send, sizeof(send));

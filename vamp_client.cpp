@@ -272,13 +272,16 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len){
 un TICKET que indique que ha recibido la solicitud. Si hay respuesta del profile (endpoint), se solicita con
 un POLL */
 uint16_t vamp_client_ask(uint8_t profile) {
+	
 	/* Hacer un tell con el profile especificado y una cadena vacia */
 	uint8_t data[1] = {'\0'};
+	
 	if (vamp_client_tell(profile, data, 1)) {
+		
 		/* Si el tell fue exitoso, verificar que hay un ticket */
-		if (data[0] != VAMP_TICKET | VAMP_IS_CMD_MASK) {
-			uint16_t ticket = (uint16_t)data[1];
-			ticket |= ((uint16_t)data[2] << 8);
+		if (req_resp_wsn_buff[0] == (VAMP_TICKET | VAMP_IS_CMD_MASK)) {
+			uint16_t ticket = (uint16_t)req_resp_wsn_buff[1];
+			ticket |= ((uint16_t)req_resp_wsn_buff[2] << 8);
 			return ticket;
 		}
 	}
