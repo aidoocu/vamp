@@ -35,12 +35,12 @@
 /** @brief  ID del gateway VAMP */
 #ifndef VAMP_GW_ID
 #define VAMP_GW_ID  "GW_TEST_01"
-#endif
+#endif // VAMP_GW_ID
 
-/** @brief  URL del VAMP Registry */
+/** @brief  URL del VAMP Registry */  
 #ifndef VAMP_VREG_RESOURCE
-#define VAMP_VREG_RESOURCE	"http://10.1.111.249:8000/vreg/api/v1/gateway/sync/" // URL del VAMP Registry
-#endif
+#define VAMP_VREG_RESOURCE "http://10.1.111.249:8000/vreg/api/v1/gateway/sync/"
+#endif // VAMP_VREG_RESOURCE
 
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
 #define VAMP_DEBUG

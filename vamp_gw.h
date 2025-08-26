@@ -85,7 +85,7 @@ bool vamp_gw_wsn(void);
  * @param vreg_url Recurso VREG
  * @param gw_id ID del gateway
 */
-void vamp_gw_vreg_init(char * vreg_url, char * gw_id);
+void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id);
 
 
 /** Obtener el dispositivo VREG correspondiente al RF_ID

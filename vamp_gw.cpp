@@ -47,7 +47,7 @@ void vamp_table_sync(void) {
 }
 
 /* Inicializar el perfil de VREG */
-void vamp_gw_vreg_init(char * vreg_url, char * gw_id){
+void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id){
 
 	/* Verificar que los parámetros son válidos */
 	if (vreg_url == NULL || gw_id == NULL || 
@@ -246,6 +246,9 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 			#endif /* VAMP_DEBUG */
 			return false; // Estado no válido
 		}
+
+		/* Marcar como activo */
+		entry->status = VAMP_DEV_STATUS_ACTIVE; 
 
 		/* Reportamos al nodo solicitante */
 		vamp_wsn_send_ack(entry->rf_id, 0);

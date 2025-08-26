@@ -15,7 +15,7 @@
 /* -------------------------------------- Gateway -------------------------------------- */
 
 /* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
-void vamp_gw_init(char * vreg_url, char * gw_id, uint8_t * wsn_id) {
+void vamp_gw_init(const char * vreg_url, const char * gw_id, uint8_t * wsn_id) {
 
 	/* Como es un gateway, siempre escucha por wsn RMODE_B */
 	vamp_set_settings(VAMP_RMODE_B);

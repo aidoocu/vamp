@@ -84,7 +84,7 @@
  * @param vamp_gw_id Gateway ID string
  * @param wsn_id local WSN ID (5 bytes)
  */
-void vamp_gw_init(char * vamp_vreg_url, char * vamp_gw_id, uint8_t * wsn_id);
+void vamp_gw_init(const char * vamp_vreg_url, const char * vamp_gw_id, uint8_t * wsn_id);
 
 /**
  * @brief Synchronize VAMP gateway with VREG server
