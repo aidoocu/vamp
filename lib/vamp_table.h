@@ -20,6 +20,15 @@
 #define VAMP_ADDR_LEN 5
 #endif // VAMP_ADDR_LEN
 
+/** @brief Dirección de broadcast VAMP */
+#ifndef VAMP_BROADCAST_ADDR
+#define VAMP_BROADCAST_ADDR 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+#endif // VAMP_BROADCAST_ADDR
+
+#ifndef VAMP_NULL_ADDR
+#define VAMP_NULL_ADDR 0x00, 0x00, 0x00, 0x00, 0x00
+#endif // VAMP_NULL_ADDR
+
 /** @brief Longitud máxima del endpoint VAMP (en bytes) */
 #ifndef VAMP_ENDPOINT_MAX_LEN
 #define VAMP_ENDPOINT_MAX_LEN 128
@@ -205,6 +214,9 @@ void vamp_clear_profile(vamp_profile_t* profile);
 #define VAMP_GET_INDEX(id_byte) (id_byte & 0x1F)
 #define VAMP_GET_VERIFICATION(id_byte) ((id_byte >> 5) & 0x07)
 //#define VAMP_MAKE_PORT(verification, index) (VAMP_PORT_BASE + (verification << 5) + index)
+
+/** @brief Macro para verificar si una dirección es broadcast */
+#define VAMP_IS_BROADCAST_ADDR(addr) ((addr)[0] == 0xFF && (addr)[1] == 0xFF && (addr)[2] == 0xFF && (addr)[3] == 0xFF && (addr)[4] == 0xFF)
 
 
 /* --------------------- Funciones auxiliares --------------------- */

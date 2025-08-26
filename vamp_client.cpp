@@ -18,7 +18,7 @@
 #include "lib/vamp_table.h"
 
 /* Dirección MAC del gateway por defecto, direccion de broadcast */
-static uint8_t vamp_gw_addr[VAMP_ADDR_LEN] = VAMP_BROADCAST_ADDR;
+static uint8_t vamp_gw_addr[VAMP_ADDR_LEN] = {VAMP_BROADCAST_ADDR};
 
 /* Es como nos conoce el gateway 3 bits de verificación + 5 bits de dirección */
 static uint8_t id_in_gateway = 0;

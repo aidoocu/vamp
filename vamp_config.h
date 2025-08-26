@@ -21,10 +21,6 @@
 #define VAMP_GW_ID_MAX_LEN 16
 #endif // VAMP_GW_ID_MAX_LEN
 
-/** @brief Dirección de broadcast VAMP */
-#define VAMP_BROADCAST_ADDR {0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-#define VAMP_NULL_ADDR {0x00, 0x00, 0x00, 0x00, 0x00}
-
 /** @brief Tiempo de espera por una respuesta */
 #define VAMP_ANSW_TIMEOUT 1000
 

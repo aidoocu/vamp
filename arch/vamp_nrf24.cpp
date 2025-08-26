@@ -4,6 +4,7 @@
 
 #include "../vamp.h"
 #include "../vamp_callbacks.h"
+#include "../lib/vamp_table.h"
 #include "vamp_nrf24.h"
 
 
@@ -24,9 +25,10 @@ static uint8_t nrf_buff [VAMP_MAX_PAYLOAD_SIZE];
 bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 
 	if (wsn_radio.begin(ce_pin, csn_pin)) {
-		// Configuración mínima necesaria para funcionar
-		wsn_radio.enableDynamicPayloads(); 	// NECESARIO para getDynamicPayloadSize()
-		wsn_radio.disableAckPayload();		// Sin payload en ACKs
+		/* Configuración mínima necesaria para funcionar */
+		wsn_radio.enableDynamicPayloads();
+		wsn_radio.enableDynamicAck();
+		wsn_radio.disableAckPayload();
 		
 		/* ✅ Pipe 0 direccion local con ACK activos */
 		wsn_radio.setAutoAck(0, true);
@@ -34,7 +36,7 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 
 		/* ✅ Pipe 1 acepta dirección completa diferente (broadcast) */
 		wsn_radio.setAutoAck(1, false);
-		uint8_t broadcast_addr[5] = VAMP_BROADCAST_ADDR;
+		uint8_t broadcast_addr[5] = {VAMP_BROADCAST_ADDR};
 		wsn_radio.openReadingPipe(1, broadcast_addr);
 		
 		wsn_radio.flush_rx();
@@ -110,16 +112,34 @@ uint8_t nrf_listen_window(void) {
 	return bytes_read; // Timeout - no respuesta
 }
 
-/* Enviar datos a un dispositivo (!!! aqui es donde habria que implementar el mecanismo de ACK !!!!) */
+/* Enviar datos a un dispositivo */
 bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 
 	wsn_radio.openWritingPipe(dst_addr);
 
-	// Enviar datos
-	if (!wsn_radio.write(nrf_buff, len)){
+	/* Si es un broadcast no se espera ACK */
+	if(VAMP_IS_BROADCAST_ADDR(dst_addr)){
+		if (!wsn_radio.write(nrf_buff, len, true)){
+			return false;
+		}
+	}
+	/* Si no es un broadcast se espera ACK */
+	if (!wsn_radio.write(nrf_buff, len, false)){
 		return false;
 	}
 	return true; // Éxito al enviar datos		
+}
+
+/* Enviar un broadcast */
+bool nrf_broadcast(uint8_t * dst_addr, uint8_t len) {
+
+	wsn_radio.openWritingPipe(dst_addr);
+
+	// Enviar datos
+	if (!wsn_radio.write(nrf_buff, len, true)){
+		return false;
+	}
+	return true; // Éxito al enviar datos
 }
 
 /* Comunicación nRF24 */
@@ -169,6 +189,12 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 	if (len && len <= VAMP_MAX_PAYLOAD_SIZE) {
 
 		memcpy(nrf_buff, data, len);
+
+		/* Mode BROADCAST */
+		if (VAMP_IS_BROADCAST_ADDR(dst_addr)) {
+
+		}
+
 
 		if(vamp_get_settings() & VAMP_RMODE_B) {
 			/* Modo siempre escucha asi que que dejar de escuchar */

@@ -17,7 +17,7 @@
 #endif // RF24_AVAILABLE
 
 /* Identificador local del WSN */
-static uint8_t local_wsn_addr[VAMP_ADDR_LEN] = VAMP_NULL_ADDR;
+static uint8_t local_wsn_addr[VAMP_ADDR_LEN] = {VAMP_NULL_ADDR};
 //static uint8_t gw_wsn_addr[VAMP_ADDR_LEN] = VAMP_BROADCAST_ADDR;
 
 
