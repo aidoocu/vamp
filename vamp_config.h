@@ -22,7 +22,7 @@
 #endif // VAMP_GW_ID_MAX_LEN
 
 /** @brief Tiempo de espera por una respuesta */
-#define VAMP_ANSW_TIMEOUT 1000
+#define VAMP_ANSW_TIMEOUT 500
 
 /** @brief   Máximo de fallos consecutivos antes de re-join */
 #define MAX_SEND_FAILURES 3

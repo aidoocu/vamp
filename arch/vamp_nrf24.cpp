@@ -18,7 +18,7 @@
 RF24 wsn_radio;
 
 /* Buffer para datos WSN */
-static uint8_t nrf_buff [VAMP_MAX_PAYLOAD_SIZE]; 
+static uint8_t nrf_buff [VAMP_MAX_PAYLOAD_SIZE];
 
 
 /* Inicializar el nRF24 */
@@ -59,11 +59,6 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 		return true; // Éxito - salir de la función
 	}
 	return false; // Fallo - salir de la función
-}
-
-void nrf_set_address(uint8_t * rf_id) {
-	// Establecer dirección local del pipe de lectura
-	wsn_radio.openReadingPipe(0, rf_id);
 }
 
 /** @brief Lee datos del nRF24
@@ -119,27 +114,21 @@ bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 
 	/* Si es un broadcast no se espera ACK */
 	if(VAMP_IS_BROADCAST_ADDR(dst_addr)){
-		if (!wsn_radio.write(nrf_buff, len, true)){
-			return false;
-		}
+
+		#ifdef VAMP_DEBUG
+		Serial.println("BCAST");
+		#endif /* VAMP_DEBUG */
+
+		return wsn_radio.write(nrf_buff, len, true);
 	}
+
 	/* Si no es un broadcast se espera ACK */
-	if (!wsn_radio.write(nrf_buff, len, false)){
-		return false;
-	}
-	return true; // Éxito al enviar datos		
-}
+	return wsn_radio.write(nrf_buff, len, false);
 
-/* Enviar un broadcast */
-bool nrf_broadcast(uint8_t * dst_addr, uint8_t len) {
+	/* Reestablecer el pipe de lectura */
+	//wsn_radio.openReadingPipe(0, local_addr);
 
-	wsn_radio.openWritingPipe(dst_addr);
-
-	// Enviar datos
-	if (!wsn_radio.write(nrf_buff, len, true)){
-		return false;
-	}
-	return true; // Éxito al enviar datos
+	return false; // Éxito al enviar datos		
 }
 
 /* Comunicación nRF24 */
@@ -189,12 +178,6 @@ uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
 	if (len && len <= VAMP_MAX_PAYLOAD_SIZE) {
 
 		memcpy(nrf_buff, data, len);
-
-		/* Mode BROADCAST */
-		if (VAMP_IS_BROADCAST_ADDR(dst_addr)) {
-
-		}
-
 
 		if(vamp_get_settings() & VAMP_RMODE_B) {
 			/* Modo siempre escucha asi que que dejar de escuchar */
