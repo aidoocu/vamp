@@ -208,10 +208,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		Serial.println("JOIN_OK");
 		#endif /* VAMP_DEBUG */
 
-		/* Este mensaje solo contiene el ID compacto para confirmar la unión */
-		uint8_t index = VAMP_GET_INDEX(cmd[1]);
-
-		vamp_entry_t * entry = vamp_get_table_entry(index);
+		vamp_entry_t * entry = vamp_get_table_entry(VAMP_GET_INDEX(cmd[1]));
 
 		if (!entry) {
 			#ifdef VAMP_DEBUG
@@ -275,7 +272,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		#endif /* VAMP_DEBUG */
 
 		/* buscar la entrada */
-		vamp_entry_t * entry = vamp_get_table_entry(cmd[1]);
+		vamp_entry_t * entry = vamp_get_table_entry(VAMP_GET_INDEX(cmd[1]));
 		if (!entry) {
 			#ifdef VAMP_DEBUG
 			Serial.println("Entrada no encontrada");
