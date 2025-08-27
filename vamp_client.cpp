@@ -201,8 +201,8 @@ bool vamp_fail_handle(void){
 /* Dile al gateway que envíe un mensaje que le diga (POST/PUBLISH) "data" al endpoint del "profile" */
 uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t len) {
 
-	/* Verificar que los datos no sean nulos y esten dentro del rango permitido */
-	if (profile >= VAMP_MAX_PROFILES || data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) { // -2 min para el encabezado
+	/* Verificar que los datos no sean nulos y esten dentro del rango permitido, -2 min para el encabezado*/
+	if (profile >= VAMP_MAX_PROFILES || data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) {
 		return 0;
 	}
 	
@@ -258,8 +258,7 @@ uint8_t vamp_client_tell(const uint8_t profile, const uint8_t * data, uint8_t le
 
 	/* Envío exitoso, resetear contador de fallos */
 	send_failure_count = 0;
-	return len; // Envío exitoso
-
+	return len;
 }
 
 /* Dile al gateway que envíe un mensaje que le diga (POST/PUBLISH) "data" al endpoint del profile por defecto */
@@ -269,8 +268,8 @@ uint8_t vamp_client_tell(const uint8_t * data, uint8_t len){
 }
 
 /* Preguntale al gateway que le solicite (GET) al endpoint del "profile". Aqui el gateway debe responder solo con
-un TICKET que indique que ha recibido la solicitud. Si hay respuesta del profile (endpoint), se solicita con
-un POLL */
+un TICKET que indique que ha recibido la solicitud. Este ticket permanece en el buffer compartido req_resp_wsn_buff.
+Si hay respuesta del profile (endpoint), se solicita con un POLL. */
 uint16_t vamp_client_ask(uint8_t profile) {
 	
 	/* Hacer un tell con el profile especificado y una cadena vacia */
@@ -280,8 +279,16 @@ uint16_t vamp_client_ask(uint8_t profile) {
 		
 		/* Si el tell fue exitoso, verificar que hay un ticket */
 		if (req_resp_wsn_buff[0] == (VAMP_TICKET | VAMP_IS_CMD_MASK)) {
-			uint16_t ticket = (uint16_t)req_resp_wsn_buff[1];
-			ticket |= ((uint16_t)req_resp_wsn_buff[2] << 8);
+		
+			/* Extraer el ticket de los siguientes dos bytes */
+			uint16_t ticket = (uint16_t)req_resp_wsn_buff[2];
+			ticket |= ((uint16_t)req_resp_wsn_buff[1] << 8);
+
+			#ifdef VAMP_DEBUG
+			Serial.print("Ticket: ");
+			Serial.println(ticket);
+			#endif /* VAMP_DEBUG */
+
 			return ticket;
 		}
 	}
@@ -297,7 +304,7 @@ uint16_t vamp_client_ask(void) {
 /* Simplemente enviar el comando de POLL + ticket y sera respondido con un TICKET + respuesta si hay o un '\0' */
 uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 
-	if(data == NULL || len == 0 || len >= VAMP_MAX_PAYLOAD_SIZE - 2) {
+	if(data == NULL || len == 0) {
 		return 0;
 	}
 
@@ -333,14 +340,31 @@ uint8_t vamp_client_poll(uint16_t ticket, uint8_t * data, uint8_t len) {
 		}
 	}
 
-	if(response_len > VAMP_MAX_PAYLOAD_SIZE) {
-		/* Es una respuesta vacia, o un error en la respuesta */
+	/** @todo El nodo de alguna manera tiene que saber que es efectivamente el AP
+	 * el que le esta respondiendo asi que hay que hacer un mecanismo para que 
+	 * el AP genere tambien una direccion corta y se la asigne a si mismo en el 
+	 * nodo y de paso el nodo pueda ser capaz de comunicarse con otros nodos en la 
+	 * red. Por ahora se usara una respuesta generica como placeholder.
+	 */
+	/* Si no contiene la direccion generica del AP */
+	if(req_resp_wsn_buff[1] != 0xFF){
 		return 0;
 	}
 
+	/* Es una respuesta vacia, o un error en la respuesta */
+	if(response_len > VAMP_MAX_PAYLOAD_SIZE) {
+		return 0;
+	}
+
+	/* Si la respuesta es más grande que el buffer, truncar */
+	if(response_len > len) {	
+		response_len = len;
+	}
+
 	/* Si ha llegado hasta aqui es que la respuesta es valida por lo que se pasa 
-	   al buffer de recepción */
-	memcpy(data, req_resp_wsn_buff, response_len);
+	   al buffer de recepción sin el encabezado */
+	memcpy(data, &req_resp_wsn_buff[2], (response_len - 2));
+	req_resp_wsn_buff[response_len - 2] = '\0'; // Asegurar terminación nula
 
 	return response_len;
 
