@@ -117,7 +117,7 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 }
 
 /* Procesar comando "cmd" */
-bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
+void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 	/* Aislar el comando */
 	cmd[0] = cmd[0] & VAMP_WSN_CMD_MASK;
@@ -137,7 +137,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 			#ifdef VAMP_DEBUG
 			Serial.println("JOIN_REQ inválido, largo incorrecto");
 			#endif /* VAMP_DEBUG */
-			return false; // Comando inválido
+			return; // Comando inválido
 		}
 
 		/* Asumimos que el RF_ID está después del comando */
@@ -159,7 +159,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 				#ifdef VAMP_DEBUG
 				Serial.println("VREG: no device found");
 				#endif /* VAMP_DEBUG */
-				return false; // Error al obtener el dispositivo
+				return; // Error al obtener el dispositivo
 			}
 
 			#ifdef VAMP_DEBUG
@@ -198,7 +198,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		vamp_wsn_send(entry->rf_id, cmd, 2 + VAMP_ADDR_LEN);
 
 
-		return true;
+		return;
 	}
 
 	/* Comando JOIN_OK */
@@ -214,27 +214,27 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 			#ifdef VAMP_DEBUG
 			Serial.println("JOIN_OK: entrada no encontrada");
 			#endif /* VAMP_DEBUG */
-			return false; // Entrada no encontrada
+			return; // Entrada no encontrada
 		}
 
 		if (entry->wsn_id != cmd[1]) {
 			#ifdef VAMP_DEBUG
 			Serial.println("JOIN_OK: no coincide ID");
 			#endif /* VAMP_DEBUG */
-			return false; // ID no válido
+			return; // ID no válido
 		}
 
 		if (entry->status != VAMP_DEV_STATUS_REQUEST) {
 			#ifdef VAMP_DEBUG
 			Serial.println("JOIN_OK: entrada no solicitada");
 			#endif /* VAMP_DEBUG */
-			return false; // Estado no válido
+			return; // Estado no válido
 		}
 
 		/* Marcar como activo */
 		entry->status = VAMP_DEV_STATUS_ACTIVE; 
 
-		return true;
+		return;
 	}
 
 	/* Comando PING */
@@ -246,7 +246,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 		/* ... */
 
-		return true;
+		return;
 
 	}
 
@@ -259,7 +259,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 		/* ... */
 
-		return true;
+		return;
 
 	}
 
@@ -277,25 +277,38 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 			#ifdef VAMP_DEBUG
 			Serial.println("Entrada no encontrada");
 			#endif /* VAMP_DEBUG */
-			return false; // Entrada no encontrada
+			return; // Entrada no encontrada
 		}
 
 		/* Despues viene el ticket */
-		if ((uint16_t)(cmd[2] | (cmd[3] << 8)) == entry->ticket) {
+		uint16_t ticket = cmd[3] | (cmd[2] << 8);
 
-			vamp_client_tell((uint8_t *)entry->data_buff, strlen(entry->data_buff) - 1);
+		#ifdef VAMP_DEBUG
+		Serial.print("Ticket recv: ");
+		Serial.println(ticket);
+		#endif /* VAMP_DEBUG */
 
+		if (ticket == entry->ticket) {
 			/* Si el ticket coincide, se puede procesar la solicitud */
 			#ifdef VAMP_DEBUG
-			Serial.print("Ticket found");
-			Serial.println((cmd[2] | (cmd[3] << 8)));
+			Serial.println("and found it...");
 			#endif /* VAMP_DEBUG */
+
+			uint8_t response[VAMP_MAX_PAYLOAD_SIZE];
+			response[0] = strlen(entry->data_buff);
+			response[1] = 0xFF;
+			memcpy(&response[2], entry->data_buff, response[0]);
+
+			vamp_wsn_send(entry->rf_id, response, 2 + response[0]);
+
 		} else {
 			/* Si el ticket no coincide, se ignora la solicitud */
 			#ifdef VAMP_DEBUG
 			Serial.println("ticket deprecate");
 			#endif /* VAMP_DEBUG */
 		}
+
+	return;
 
 	}
 
@@ -305,7 +318,7 @@ bool vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 	Serial.println("Cmd desconocido");
 	#endif /* VAMP_DEBUG */
 
-	return false; 
+	return; 
 
 }
 
@@ -468,7 +481,8 @@ bool vamp_gw_wsn(void) {
 		#endif /* VAMP_DEBUG */
 
 		/* Procesar el comando */
-		return vamp_gw_process_command(wsn_buffer, recv_len);
+		vamp_gw_process_command(wsn_buffer, recv_len);
+		return true;
 	}
 
 
