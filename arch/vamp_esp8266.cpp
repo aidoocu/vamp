@@ -99,6 +99,9 @@ bool esp8266_conn(void){
 		Serial.print(".");
 		#endif /* VAMP_DEBUG */
 		
+		/** @todo Como esto no es parte de VAMP hay que evaluar sacarlo de aqui o hacerlo
+		 * parte de un arch o algo asi
+		 */
 		/* Hacer parpadear la barra de la wifi para ilustrar que la esta buscando */
 		#ifdef OLED_DISPLAY
 		if(timeout % 2 == 0) {
