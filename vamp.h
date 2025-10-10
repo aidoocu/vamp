@@ -77,6 +77,22 @@
 //#define VAMP_ASK    0x00
 //#define VAMP_TELL   0x01
 
+struct gw_config_t {
+    /* Configuraciones de VAMP */
+    String VAMP_GW_ID;
+    String VAMP_VREG_RESOURCE;
+    /* Configuraciones de iface */
+    String WIFI_SSID;
+    String WIFI_PASSWORD;
+    /* Configuraciones de RF */
+    int NRF_CHANNEL;
+    int NRF_RETRIES;
+    int NRF_RETRY_DELAY;
+    int NRF_MAX_PAYLOAD_SIZE;
+    /* Configuraciones de almacenamiento */
+    bool sd_enabled;
+};
+
 /**
  * @brief Initialize VAMP system with callback and server configuration
  * 
@@ -84,7 +100,7 @@
  * @param vamp_gw_id Gateway ID string
  * @param wsn_id local WSN ID (5 bytes)
  */
-void vamp_gw_init(const char * vamp_vreg_url, const char * vamp_gw_id, uint8_t * wsn_id);
+void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id);
 
 /**
  * @brief Synchronize VAMP gateway with VREG server

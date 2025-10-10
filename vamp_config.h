@@ -29,14 +29,14 @@
 
 /* Parámetros para la comunicación del gateway VAMP con el VREG */
 /** @brief  ID del gateway VAMP */
-#ifndef VAMP_GW_ID
-#define VAMP_GW_ID  "GW_TEST_01"
-#endif // VAMP_GW_ID
+//#ifndef VAMP_GW_ID
+//#define VAMP_GW_ID  "GW_TEST_01"
+//#endif // VAMP_GW_ID
 
 /** @brief  URL del VAMP Registry */  
-#ifndef VAMP_VREG_RESOURCE
-#define VAMP_VREG_RESOURCE "http://10.1.111.249:8000/vreg/api/v1/gateway/sync/"
-#endif // VAMP_VREG_RESOURCE
+//#ifndef VAMP_VREG_RESOURCE
+//#define VAMP_VREG_RESOURCE "http://10.1.111.249:8000/vreg/api/v1/gateway/sync/"
+//#endif // VAMP_VREG_RESOURCE
 
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
 #define VAMP_DEBUG

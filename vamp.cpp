@@ -15,16 +15,16 @@
 /* -------------------------------------- Gateway -------------------------------------- */
 
 /* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
-void vamp_gw_init(const char * vreg_url, const char * gw_id, uint8_t * wsn_id) {
+void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id) {
 
 	/* Como es un gateway, siempre escucha por wsn RMODE_B */
 	vamp_set_settings(VAMP_RMODE_B);
 
 	/* Inicializar los recursos */
-	vamp_gw_vreg_init(vreg_url, gw_id);
+	vamp_gw_vreg_init(gw_config->VAMP_VREG_RESOURCE.c_str(), gw_config->VAMP_GW_ID.c_str());
 
 	/* Inicializar la comunicación con internet */
-	vamp_iface_init();
+	vamp_iface_init(gw_config->WIFI_SSID.c_str(), gw_config->WIFI_PASSWORD.c_str());
 
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(wsn_id);

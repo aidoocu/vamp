@@ -7,6 +7,8 @@
  /** @brief Inicializa el ESP8266 */
 bool esp8266_init(void);
 
+bool esp8266_init(const char * wifi_ssid, const char * wifi_password);
+
 /** @brief Realiza una solicitud HTTP/HTTPS
  * 
  * @param profile Perfil de comunicación

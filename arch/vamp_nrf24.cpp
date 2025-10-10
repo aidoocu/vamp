@@ -7,7 +7,7 @@
 #include "../lib/vamp_table.h"
 #include "vamp_nrf24.h"
 
-
+#include "../../hmi/display.h"
 
 #ifdef RF24_AVAILABLE
 #include <SPI.h>
@@ -52,12 +52,28 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 			#ifdef VAMP_DEBUG
 			Serial.println("and listening");
 			#endif /* VAMP_DEBUG */
+
+			#ifdef OLED_DISPLAY
+			display.drawBitmap(44, 48, radio_icon_16x16, 16, 16, SSD1306_WHITE);
+			display.display();
+			#endif /* OLED_DISPLAY */
+
 			return true; // Éxito - salir de la función
 		} 
 			
 		wsn_radio.stopListening(); // Modo bajo consumo
 		return true; // Éxito - salir de la función
 	}
+
+	#ifdef VAMP_DEBUG
+	Serial.println("[NRF24]: Error init");
+	#endif /* VAMP_DEBUG */
+
+	#ifdef OLED_DISPLAY
+	display.drawBitmap(44, 48, alert_icon_16x16, 16, 16, SSD1306_WHITE);
+	display.display();
+	#endif /* OLED_DISPLAY */
+
 	return false; // Fallo - salir de la función
 }
 

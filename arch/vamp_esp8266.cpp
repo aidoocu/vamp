@@ -17,23 +17,14 @@
 #include "../vamp_callbacks.h"
 #include "../lib/vamp_table.h"
 
+#include "../../hmi/display.h"
+
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 
 
 /* ----------------------------- WiFi --------------------------------- */
-
-// Configuración de IP Estática
-IPAddress staticIP(10, 1, 111, 198);          // IP estática deseada para el ESP8266
-IPAddress gateway(10, 1, 111, 1);             // Dirección IP del router/gateway
-IPAddress subnet(255, 255, 255, 0);           // Máscara de subred
-IPAddress dns1(193, 254, 231, 2);             // DNS primario (Google)
-IPAddress dns2(193, 254, 230, 2);             // DNS secundario (Google)
-
-// Configuración WiFi - CAMBIAR ESTOS VALORES
-#define WIFI_SSID "TP-LINK_B06F78" 
-#define WIFI_PASSWORD "tplink.cp26"
 
 /* Timeout para conexión WiFi (segundos) */
 #define WIFI_TIMEOUT 		30
@@ -43,7 +34,49 @@ IPAddress dns2(193, 254, 230, 2);             // DNS secundario (Google)
 #define HTTPS_TIMEOUT 		10000              // Timeout para requests HTTPS (ms)
 #define HTTPS_USER_AGENT 	"VAMP-Gateway/1.0" // User agent para requests
 
+static String wifi_ssid_local = "";
+static String wifi_password_local = "";
+
 /* -----------------------------  /WiFi --------------------------------- */
+
+
+#ifdef OLED_DISPLAY
+/* Dibuja barra doble de nivel de señal WiFi en el extremo izquierdo del display (x=0 y x=2)
+Altura máxima: 48 px (y=0 a y=47), 5 niveles de abajo hacia arriba */
+void draw_wifi_signal_bar(void) {
+	
+	int rssi = WiFi.RSSI();
+
+	#ifdef VAMP_DEBUG
+	Serial.print("WiFi RSSI: ");
+	Serial.println(rssi);
+	#endif /* VAMP_DEBUG */
+
+	/* Mapear RSSI a nivel (0-4) */
+	int level = 0;
+	if (rssi >= -67) level = 4;         // Excelente
+	else if (rssi >= -70) level = 3;    // Buena
+	else if (rssi >= -80) level = 2;    // Aceptable
+	else if (rssi >= -90) level = 1;    // Débil
+	else level = 0;                     // Muy débil
+
+	/* Limpiar barra previa */
+	display.fillRect(0, 0, 3, 48, SSD1306_BLACK);
+
+	/* Cada nivel ocupa 48/5 = 9.6 px, redondeamos a 9 px por nivel */
+	for (int i = 0; i <= level; ++i) {
+		int y0 = 47 - i * 9;
+		int y1 = y0 - 8;
+		if (y1 < 0) y1 = 0;
+		// Dibuja dos líneas verticales separadas por 1 px
+		display.drawLine(0, y1, 0, y0, SSD1306_WHITE);
+		display.drawLine(2, y1, 2, y0, SSD1306_WHITE);
+	}
+
+	/* Actualizar display */
+	display.display();
+}
+#endif
 
 
 /* Objetos globales para comunicación HTTPS (reutilizables) */
@@ -51,37 +84,84 @@ static WiFiClientSecure https_client;
 static HTTPClient https_http;
 
 /* Inicializar cliente HTTPS */
-bool esp8266_init(){
+bool esp8266_conn(void){
 
-	// Configurar IP estático antes de conectar
-    WiFi.config(staticIP, gateway, subnet, dns1, dns2);
+
 	WiFi.mode(WIFI_STA);
-	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+	WiFi.begin(wifi_ssid_local.c_str(), wifi_password_local.c_str());
 	
 	// Esperar conexión (timeout de 30 segundos)
 	int timeout = WIFI_TIMEOUT;
 	while (WiFi.status() != WL_CONNECTED && timeout > 0) {
 		delay(1000);
+
 		#ifdef VAMP_DEBUG
 		Serial.print(".");
 		#endif /* VAMP_DEBUG */
+		
+		/* Hacer parpadear la barra de la wifi para ilustrar que la esta buscando */
+		#ifdef OLED_DISPLAY
+		if(timeout % 2 == 0) {
+			display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
+			display.drawBitmap(5, 48, wifi_icon_16x16, 16, 16, SSD1306_WHITE);
+			display.display();
+
+			#ifdef VAMP_DEBUG
+			Serial.print("w_on");
+			#endif /* VAMP_DEBUG */
+		} else {
+			display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
+			display.drawBitmap(5, 48, wifi_off_icon_16x16, 16, 16, SSD1306_WHITE);
+			display.display();
+
+			#ifdef VAMP_DEBUG
+			Serial.print("w_off");
+			#endif /* VAMP_DEBUG */
+		}
+		#endif	 /* OLED_DISPLAY */
+
+		#ifdef VAMP_DEBUG
+		
+		#endif
+
 		timeout--;
+	
 	}
 	
 	if (WiFi.status() == WL_CONNECTED) {
+
 		#ifdef VAMP_DEBUG
 		Serial.println();
 		Serial.print("WiFi conectado! IP: ");
 		Serial.println(WiFi.localIP());
 		Serial.println("WiFi inicializado correctamente");
 		#endif /* VAMP_DEBUG */
+
+		/* Display */
+		#ifdef OLED_DISPLAY
+		display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
+		display.drawBitmap(5, 48, wifi_icon_16x16, 16, 16, SSD1306_WHITE);
+		display.display();
+		draw_wifi_signal_bar();
+		#endif	 /* OLED_DISPLAY */
+
 		return true;
+
 	} else {
+
 		#ifdef VAMP_DEBUG
 		Serial.println();
 		Serial.println("Error: No se pudo conectar a WiFi");
 		Serial.println("Error al inicializar WiFi");
 		#endif /* VAMP_DEBUG */
+
+		/* Display */
+		#ifdef OLED_DISPLAY
+		display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
+		display.drawBitmap(5, 48, wifi_off_icon_16x16, 16, 16, SSD1306_WHITE);
+		display.display();
+		#endif	 /* OLED_DISPLAY */
+
 		return false;
 	}
 }
@@ -91,13 +171,30 @@ bool esp8266_init(){
 bool esp8266_check_conn() {
 	// Si la conexión WiFi está activa, todo bien
 	if (WiFi.status() == WL_CONNECTED) {
+
+		#ifdef OLED_DISPLAY
+		draw_wifi_signal_bar();
+		#endif /* OLED_DISPLAY */
+
 		return true;
 	}
+
 	#ifdef VAMP_DEBUG
 	Serial.println("Conexión WiFi perdida, intentando reconectar...");
 	#endif /* VAMP_DEBUG */
-	/* Intentar reconectar usando esp8266_init() */
-	esp8266_init();
+
+	#ifdef OLED_DISPLAY
+	/* Limpiar barra de WiFi */
+	display.fillRect(0, 0, 3, 48, SSD1306_BLACK);
+	/* Mostrar icono de WiFi desconectada */
+	display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
+	display.drawBitmap(5, 48, wifi_off_icon_16x16, 16, 16, SSD1306_WHITE);
+	display.display();
+	#endif	 /* OLED_DISPLAY */
+
+	/* Intentar reconectar usando esp8266_conn() */
+	esp8266_conn();
+	
 	if (WiFi.status() == WL_CONNECTED) {
 		#ifdef VAMP_DEBUG
 		Serial.println("Reconexión WiFi exitosa");
@@ -110,6 +207,32 @@ bool esp8266_check_conn() {
 		delay(RECONNECT_DELAY);
 		return false;
 	}
+}
+/** @note esta función inicializa la conexión WiFi copiando las credenciales que están en 
+ * en el archivo de configuración a las variables locales para facilitar la reconexión.
+ * Esto implica que la conexión WiFi siempre es a un unico AP bien definido, asi que en el
+ * futuro se puede contemplar la posibilidad de múltiples AP o de una gestión de la conexión 
+ * más avanzada.
+ */
+bool esp8266_init(const char * wifi_ssid, const char * wifi_password){
+
+	/* Configuración de IP Estática, se podria implementar en el futuro el pase del ip
+	estatico como parametro en el conf... o algo asi */
+	/* 	
+	IPAddress staticIP(10, 1, 111, 198);          // IP estática deseada para el ESP8266
+	IPAddress gateway(10, 1, 111, 1);             // Dirección IP del router/gateway
+	IPAddress subnet(255, 255, 255, 0);           // Máscara de subred
+	IPAddress dns1(193, 254, 231, 2);             // DNS primario (Google)
+	IPAddress dns2(193, 254, 230, 2);             // DNS secundario (Google)
+    WiFi.config(staticIP, gateway, subnet, dns1, dns2); 
+	*/
+
+	/* Guardar credenciales WiFi en variables locales */
+	wifi_ssid_local = String(wifi_ssid);
+	wifi_password_local = String(wifi_password);
+
+	return esp8266_conn();
+
 }
 
 /* Función unificada para enviar datos por HTTP/HTTPS */

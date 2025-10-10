@@ -31,7 +31,7 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 	}
 
 	/* Ver cuando se actualizó la tabla por última vez */
-	if(!strcmp(last_table_update, VAMP_TABLE_INIT_TSMP)) {
+	if(!vamp_is_table_initialized()) {
 		// La tabla no ha sido inicializada
 		#ifdef VAMP_DEBUG
 		Serial.println("init vamp table");

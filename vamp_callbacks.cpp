@@ -71,8 +71,8 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 
 // Configuración de pines para NRF24L01
 #ifdef ARDUINO_ARCH_ESP8266
-	#define WSN_CE_PIN 2  // D4 = GPIO2
-	#define WSN_CSN_PIN 15 // D8 = GPIO15
+	#define WSN_CE_PIN 0  // D3 = GPIO0
+	#define WSN_CSN_PIN 2 // D4 = GPIO2
 #endif
 #ifdef ARDUINO_ARCH_ESP32
 	#define WSN_CE_PIN 5
@@ -194,10 +194,10 @@ uint8_t vamp_wsn_recv(uint8_t * data, size_t len) {
 #include "arch/vamp_esp8266.h"
 #endif
 
-bool vamp_iface_init(void) {
+bool vamp_iface_init(const char * wifi_ssid, const char * wifi_password) {
 
 	#if defined(ARDUINO_ARCH_ESP8266)
-	return esp8266_init();
+	return esp8266_init(wifi_ssid, wifi_password);
 	#endif // ARDUINO_ARCH_ESP8266
 
 	return 0;
