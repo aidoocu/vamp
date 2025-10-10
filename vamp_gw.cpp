@@ -454,8 +454,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		}
 
 
-
-	return true; // Procesamiento exitoso
+	/* Procesamiento exitoso */
+	return true;
 
 }
 

@@ -42,7 +42,7 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 		wsn_radio.flush_rx();
 
 		#ifdef VAMP_DEBUG
-		Serial.println("NRF24 ready");
+		Serial.println("[NRF24] OK");
 		#endif /* VAMP_DEBUG */
 
 		/* Si es un gateway siempre debera estar escuchando */
@@ -50,7 +50,7 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 			// Modo siempre escucha
 			wsn_radio.startListening(); // Modo siempre escucha
 			#ifdef VAMP_DEBUG
-			Serial.println("and listening");
+			Serial.println("[NRF24] listening");
 			#endif /* VAMP_DEBUG */
 
 			#ifdef OLED_DISPLAY
