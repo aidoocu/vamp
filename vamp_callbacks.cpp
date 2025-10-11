@@ -70,6 +70,7 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 
 
 // Configuración de pines para NRF24L01
+/* !!!! Esta configuración puede variar según la placa utilizada !!!! */
 #ifdef ARDUINO_ARCH_ESP8266
 	#define WSN_CE_PIN 0  // D3 = GPIO0
 	#define WSN_CSN_PIN 2 // D4 = GPIO2

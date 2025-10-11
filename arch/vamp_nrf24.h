@@ -29,4 +29,10 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr);
  */
 uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len);
 
+/** @brief Is chip active mode
+ * 
+ *  @return true si el chip está en modo activo, false en caso contrario
+ */
+bool nrf_is_chip_active(void);
+
 #endif /* ARCH_NRF24_H_ */

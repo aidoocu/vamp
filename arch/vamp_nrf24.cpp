@@ -53,11 +53,6 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 			Serial.println("[NRF24] listening");
 			#endif /* VAMP_DEBUG */
 
-			#ifdef OLED_DISPLAY
-			display.drawBitmap(44, 48, radio_icon_16x16, 16, 16, SSD1306_WHITE);
-			display.display();
-			#endif /* OLED_DISPLAY */
-
 			return true; // Éxito - salir de la función
 		} 
 			
@@ -68,11 +63,6 @@ bool nrf_init(uint8_t ce_pin, uint8_t csn_pin, uint8_t * addr) {
 	#ifdef VAMP_DEBUG
 	Serial.println("[NRF24]: Error init");
 	#endif /* VAMP_DEBUG */
-
-	#ifdef OLED_DISPLAY
-	display.drawBitmap(44, 48, alert_icon_16x16, 16, 16, SSD1306_WHITE);
-	display.display();
-	#endif /* OLED_DISPLAY */
 
 	return false; // Fallo - salir de la función
 }
@@ -147,16 +137,24 @@ bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 	return false; // Éxito al enviar datos		
 }
 
-/* Comunicación nRF24 */
-uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
-
-	/* Verificar que el chip está conectado */
+/* Verificar si el chip está en modo activo */
+bool nrf_is_chip_active(void) {
 	if (!wsn_radio.isChipConnected()) {
 		#ifdef VAMP_DEBUG
 		Serial.println("rf24 out");
 		#endif /* VAMP_DEBUG */
-		return 0;
+		return false;
 	}
+	return true;
+}
+
+/* Comunicación nRF24 */
+uint8_t nrf_comm(uint8_t * dst_addr, uint8_t * data, uint8_t len) {
+
+	/* Verificar que el chip está conectado */
+	if (!nrf_is_chip_active()) {
+		return 0;
+	}	
 
 	if (!data) {
 		return 0;
