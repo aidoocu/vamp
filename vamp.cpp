@@ -21,10 +21,10 @@ void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id) {
 	vamp_set_settings(VAMP_RMODE_B);
 
 	/* Inicializar los recursos */
-	vamp_gw_vreg_init(gw_config->VAMP_VREG_RESOURCE.c_str(), gw_config->VAMP_GW_ID.c_str());
+	vamp_gw_vreg_init(gw_config->vamp.vreg_resource.c_str(), gw_config->vamp.gw_id.c_str());
 
 	/* Inicializar la comunicación con internet */
-	vamp_iface_init(gw_config->WIFI_SSID.c_str(), gw_config->WIFI_PASSWORD.c_str());
+	vamp_iface_init(gw_config);
 
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(wsn_id);

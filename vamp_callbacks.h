@@ -104,7 +104,7 @@ uint8_t vamp_wsn_recv(uint8_t * data, size_t len);
  * @brief Initialize the VAMP interface for internet communication
  * @return true if the interface was initialized successfully, false otherwise
  */
-bool vamp_iface_init(const char * wifi_ssid, const char * wifi_password);
+bool vamp_iface_init(const gw_config_t * vamp_conf);
 
 
 /**

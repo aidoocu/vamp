@@ -77,21 +77,6 @@
 //#define VAMP_ASK    0x00
 //#define VAMP_TELL   0x01
 
-struct gw_config_t {
-    /* Configuraciones de VAMP */
-    String VAMP_GW_ID;
-    String VAMP_VREG_RESOURCE;
-    /* Configuraciones de iface */
-    String WIFI_SSID;
-    String WIFI_PASSWORD;
-    /* Configuraciones de RF */
-    int NRF_CHANNEL;
-    int NRF_RETRIES;
-    int NRF_RETRY_DELAY;
-    int NRF_MAX_PAYLOAD_SIZE;
-    /* Configuraciones de almacenamiento */
-    bool sd_enabled;
-};
 
 /**
  * @brief Initialize VAMP system with callback and server configuration

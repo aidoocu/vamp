@@ -86,7 +86,7 @@ static HTTPClient https_http;
 /* Inicializar cliente HTTPS */
 bool esp8266_conn(void){
 
-
+	/*  WIFI_OFF = 0, WIFI_STA = 1, WIFI_AP = 2, WIFI_AP_STA = 3 */
 	WiFi.mode(WIFI_STA);
 	WiFi.begin(wifi_ssid_local.c_str(), wifi_password_local.c_str());
 	
@@ -211,29 +211,19 @@ bool esp8266_check_conn() {
 		return false;
 	}
 }
-/** @note esta función inicializa la conexión WiFi copiando las credenciales que están en 
- * en el archivo de configuración a las variables locales para facilitar la reconexión.
- * Esto implica que la conexión WiFi siempre es a un unico AP bien definido, asi que en el
- * futuro se puede contemplar la posibilidad de múltiples AP o de una gestión de la conexión 
- * más avanzada.
- */
-bool esp8266_init(const char * wifi_ssid, const char * wifi_password){
 
-	/* Configuración de IP Estática, se podria implementar en el futuro el pase del ip
-	estatico como parametro en el conf... o algo asi */
-	/* 	
-	IPAddress staticIP(10, 1, 111, 198);          // IP estática deseada para el ESP8266
-	IPAddress gateway(10, 1, 111, 1);             // Dirección IP del router/gateway
-	IPAddress subnet(255, 255, 255, 0);           // Máscara de subred
-	IPAddress dns1(193, 254, 231, 2);             // DNS primario (Google)
-	IPAddress dns2(193, 254, 230, 2);             // DNS secundario (Google)
-    WiFi.config(staticIP, gateway, subnet, dns1, dns2); 
-	*/
+/** Configuración de IP estática para la STA WiFi */
+void esp8266_sta_static_ip(IPAddress ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2) {
+	WiFi.config(ip, gateway, subnet, dns1, dns2);
+}
+
+
+/** Inicializar STA WiFi con SSID y password */
+bool esp8266_sta_init(const char * wifi_ssid, const char * wifi_password){
 
 	/* Guardar credenciales WiFi en variables locales */
 	wifi_ssid_local = String(wifi_ssid);
 	wifi_password_local = String(wifi_password);
-
 	return esp8266_conn();
 
 }

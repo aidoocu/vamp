@@ -6,6 +6,9 @@
 #ifndef _VAMP_CONFIG_H_
 #define _VAMP_CONFIG_H_
 
+#include <Arduino.h>
+#include <IPAddress.h>
+
 /** @brief Longitud máxima del payload VAMP (en bytes) */
 #ifndef VAMP_MAX_PAYLOAD_SIZE
 #define VAMP_MAX_PAYLOAD_SIZE 30
@@ -41,5 +44,54 @@
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
 #define VAMP_DEBUG
 
+/** Estructura para configuración de red (IP estática o DHCP) */
+typedef struct {
+    String mode;      // "static" o "dhcp"
+    IPAddress ip;
+    IPAddress gateway;
+    IPAddress subnet;
+    IPAddress dns1;
+    IPAddress dns2;
+} net_config_t;
+
+/* Estructuras agrupadas para la configuración del gateway
+   Mantener las propiedades antiguas para compatibilidad, pero
+   preferir las sub-estructuras (VAMP, WIFI, NRF, STORAGE) en nuevo código.
+*/
+typedef struct {
+    String gw_id;                // vamp_gw_id
+    String vreg_resource;        // vamp_vreg_resource
+    String gw_token;             // vamp_gw_token (opcional)
+} vamp_settings_t;
+
+typedef struct {
+    String ssid;                 // wifi_ssid
+    String password;             // wifi_password
+    String ap_ssid;              // wifi_ap_ssid (opcional, ejemplo)
+} wifi_settings_t;
+
+typedef struct {
+    int channel;                 // nrf_channel
+    int retries;                 // nrf_retries
+    int retry_delay;             // nrf_retry_delay
+    int max_payload_size;        // nrf_max_payload_size
+} nrf_config_t;
+
+struct gw_config_t {
+    /* Configuraciones de VAMP (compatibilidad antigua + nueva) */
+    vamp_settings_t vamp;            // new grouped settings (preferred)
+
+    /* Configuraciones de iface (WiFi) */
+    wifi_settings_t wifi;            // new grouped wifi settings (preferred)
+
+    /* Configuraciones de red */
+    net_config_t net;                // ya existente: mode, ip, gateway, subnet, dns1, dns2
+
+    /* Configuraciones de RF (NRF) */
+    nrf_config_t nrf;                // new grouped nrf settings (preferred)
+
+    /* Keep sd_enabled at top-level as requested */
+    bool sd_enabled;                 // sd_enabled (top-level)
+};
 
 #endif //_VAMP_CONFIG_H_
