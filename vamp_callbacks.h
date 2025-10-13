@@ -25,15 +25,6 @@
 #endif
 
 /**
- * @brief Configure the SPI pins for the WSN
- * @note This function HAVE TO BE called before initializing the WSN.
- * @param ce_pin Chip Enable pin
- * @param csn_pin Chip Select Not pin
- */
-void vamp_wsn_spi_config(uint8_t ce_pin, uint8_t csn_pin);
-
-
-/**
  * @brief Get/Set the local RF_ID
  * @return Pointer to the local RF_ID
  */
@@ -66,8 +57,13 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len);
 /**
  * @brief Funtion for init WSN communication
  * @param rf_id Local RF_ID
+ * @param ce_pin CE pin for NRF24
+ * @param csn_pin CSN pin for NRF24
+ * @return true if the WSN interface was initialized successfully, false otherwise
+ * @note Si los pines no son especificados, se usan los valores por defecto
  */
-bool vamp_wsn_init(const uint8_t * wsn_addr);
+bool vamp_wsn_init(uint8_t * wsn_addr);
+bool vamp_wsn_init(uint8_t * wsn_addr, uint8_t ce_pin, uint8_t csn_pin);
 
 /** @brief Function for TELL WSN radio communication
  * 
@@ -92,9 +88,13 @@ bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint16_t ticket);
  * @brief Function for ASK WSN radio communication
  * @param data Buffer containing the data from the radio iface
  * @param len Length of data buffer
- * @return Tamaño de los datos recibidos
+ * @return Tamaño de los datos recibidos:
+ * 			> 0 si se recibieron datos, cantidad de bytes recibidos,
+ *            0 de no recibir datos,
+ *           -1 datos de entrada inválidos o error en el procesamiento,
+ *			 -2 en caso  error de conexión con el chip (o de timeout????)
  */
-uint8_t vamp_wsn_recv(uint8_t * data, size_t len);
+int8_t vamp_wsn_recv(uint8_t * data, uint8_t len);
 
 
 

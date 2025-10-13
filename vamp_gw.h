@@ -75,8 +75,15 @@ void vamp_table_sync(void);
  * @brief Verificar si algun dispositivo VAMP nos contactó
  *  Esta función se encarga de verificar si algún dispositivo VAMP nos ha contactado
  *  y, en caso afirmativo, procesa la solicitud.
+ * 	@return Codigo de estado:
+ * 				-3 si hubo error en el procesamiento de datos
+ * 				-2 en caso  error de conexión con el chip (o de timeout????)
+ *           	-1 datos de entrada inválidos o error en el procesamiento,
+ *           	 0 de no recibir datos,
+ * 				 1 si se procesaron datos correctamente
+ * 				 2 si se procesaron comanados correctamente
  */
-bool vamp_gw_wsn(void);
+int8_t vamp_gw_wsn(void);
 
 /* --------------------- Funciones públicas para web server -------------------- */
 

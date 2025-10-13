@@ -16,23 +16,37 @@
 #include "arch/vamp_nrf24.h"
 #endif // RF24_AVAILABLE
 
-/* Identificador local del WSN */
-static uint8_t local_wsn_addr[VAMP_ADDR_LEN] = {VAMP_NULL_ADDR};
-//static uint8_t gw_wsn_addr[VAMP_ADDR_LEN] = VAMP_BROADCAST_ADDR;
+
+
 
 
 /* Default settings */
 static uint8_t vamp_settings = VAMP_RMODE_A; // Configuración de modo de recepción por defecto
 
-
+/* Obtener la dirección local del WSN */
 uint8_t * vamp_get_local_wsn_addr(void){
-	return local_wsn_addr;
+	
+	#ifdef RF24_AVAILABLE
+	return nrf_get_local_wsn_addr();
+	#else
+	return NULL; // NRF24 not available
+	#endif // RF24_AVAILABLE
+	
 }
 
-void vamp_set_local_wsn_addr(uint8_t * addr){
-	/* Copiar el ID del cliente a la dirección local */
-	memcpy(local_wsn_addr, addr, VAMP_ADDR_LEN);
+/* Establecer la dirección local del WSN */
+void vamp_set_local_wsn_addr(const uint8_t * wsn_addr){
+
+	if (!wsn_addr) {
+		return;
+	}
+
+	#ifdef RF24_AVAILABLE
+	nrf_set_local_wsn_addr((uint8_t *)wsn_addr);
+	#endif // RF24_AVAILABLE
+
 }
+
 
 /** @todo Cuando se cambian los settings habri que reiniciar el radio!! */
 
@@ -90,26 +104,19 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 	#define WSN_CSN_PIN 10 // Default value if not defined
 #endif
 
-static uint8_t wsn_ce_pin = WSN_CE_PIN;
-static uint8_t wsn_csn_pin = WSN_CSN_PIN;
-
-void vamp_wsn_spi_config(uint8_t ce_pin, uint8_t csn_pin) {
-	// Configurar pines para NRF24L01
-	wsn_ce_pin = ce_pin;
-	wsn_csn_pin = csn_pin;
-}
-
-bool vamp_wsn_init(const uint8_t * wsn_addr) {
-
-	/* Copiar el ID del cliente a la dirección local */
-	memcpy(local_wsn_addr, wsn_addr, VAMP_ADDR_LEN);
+/* Inicializar NRF24L01 */
+bool vamp_wsn_init(uint8_t * wsn_addr, uint8_t ce_pin, uint8_t csn_pin) {
 
 	#ifdef RF24_AVAILABLE
-	return nrf_init(wsn_ce_pin, wsn_csn_pin, local_wsn_addr);
+	return nrf_init(ce_pin, csn_pin, wsn_addr);
 	#else
 	return false; // NRF24 not available
 	#endif // RF24_AVAILABLE
 
+}
+
+bool vamp_wsn_init(uint8_t * wsn_addr) {
+	return vamp_wsn_init(wsn_addr, WSN_CE_PIN, WSN_CSN_PIN);
 }
 
 /* Callback para TELL/ASK */
@@ -161,26 +168,30 @@ bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint16_t ticket) {
 }
 
 /* Callback para READ */
-uint8_t vamp_wsn_recv(uint8_t * data, size_t len) {
-	/* Verificar que no sea nulo */
-	if (!data || !len) {
-		return 0;
-	}
+int8_t vamp_wsn_recv(uint8_t * data, uint8_t len) {
+
+	/* La validación de los datos que pasan por parámetro debe 
+	estar contenida en la función nrf_comm() por lo que no debería
+	ser necesario validarlos aquí */
+
+	/* Inicializar la longitud de recepción, que debe tener signo
+	porque la respuesta tiene signo */
+	int8_t recv_len = 0;
 
 	#ifdef RF24_AVAILABLE
-	len = nrf_comm(NULL, data, len);
+	recv_len = nrf_comm(NULL, data, len);
 	#else //#elif en caso de otras arquitecturas
-	len = 0; //y un else final por falta de soporte
+	recv_len = 0; //y un else final por falta de soporte
 	#endif
 	
 	#ifdef VAMP_DEBUG
-	if (len) {
+	if (recv_len > 0) {
 		Serial.print("wsn recv: ");
-		vamp_debug_msg(data, len);
+		vamp_debug_msg(data, recv_len);
 	}
 	#endif /* VAMP_DEBUG */
 
-	return len;
+	return recv_len;
 
 }
 

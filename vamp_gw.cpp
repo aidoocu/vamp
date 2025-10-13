@@ -461,16 +461,16 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 
 /* --------------- WSN --------------- */
 
-bool vamp_gw_wsn(void) {
+int8_t vamp_gw_wsn(void) {
 
 	/* Buffer para datos WSN */
-	static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
+	uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 
     /* Extraer el mensaje de la interface via callback */
-	uint8_t recv_len = vamp_wsn_recv(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
-	
-	if (recv_len == 0) {
-		return false; // No hay datos disponibles
+	int8_t recv_len = vamp_wsn_recv(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);
+
+	if (recv_len <= 0) {
+		return recv_len; // No hay datos disponibles
 	}
 
 	/* --------------------- Si es un comando --------------------- */
@@ -480,18 +480,24 @@ bool vamp_gw_wsn(void) {
 		Serial.println("Comando recibido del WSN");
 		#endif /* VAMP_DEBUG */
 
+		/* !!!!!!!!!!!!!!!! Si falla algun procesamiento de comando hay que manejarlo aqui !!!!!!! */
 		/* Procesar el comando */
 		vamp_gw_process_command(wsn_buffer, recv_len);
-		return true;
+		return 2;
 	}
 
 
-	/* -------------- Si es un dato -------------- */
+	/* ----------------------- Si es un dato ----------------------- */
 
 	#ifdef VAMP_DEBUG
 	Serial.println("Datos recibidos del WSN");
 	#endif /* VAMP_DEBUG */
 
-	return vamp_gw_process_data(wsn_buffer, recv_len);
+	if (vamp_gw_process_data(wsn_buffer, recv_len)) {
+		return 1;
+	}
+
+	/* Procesamiento de datos fallido */
+	return -3;
 }
 
