@@ -268,7 +268,9 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 		esp8266_sta_static_ip(ip, gateway, subnet, dns1, dns2);
 	}
 
-		return esp8266_sta_init(vamp_conf->wifi.ssid.c_str(), vamp_conf->wifi.password.c_str());
+	/* Inicializar la interfaz WiFi */
+	return esp8266_sta_init(vamp_conf->wifi.ssid.c_str(), vamp_conf->wifi.password.c_str());
+	
 	#endif // ARDUINO_ARCH_ESP8266
 
 	return 0;
