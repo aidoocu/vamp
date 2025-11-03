@@ -100,10 +100,23 @@ void vamp_set_last_sync_timestamp(const char * timestamp) {
 /* --------------------- Manejo de nodos (entradas) -------------------- */
 
 /* Obtener la cantidad de dispositivos en la tabla */
-uint8_t vamp_get_device_count(void) {
+uint8_t vamp_get_dev_count(void) {
     uint8_t count = 0;
     for (uint8_t i = 0; i < VAMP_MAX_DEVICES; i++) {
         if (vamp_table[i].status != VAMP_DEV_STATUS_FREE) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/**
+ * @brief Devuelve el número de dispositivos activos (status == VAMP_DEV_STATUS_ACTIVE)
+ */
+uint8_t vamp_get_active_dev_count(void) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < VAMP_MAX_DEVICES; i++) {
+        if (vamp_table[i].status == VAMP_DEV_STATUS_ACTIVE) {
             count++;
         }
     }

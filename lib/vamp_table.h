@@ -138,7 +138,12 @@ void vamp_set_last_sync_timestamp(const char * timestamp);
 /** @brief Obtener la cantidad de dispositivos en la tabla 
  *  @return retorna la cantidad de dispositivos
  */
-uint8_t vamp_get_device_count(void);
+uint8_t vamp_get_dev_count(void);
+
+/** @brief Obtener la cantidad de dispositivos activos en la tabla 
+ *  @return retorna la cantidad de dispositivos activos
+ */
+uint8_t vamp_get_active_dev_count(void);
 
 /** @brief Obtener entrada de la tabla por índice 
  *  @param index Índice de la entrada en la tabla

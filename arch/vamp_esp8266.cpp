@@ -40,45 +40,6 @@ static String wifi_password_local = "";
 /* -----------------------------  /WiFi --------------------------------- */
 
 
-#ifdef OLED_DISPLAY
-/* Dibuja barra doble de nivel de señal WiFi en el extremo izquierdo del display (x=0 y x=2)
-Altura máxima: 48 px (y=0 a y=47), 5 niveles de abajo hacia arriba */
-void draw_wifi_signal_bar(void) {
-	
-	int rssi = WiFi.RSSI();
-
-	#ifdef VAMP_DEBUG
-	Serial.print("WiFi RSSI: ");
-	Serial.println(rssi);
-	#endif /* VAMP_DEBUG */
-
-	/* Mapear RSSI a nivel (0-4) */
-	int level = 0;
-	if (rssi >= -67) level = 4;         // Excelente
-	else if (rssi >= -70) level = 3;    // Buena
-	else if (rssi >= -80) level = 2;    // Aceptable
-	else if (rssi >= -90) level = 1;    // Débil
-	else level = 0;                     // Muy débil
-
-	/* Limpiar barra previa */
-	display.fillRect(0, 0, 3, 48, SSD1306_BLACK);
-
-	/* Cada nivel ocupa 48/5 = 9.6 px, redondeamos a 9 px por nivel */
-	for (int i = 0; i <= level; ++i) {
-		int y0 = 47 - i * 9;
-		int y1 = y0 - 8;
-		if (y1 < 0) y1 = 0;
-		// Dibuja dos líneas verticales separadas por 1 px
-		display.drawLine(0, y1, 0, y0, SSD1306_WHITE);
-		display.drawLine(2, y1, 2, y0, SSD1306_WHITE);
-	}
-
-	/* Actualizar display */
-	display.display();
-}
-#endif
-
-
 /* Objetos globales para comunicación HTTPS (reutilizables) */
 static WiFiClientSecure https_client;
 static HTTPClient https_http;
@@ -145,7 +106,7 @@ bool esp8266_conn(void){
 		display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
 		display.drawBitmap(5, 48, wifi_icon_16x16, 16, 16, SSD1306_WHITE);
 		display.display();
-		draw_wifi_signal_bar();
+		//draw_wifi_signal_bar();
 		#endif	 /* OLED_DISPLAY */
 
 		return true;
@@ -174,10 +135,6 @@ bool esp8266_conn(void){
 bool esp8266_check_conn() {
 	// Si la conexión WiFi está activa, todo bien
 	if (WiFi.status() == WL_CONNECTED) {
-
-		#ifdef OLED_DISPLAY
-		draw_wifi_signal_bar();
-		#endif /* OLED_DISPLAY */
 
 		return true;
 	}
