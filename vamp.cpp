@@ -15,33 +15,29 @@
 /* -------------------------------------- Gateway -------------------------------------- */
 
 /* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
-void vamp_gw_init(char * vreg_url, char * gw_id, uint8_t * wsn_id) {
+void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id) {
 
 	/* Como es un gateway, siempre escucha por wsn RMODE_B */
 	vamp_set_settings(VAMP_RMODE_B);
 
 	/* Inicializar los recursos */
-	vamp_gw_vreg_init(vreg_url, gw_id);
+	vamp_gw_vreg_init(gw_config->vamp.vreg_resource.c_str(), gw_config->vamp.gw_id.c_str());
 
 	/* Inicializar la comunicación con internet */
-	vamp_iface_init();
+	vamp_iface_init(gw_config);
 
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(wsn_id);
 
     /* Inicializar la tabla VAMP */
-    vamp_table_update();
+    vamp_table_init();
 
 	return;
 }
 
 void vamp_gw_sync(void) {
 
-    /* Synchronize VAMP Gateway with VREG */
-    vamp_table_update();
-
-    /* Detect expired VAMP devices */
-    vamp_detect_expired();
+	vamp_table_sync();
 }
 
 /* -------------------------------------- WSN -------------------------------------- */

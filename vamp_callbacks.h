@@ -1,8 +1,13 @@
-/* 
-
-
-
-*/
+/** 
+ * 
+ * definiendo procesos de comunicación
+ * ASK pedir al extremo que reencamine datos al endpoint
+ * TELL enviar datos al extremo
+ * POLL sondear si el extremo tiene una respuesta para, o simplemente si esta disponible. pudiera funcionar como un keep-alive
+ *
+ * READ leer datos desde la interface de red
+ * WRITE enviar datos a la interface de red
+ */
 
 #ifndef VAMP_CALLBACKS_H
 #define VAMP_CALLBACKS_H
@@ -18,15 +23,6 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif
-
-/**
- * @brief Configure the SPI pins for the WSN
- * @note This function HAVE TO BE called before initializing the WSN.
- * @param ce_pin Chip Enable pin
- * @param csn_pin Chip Select Not pin
- */
-void vamp_wsn_spi_config(uint8_t ce_pin, uint8_t csn_pin);
-
 
 /**
  * @brief Get/Set the local RF_ID
@@ -51,11 +47,23 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len);
 /* ---------------------------------- wsn ---------------------------------- */
 
 
+#ifdef  __has_include
+	#if __has_include(<RF24.h>)
+		#define RF24_AVAILABLE
+	#endif
+#endif
+
+
 /**
  * @brief Funtion for init WSN communication
  * @param rf_id Local RF_ID
+ * @param ce_pin CE pin for NRF24
+ * @param csn_pin CSN pin for NRF24
+ * @return true if the WSN interface was initialized successfully, false otherwise
+ * @note Si los pines no son especificados, se usan los valores por defecto
  */
-bool vamp_wsn_init(const uint8_t * wsn_addr);
+bool vamp_wsn_init(uint8_t * wsn_addr);
+bool vamp_wsn_init(uint8_t * wsn_addr, uint8_t ce_pin, uint8_t csn_pin);
 
 /** @brief Function for TELL WSN radio communication
  * 
@@ -68,15 +76,25 @@ bool vamp_wsn_init(const uint8_t * wsn_addr);
  * @return If mode is VAMP_TELL, returns 1 on success, 0 on failure.
  *         If mode is VAMP_ASK, returns amount of data received, 0 means no data received.
  */
-uint8_t vamp_wsn_comm(uint8_t * dst_addr, uint8_t * data, size_t len);
+uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len);
+
+
+/** @brief Callback para enviar TICKET
+ *  @return true si se envió correctamente, false en caso contrario
+ */
+bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint16_t ticket);
 
 /**
  * @brief Function for ASK WSN radio communication
  * @param data Buffer containing the data from the radio iface
  * @param len Length of data buffer
- * @return Tamaño de los datos recibidos
+ * @return Tamaño de los datos recibidos:
+ * 			> 0 si se recibieron datos, cantidad de bytes recibidos,
+ *            0 de no recibir datos,
+ *           -1 datos de entrada inválidos o error en el procesamiento,
+ *			 -2 en caso  error de conexión con el chip (o de timeout????)
  */
-uint8_t vamp_wsn_comm(uint8_t * data, size_t len);
+int8_t vamp_wsn_recv(uint8_t * data, uint8_t len);
 
 
 
@@ -86,7 +104,7 @@ uint8_t vamp_wsn_comm(uint8_t * data, size_t len);
  * @brief Initialize the VAMP interface for internet communication
  * @return true if the interface was initialized successfully, false otherwise
  */
-bool vamp_iface_init(void);
+bool vamp_iface_init(const gw_config_t * vamp_conf);
 
 
 /**

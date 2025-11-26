@@ -20,9 +20,6 @@
 #define VAMP_RMODE_A 0b00000001 // Modo low power A
 #define VAMP_RMODE_B 0b00000010 // Modo always listen B
 
-/* Máximo 4 perfiles por dispositivo o dos bits */
-#define VAMP_MAX_PROFILES 4
-
 /* Perfil por defecto */
 #define VAMP_DEFAULT_PROFILE 0
 
@@ -55,11 +52,11 @@
 #define VAMP_WSN_CMD_MASK   0x7F
 
 #define VAMP_JOIN_REQ       0x01
-#define VAMP_JOIN_ACK       0x02
+#define VAMP_JOIN_OK        0x02
 #define VAMP_PING           0x03
 #define VAMP_PONG           0x04
 #define VAMP_POLL           0x05
-#define VAMP_ACK            0x06
+#define VAMP_TICKET         0x06
 
 /*  Largo que deberian tener cada uno de los mensajes de comando para poder 
     verificarlos */
@@ -80,6 +77,7 @@
 //#define VAMP_ASK    0x00
 //#define VAMP_TELL   0x01
 
+
 /**
  * @brief Initialize VAMP system with callback and server configuration
  * 
@@ -87,7 +85,7 @@
  * @param vamp_gw_id Gateway ID string
  * @param wsn_id local WSN ID (5 bytes)
  */
-void vamp_gw_init(char * vamp_vreg_url, char * vamp_gw_id, uint8_t * wsn_id);
+void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id);
 
 /**
  * @brief Synchronize VAMP gateway with VREG server
