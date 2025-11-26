@@ -10,6 +10,10 @@
 
 #include <Arduino.h>
 
+#ifdef MOTE_IDOS_BOARD
+	#define RF24_AVAILABLE
+#endif
+
 /** @brief Inicializa el módulo NRF24L01
  * 
  * @param ce_pin Pin de Chip Enable

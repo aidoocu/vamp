@@ -17,9 +17,6 @@
 #endif // RF24_AVAILABLE
 
 
-
-
-
 /* Default settings */
 static uint8_t vamp_settings = VAMP_RMODE_A; // Configuración de modo de recepción por defecto
 
@@ -68,13 +65,13 @@ void vamp_add_settings(uint8_t settings) {
 #ifdef VAMP_DEBUG
 void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 	
-	for (uint8_t i = 0; i < len; i++) {
-		Serial.print(msg[i], HEX);
-		if (i < len - 1) {
-			Serial.print(":");
-		}
-	}
-	Serial.println();
+    printf("ID: \n");
+    for (int i = 0; i < 5; i++) {
+        printf("%02X ", msg[i]);
+    }
+    printf("\n");
+    delay(10);
+
 }
 #endif /* VAMP_DEBUG */
 
@@ -96,6 +93,19 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 #ifdef ARDUINO_AVR_NANO
 	#define WSN_CE_PIN 9
 	#define WSN_CSN_PIN 10
+#endif
+//Esta es la configuración para la placa Pro Mini == Placa mote
+#ifdef ARDUINO_AVR_PRO
+	#define WSN_CE_PIN 9
+	#define WSN_CSN_PIN 10
+#endif
+#ifdef MOTE_IDOS_BOARD
+	#ifndef WSN_CSN_PIN
+	#define WSN_CE_PIN 9
+	#endif
+	#ifndef WSN_CSN_PIN
+	#define WSN_CSN_PIN 10
+	#endif
 #endif
 #ifndef WSN_CE_PIN
 	#define WSN_CE_PIN 9 // Default value if not defined

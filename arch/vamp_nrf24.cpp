@@ -18,7 +18,6 @@ es algo bastante específico de un tipo de gateway */
 #include <SPI.h>
 #include <RF24.h>
 
-
 /* CE, CSN pins */
 RF24 wsn_radio;
 
