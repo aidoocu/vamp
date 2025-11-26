@@ -7,7 +7,12 @@
 #include "../lib/vamp_table.h"
 #include "vamp_nrf24.h"
 
+/* ToDo esto no puede estar aquí o no al menos de esta 
+manera porque el display no debe incluirse en esta biblioteca, 
+es algo bastante específico de un tipo de gateway */
+#ifdef DISPLAY_HMI
 #include "../../hmi/display.h"
+#endif /* DISPLAY_HMI */
 
 #ifdef RF24_AVAILABLE
 #include <SPI.h>
