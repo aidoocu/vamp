@@ -20,9 +20,9 @@
 #endif // VAMP_IFACE_BUFF_SIZE
 
 /** @brief Longitud máxima del ID del gateway VAMP (en bytes) */
-#ifndef VAMP_GW_ID_MAX_LEN
-#define VAMP_GW_ID_MAX_LEN 16
-#endif // VAMP_GW_ID_MAX_LEN
+#ifndef VAMP_GW_NAME_MAX_LEN
+#define VAMP_GW_NAME_MAX_LEN 16
+#endif // VAMP_GW_NAME_MAX_LEN
 
 /** @brief Tiempo de espera por una respuesta */
 #define VAMP_ANSW_TIMEOUT 500
@@ -60,6 +60,7 @@ typedef struct {
 */
 typedef struct {
     String gw_id;                // vamp_gw_id
+    String gw_name;              // vamp_gw_name
     String vreg_resource;        // vamp_vreg_resource
     String gw_token;             // vamp_gw_token (opcional)
 } vamp_settings_t;

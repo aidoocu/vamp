@@ -20,8 +20,10 @@ void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id) {
 	/* Como es un gateway, siempre escucha por wsn RMODE_B */
 	vamp_set_settings(VAMP_RMODE_B);
 
+	String vreg_url = gw_config->vamp.vreg_resource + gw_config->vamp.gw_id;
+
 	/* Inicializar los recursos */
-	vamp_gw_vreg_init(gw_config->vamp.vreg_resource.c_str(), gw_config->vamp.gw_id.c_str());
+	vamp_gw_vreg_init(vreg_url.c_str(), gw_config->vamp.gw_id.c_str());
 
 	/* Inicializar la comunicación con internet */
 	vamp_iface_init(gw_config);
