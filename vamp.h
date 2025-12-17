@@ -84,7 +84,7 @@
  * @param vamp_vreg VREG server resource
  * @param wsn_id local WSN ID (5 bytes)
  */
-void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id);
+void vamp_gw_init(const gw_config_t * gw_config);
 
 /**
  * @brief Synchronize VAMP gateway with VREG server
