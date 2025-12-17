@@ -48,7 +48,7 @@ void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id){
 	/* Verificar que los parámetros son válidos */
 	if (vreg_url == NULL || gw_id == NULL || 
 	    strlen(vreg_url) >= VAMP_ENDPOINT_MAX_LEN || 
-	    strlen(gw_id) >= VAMP_GW_ID_MAX_LEN) {
+	    strlen(gw_id) >= VAMP_GW_NAME_MAX_LEN) {
 
 		#ifdef VAMP_DEBUG
 		Serial.println("Parámetros inválidos para la inicialización de VAMP");
@@ -69,9 +69,8 @@ void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id){
 	}
 
 	// Inicializar y configurar protocol_options
-	vamp_kv_init(&vamp_vreg_profile.protocol_options);
-	vamp_kv_set(&vamp_vreg_profile.protocol_options, "Accept", "application/json");
-	vamp_kv_set(&vamp_vreg_profile.protocol_options, "X-VAMP-Gateway-ID", gw_id);
+	//vamp_kv_init(&vamp_vreg_profile.protocol_options);
+	//vamp_kv_set(&vamp_vreg_profile.protocol_options, "X-VAMP-Gateway-ID", gw_id);
 
 	// Inicializar query_params (se configurará dinámicamente en vamp_table_update)
 	vamp_kv_init(&vamp_vreg_profile.query_params);

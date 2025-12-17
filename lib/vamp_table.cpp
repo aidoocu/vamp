@@ -22,8 +22,8 @@ static char last_table_update[] = VAMP_TABLE_INIT_TSMP;
 /* Sincronizar la tabla VAMP con VREG */
 void vamp_table_update(vamp_profile_t * vreg_profile) {
 
-	/* Verificar que los valores de los recursos no estén vacíos (!!!! No estoy seguro que la validación correcta !!!!) */
-	if (vreg_profile->endpoint_resource[0] == '\0' || vreg_profile->protocol_options.count == 0) {
+	/* Verificar que los valores de los recursos no estén vacíos */
+	if (vreg_profile->endpoint_resource[0] == '\0') {
 		#ifdef VAMP_DEBUG
 		Serial.println("no gw resources defined");
 		#endif /* VAMP_DEBUG */

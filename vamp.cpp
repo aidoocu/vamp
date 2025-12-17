@@ -8,6 +8,7 @@
 #include "vamp_gw.h"
 #include "vamp_client.h"
 #include "vamp_callbacks.h"
+#include "lib/vamp_table.h"
 
 /** @todo hay que establecer algun control para cuando alguna de las interfaces 
  * 	no esten disponibles */
@@ -15,19 +16,34 @@
 /* -------------------------------------- Gateway -------------------------------------- */
 
 /* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
-void vamp_gw_init(const gw_config_t * gw_config, uint8_t * wsn_id) {
+void vamp_gw_init(const gw_config_t * gw_config) {
 
 	/* Como es un gateway, siempre escucha por wsn RMODE_B */
 	vamp_set_settings(VAMP_RMODE_B);
 
+	String vreg_url = gw_config->vamp.vreg_resource + gw_config->vamp.gw_id;
+
 	/* Inicializar los recursos */
-	vamp_gw_vreg_init(gw_config->vamp.vreg_resource.c_str(), gw_config->vamp.gw_id.c_str());
+	vamp_gw_vreg_init(vreg_url.c_str(), gw_config->vamp.gw_id.c_str());
 
 	/* Inicializar la comunicación con internet */
 	vamp_iface_init(gw_config);
 
+	uint8_t nrf_id[5] = {0};
+
+	/* Obtener el RF_ID del gateway desde la interfaz WSN */
+	hex_to_rf_id((const char*)gw_config->vamp.gw_id.c_str(), nrf_id);
+
+/* 	Serial.print("VAMP Gateway WSN ID: ");
+	for (int i = 0; i < 5; i++) {
+		Serial.print(nrf_id[i], HEX);
+		if (i < 4) {
+			Serial.print(":");
+		}
+	} */
+
 	/* Inicializar la comunicación WSN */
-	vamp_wsn_init(wsn_id);
+	vamp_wsn_init(nrf_id);
 
     /* Inicializar la tabla VAMP */
     vamp_table_init();
