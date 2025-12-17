@@ -64,11 +64,19 @@ void vamp_add_settings(uint8_t settings) {
 
 #ifdef VAMP_DEBUG
 void vamp_debug_msg(uint8_t * msg, uint8_t len) {
+
+	if (len == 0 || msg == NULL) {
+		Serial.println("[empty]");
+		delay(10);
+		return;
+	}
 	
-    printf("ID: \n");
-    for (int i = 0; i < 5; i++) {
-        printf("%02X ", msg[i]);
+	len = len - 1;
+
+    for (int i = 0; i < len; i++) {
+        printf("%02X:", msg[i]);
     }
+	printf("%02X", msg[len]);
     printf("\n");
     delay(10);
 
@@ -149,7 +157,9 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 
 	#ifdef VAMP_DEBUG
 	if (vamp_get_settings() & VAMP_RMODE_A) {
-		Serial.print("wsn tell resp: ");
+		Serial.print("wsn resp: ");
+		Serial.print(len);
+		Serial.print(" bytes - ");
 		vamp_debug_msg(data, len);
 	}
 	#endif /* VAMP_DEBUG */

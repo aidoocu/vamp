@@ -34,12 +34,11 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 
 	/* El modo de radio RMODE_A esta por defecto */
 
-
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(vamp_client_id);
 
 	#ifdef VAMP_DEBUG
- 	Serial.println("vclient id:");
+ 	Serial.println("id:");
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
 	vamp_debug_msg(local_wsn_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
@@ -127,6 +126,7 @@ bool vamp_join_network(void) {
 
 	#ifdef VAMP_DEBUG
 	Serial.print("joined! GW: ");
+	delay(10);
 	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
 
