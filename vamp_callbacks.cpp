@@ -161,6 +161,7 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 		Serial.print(len);
 		Serial.print(" bytes - ");
 		vamp_debug_msg(data, len);
+		delay(50);
 	}
 	#endif /* VAMP_DEBUG */
 
