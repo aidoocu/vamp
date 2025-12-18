@@ -13,6 +13,8 @@
 		* handling communication with VREG, and facilitating data exchange
  */
 
+#include "vamp_config.h"
+
 #include <Arduino.h>
 
 #ifndef _VAMP_GW_H_
@@ -27,6 +29,7 @@
 
 
 /** @brief Headers HTTP para la comunicación con el VREG */
+/* ToDo ¿¿?? */
 #define VAMP_HTTP_VREG_HEADERS  "Accept: application/json\r\n" \
                                 "X-VAMP-Gateway-ID: %s\r\n" \
                                /* "Connection: close\r\n" */
@@ -89,10 +92,9 @@ int8_t vamp_gw_wsn(void);
 
 
 /** Inicializar el gateway VAMP con la configuración del servidor VREG
- * @param vreg_url Recurso VREG
- * @param gw_id ID del gateway
+ * @param gw_config Puntero hacia la estructura donde esta toda la onfiguracion del gateway
 */
-void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id);
+bool vamp_gw_vreg_init(const gw_config_t * gw_config);
 
 
 /** Obtener el dispositivo VREG correspondiente al RF_ID

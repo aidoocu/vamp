@@ -16,15 +16,20 @@
 /* -------------------------------------- Gateway -------------------------------------- */
 
 /* Initialize VAMP Gateway module (aqui una de estas funciones podria fallar y....???) */
+/* ToDo la estructura gw_config parece que la guarda la app del GW y deberia (o no, hay que ver)
+estar disponible desde dentro de la implementacion del gateway
+Probablemente el gateway solo sea posible como una app completa, evaluar!!!
+*/
 void vamp_gw_init(const gw_config_t * gw_config) {
 
 	/* Como es un gateway, siempre escucha por wsn RMODE_B */
 	vamp_set_settings(VAMP_RMODE_B);
 
-	String vreg_url = gw_config->vamp.vreg_resource + gw_config->vamp.gw_id;
-
 	/* Inicializar los recursos */
-	vamp_gw_vreg_init(vreg_url.c_str(), gw_config->vamp.gw_id.c_str());
+	if(!vamp_gw_vreg_init(gw_config)){
+		/* Si hay un problema chequeando o asignando recursos no se puede seguir */
+		return;
+	}
 
 	/* Inicializar la comunicación con internet */
 	vamp_iface_init(gw_config);

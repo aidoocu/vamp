@@ -21,7 +21,7 @@
 
 /** @brief Longitud máxima del ID del gateway VAMP (en bytes) */
 #ifndef VAMP_GW_NAME_MAX_LEN
-#define VAMP_GW_NAME_MAX_LEN 16
+#define VAMP_GW_NAME_MAX_LEN 11
 #endif // VAMP_GW_NAME_MAX_LEN
 
 /** @brief Tiempo de espera por una respuesta */

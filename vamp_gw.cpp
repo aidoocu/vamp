@@ -24,6 +24,8 @@
 /* Profile del recurso VREG */
 static vamp_profile_t vamp_vreg_profile;
 
+static const gw_config_t * gateway_conf;
+
 
 /* Buffer para la solicitud y respuesta de internet */
 static char req_resp_internet_buff[VAMP_IFACE_BUFF_SIZE];
@@ -45,29 +47,39 @@ void vamp_table_sync(void) {
 }
 
 /* Inicializar el perfil de VREG */
-void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id){
+bool vamp_gw_vreg_init(const gw_config_t * gw_config){
+
+	/* Guardando de forma local la configuracion del gateway */
+	gateway_conf = gw_config;
+
+	String vreg_url = gateway_conf->vamp.vreg_resource + gateway_conf->vamp.gw_id;
+
+	#ifdef VAMP_DEBUG
+	printf("[GW] Resource: %s, ID: %s\n", vreg_url.c_str(), gateway_conf->vamp.gw_id.c_str());
+	#endif /* VAMP_DEBUG */
 
 	/* Verificar que los parámetros son válidos */
-	if (vreg_url == NULL || gw_id == NULL || 
-	    strlen(vreg_url) >= VAMP_ENDPOINT_MAX_LEN || 
-	    strlen(gw_id) >= VAMP_GW_NAME_MAX_LEN) {
+	if (vreg_url == NULL || 
+	    vreg_url.length() >= VAMP_ENDPOINT_MAX_LEN || 
+	    strlen(gateway_conf->vamp.gw_id.c_str()) >= VAMP_GW_NAME_MAX_LEN) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("Parámetros inválidos para la inicialización de VAMP");
+		printf("[GW] Invalid parameters VAMP init\n");
+		delay(10);
 		#endif /* VAMP_DEBUG */
-		return;
+		return false;
 	}
 
 	vamp_vreg_profile.method = VAMP_HTTP_METHOD_GET;
 	if (vamp_vreg_profile.endpoint_resource) {
 		free(vamp_vreg_profile.endpoint_resource);
 	}
-	vamp_vreg_profile.endpoint_resource = strdup(vreg_url);
+	vamp_vreg_profile.endpoint_resource = strdup(vreg_url.c_str());
 	if (!vamp_vreg_profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
-		Serial.println("Error al asignar memoria para el recurso VREG");
+		Serial.println("[GW] Error allocating memory for resource VREG");
 		#endif /* VAMP_DEBUG */
-		return;
+		return false;
 	}
 
 	// Inicializar y configurar protocol_options
@@ -76,6 +88,8 @@ void vamp_gw_vreg_init(const char * vreg_url, const char * gw_id){
 
 	// Inicializar query_params (se configurará dinámicamente en vamp_table_update)
 	vamp_kv_init(&vamp_vreg_profile.query_params);
+
+	return true;
 
 }
 
@@ -421,20 +435,20 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		/* Construir respuesta JSON con datetime, gateway_id y data */
 		StaticJsonDocument<512> jsonDoc;
 		
-		// Obtener fecha/hora actual del RTC
+		/* Obtener fecha/hora actual del RTC */
 		char datetime_buf[DATE_TIME_BUFF];
 		rtc_get_utc_time(datetime_buf);
 		jsonDoc["datetime"] = datetime_buf;
 		
-		// Agregar gateway_id (placeholder - reemplazar con variable real)
-		jsonDoc["gw"] = "gateway_id"; // TODO: usar variable global de gateway_id
+		/* Agregar gateway_id (placeholder - reemplazar con variable real) */
+		jsonDoc["gw"] = gateway_conf->vamp.gw_id.c_str();
 		
-		// Agregar datos hexadecimales
-		if (rec_len > 0) {
-			char hex_data[VAMP_MAX_PAYLOAD_SIZE * 2 + 1];
-			memcpy(hex_data, &data[data_offset], rec_len);
-			hex_data[rec_len] = '\0';
-			jsonDoc["data"] = hex_data;
+		/* Agregar datos */ 
+		if (rec_len > 0 && rec_len < VAMP_MAX_PAYLOAD_SIZE) {
+			char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
+			memcpy(to_send_data, &data[data_offset], rec_len);
+			to_send_data[rec_len] = '\0';
+			jsonDoc["data"] = to_send_data;
 		} else {
 			jsonDoc["data"] = "";
 		}
@@ -445,6 +459,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		rec_len = json_len;
 
 
+		/** ---------------------- /Enviar al endpoint ---------------------- */
 
 
 		/* Enviar con el perfil completo (método/endpoint/params) */
