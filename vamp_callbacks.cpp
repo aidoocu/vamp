@@ -159,6 +159,7 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	if (vamp_get_settings() & VAMP_RMODE_A) {
 		printf("[WSN] resp: %d bytes - ", len);
 		vamp_debug_msg(data, len);
+		delay(50);
 	}
 	#endif /* VAMP_DEBUG */
 
