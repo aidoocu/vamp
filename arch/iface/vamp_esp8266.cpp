@@ -12,12 +12,13 @@
 
 #if defined(ARDUINO_ARCH_ESP8266)
 
-#include "../vamp_gw.h"
-#include "../vamp_client.h"
-#include "../vamp_callbacks.h"
-#include "../lib/vamp_table.h"
+/* ToDo esto asi esta feo */
+#include "../../vamp_gw.h"
+#include "../../vamp_client.h"
+#include "../../vamp_callbacks.h"
+#include "../../lib/vamp_table.h"
 
-#include "../../hmi/display.h"
+#include "../../../hmi/display.h"
 
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
@@ -53,11 +54,17 @@ bool esp8266_conn(void){
 	
 	// Esperar conexión (timeout de 30 segundos)
 	int timeout = WIFI_TIMEOUT;
+
+	#ifdef VAMP_DEBUG
+	printf("[WiFi] Connecting to SSID: %s - ", wifi_ssid_local.c_str());
+	delay(10);
+	#endif /* VAMP_DEBUG */
+
 	while (WiFi.status() != WL_CONNECTED && timeout > 0) {
 		delay(1000);
 
 		#ifdef VAMP_DEBUG
-		Serial.print(".");
+		printf(".");
 		#endif /* VAMP_DEBUG */
 		
 		/** @todo Como esto no es parte de VAMP hay que evaluar sacarlo de aqui o hacerlo
@@ -71,7 +78,7 @@ bool esp8266_conn(void){
 			display.display();
 
 			#ifdef VAMP_DEBUG
-			Serial.print("w_on");
+			printf("w");
 			#endif /* VAMP_DEBUG */
 		} else {
 			display.fillRect(5, 48, 16, 16, SSD1306_BLACK);
@@ -79,7 +86,7 @@ bool esp8266_conn(void){
 			display.display();
 
 			#ifdef VAMP_DEBUG
-			Serial.print("w_off");
+			printf(" ");
 			#endif /* VAMP_DEBUG */
 		}
 		#endif	 /* OLED_DISPLAY */
@@ -95,10 +102,8 @@ bool esp8266_conn(void){
 	if (WiFi.status() == WL_CONNECTED) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println();
-		Serial.print("WiFi conectado! IP: ");
-		Serial.println(WiFi.localIP());
-		Serial.println("WiFi inicializado correctamente");
+		printf("\n[WiFi] connected! IP: %s\n", WiFi.localIP().toString().c_str());
+		delay(10);
 		#endif /* VAMP_DEBUG */
 
 		/* Display */
@@ -114,9 +119,8 @@ bool esp8266_conn(void){
 	} else {
 
 		#ifdef VAMP_DEBUG
-		Serial.println();
-		Serial.println("Error: No se pudo conectar a WiFi");
-		Serial.println("Error al inicializar WiFi");
+		printf("\n[WiFi] failed to connect within %d seconds\n", WIFI_TIMEOUT);
+		delay(10);
 		#endif /* VAMP_DEBUG */
 
 		/* Display */
@@ -140,7 +144,8 @@ bool esp8266_check_conn() {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.println("Conexión WiFi perdida, intentando reconectar...");
+	Serial.println("[WiFi] Lost connection, attempting to reconnect...");
+	delay(10);
 	#endif /* VAMP_DEBUG */
 
 	#ifdef OLED_DISPLAY
@@ -157,12 +162,14 @@ bool esp8266_check_conn() {
 	
 	if (WiFi.status() == WL_CONNECTED) {
 		#ifdef VAMP_DEBUG
-		Serial.println("Reconexión WiFi exitosa");
+		printf("[WiFi] Reconnected! IP: %s\n", WiFi.localIP().toString().c_str());
+		delay(10);
 		#endif /* VAMP_DEBUG */
 		return true;
 	} else {
 		#ifdef VAMP_DEBUG
-		Serial.println("Fallo en reconexión WiFi, reintentando en próximo ciclo");
+		printf("[WiFi] Reconnection failed, will retry in next cycle\n");
+		delay(10);
 		#endif /* VAMP_DEBUG */
 		delay(RECONNECT_DELAY);
 		return false;
@@ -189,7 +196,8 @@ bool esp8266_sta_init(const char * wifi_ssid, const char * wifi_password){
 size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size) {
 	if (!esp8266_check_conn()) {
 		#ifdef VAMP_DEBUG
-		Serial.println("Error: WiFi no conectado");
+		printf("[WiFi] Not connected\n");
+		delay(10);
 		#endif /* VAMP_DEBUG */
 		return 0;
 	}
@@ -208,11 +216,13 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	}
 
 	bool is_https = strncmp(profile->endpoint_resource, "https://", 8) == 0;
-
-	Serial.print("Conectando a: ");
-	Serial.println(full_url);
-	Serial.print("options count: ");
-	Serial.println(profile->protocol_options.count);
+	
+	#ifdef VAMP_DEBUG
+	printf("[WiFi] Connecting to: %s, with  %d query params and %d protocol options\n", 
+				full_url.c_str(), 
+				profile->query_params.count, 
+				profile->protocol_options.count);
+	#endif /* VAMP_DEBUG */
 
 	/* Discriminar entre HTTP y HTTPS */
 	if (is_https) {
@@ -229,34 +239,39 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	https_http.setUserAgent(HTTPS_USER_AGENT);
 
 	/* Añadir headers personalizados desde key-value store */
-	for (uint8_t i = 0; i < profile->protocol_options.count; i++) {
-		const char* key = profile->protocol_options.pairs[i].key;
-		const char* value = profile->protocol_options.pairs[i].value;
-		
-		if (key[0] != '\0' && value[0] != '\0') {
-			https_http.addHeader(key, value);
+	if( profile->protocol_options.count > 0 ) {
+		for (uint8_t i = 0; i < profile->protocol_options.count; i++) {
+			const char* key = profile->protocol_options.pairs[i].key;
+			const char* value = profile->protocol_options.pairs[i].value;
 			
-			#ifdef VAMP_DEBUG
-			Serial.print("Adding header: ");
-			Serial.print(key);
-			Serial.print(" = ");
-			Serial.println(value);
-			#endif /* VAMP_DEBUG */
+			if (key[0] != '\0' && value[0] != '\0') {
+				https_http.addHeader(key, value);
+				
+				#ifdef VAMP_DEBUG
+				printf("[WiFi] Adding header: %s = %s\n", key, value);
+				delay(10);
+				#endif /* VAMP_DEBUG */
+			}
 		}
 	}
-	
+
+	/* Enviar request según método */
 	int httpResponseCode = -1;
 	
 	switch (profile->method) {
 		/* GET */
 		case VAMP_HTTP_METHOD_GET:
-			Serial.print("Enviando GET request ");
-			Serial.println(is_https ? "(HTTPS)..." : "(HTTP)...");
+			#ifdef VAMP_DEBUG
+			printf("[WiFi] Sending GET request %s...\n", is_https ? "(HTTPS)" : "(HTTP)");
+			delay(10);
+			#endif /* VAMP_DEBUG */
 			httpResponseCode = https_http.GET();
 			break;
 		case VAMP_HTTP_METHOD_POST:
-			Serial.print("Enviando POST request ");
-			Serial.println(is_https ? "(HTTPS)..." : "(HTTP)...");
+			#ifdef VAMP_DEBUG
+			printf("[WiFi] Sending POST request %s...\n", is_https ? "(HTTPS)" : "(HTTP)");
+			delay(10);
+			#endif /* VAMP_DEBUG */
 			httpResponseCode = https_http.POST((uint8_t*)data, data_size);
 			break;
 		default:
@@ -270,7 +285,8 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		if(response.length() == 0 || response.length() >= VAMP_IFACE_BUFF_SIZE) {
 			/* Buffer nulo o demasiado grande */
 			#ifdef VAMP_DEBUG
-			Serial.println("Error: Respuesta inválida");
+			printf("[WiFi] Response length invalid: %d\n", response.length());
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return 0;
 		}
@@ -278,7 +294,8 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		/* Verificar que el buffer proporcionado sea suficiente */
 		if (VAMP_IFACE_BUFF_SIZE < response.length()) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Error: Buffer insuficiente");
+			printf("[WiFi] Insufficient buffer size: %d bytes required\n", response.length());
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return 0;
 
@@ -287,10 +304,8 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		sprintf(data, "%s", response.c_str());
 
 		#ifdef VAMP_DEBUG
-		Serial.print("rspta de ");
-		Serial.print(profile->endpoint_resource);
-		Serial.print(" - Código: ");
-		Serial.println(httpResponseCode);
+		printf("[WiFi] response %d bytes, code: %d\n", response.length(), httpResponseCode);
+		delay(10);
 		#endif /* VAMP_DEBUG */
 		https_http.end();
 
@@ -298,7 +313,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 
 	} else {
 		#ifdef VAMP_DEBUG
-		Serial.print("Error en ");
+		Serial.print("[WiFi] Error in ");
 		Serial.print(is_https ? "HTTPS" : "HTTP");
 		Serial.print(": ");
 		Serial.println(httpResponseCode);

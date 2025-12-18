@@ -7,7 +7,6 @@
 
 #include "vamp_json.h"
 
-#include <ArduinoJson.h>
 #include <cstring>
 #include <cstdlib>
 

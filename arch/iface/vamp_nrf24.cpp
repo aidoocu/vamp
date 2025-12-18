@@ -2,9 +2,10 @@
  *  @brief Implementación de la comunicación NRF24L01
  */
 
-#include "../vamp.h"
-#include "../vamp_callbacks.h"
-#include "../lib/vamp_table.h"
+/* ToDo esta asi esta feo */
+#include "../../vamp.h"
+#include "../../vamp_callbacks.h"
+#include "../../lib/vamp_table.h"
 #include "vamp_nrf24.h"
 
 /* ToDo esto no puede estar aquí o no al menos de esta 

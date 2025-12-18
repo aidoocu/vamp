@@ -13,7 +13,7 @@
 #include "lib/vamp_table.h"
 
 #ifdef RF24_AVAILABLE
-#include "arch/vamp_nrf24.h"
+#include "arch/iface/vamp_nrf24.h"
 #endif // RF24_AVAILABLE
 
 
@@ -145,7 +145,7 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.print("wsn tell: ");
+	printf("[WSN] tell: ");
 	vamp_debug_msg(data, len);
 	#endif /* VAMP_DEBUG */
 
@@ -157,9 +157,7 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 
 	#ifdef VAMP_DEBUG
 	if (vamp_get_settings() & VAMP_RMODE_A) {
-		Serial.print("wsn resp: ");
-		Serial.print(len);
-		Serial.print(" bytes - ");
+		printf("[WSN] resp: %d bytes - ", len);
 		vamp_debug_msg(data, len);
 	}
 	#endif /* VAMP_DEBUG */
@@ -175,7 +173,8 @@ bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint16_t ticket) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.print("wsn send ticket: ");
+	printf("[WSN] send ticket: %04X\n", ticket);
+	delay(10);
 	#endif /* VAMP_DEBUG */
 
 	uint8_t send[] = { VAMP_TICKET | VAMP_IS_CMD_MASK, (uint8_t)((ticket >> 8) & 0xFF), (uint8_t)(ticket & 0xFF) };
@@ -206,7 +205,7 @@ int8_t vamp_wsn_recv(uint8_t * data, uint8_t len) {
 	
 	#ifdef VAMP_DEBUG
 	if (recv_len > 0) {
-		Serial.print("wsn recv: ");
+		printf("[WSN] recv: %d bytes - ", recv_len);
 		vamp_debug_msg(data, recv_len);
 	}
 	#endif /* VAMP_DEBUG */
@@ -223,7 +222,7 @@ int8_t vamp_wsn_recv(uint8_t * data, uint8_t len) {
 
 
 #if defined(ARDUINO_ARCH_ESP8266)
-#include "arch/vamp_esp8266.h"
+#include "arch/iface/vamp_esp8266.h"
 #endif
 
 bool vamp_iface_init(const gw_config_t * vamp_conf) {

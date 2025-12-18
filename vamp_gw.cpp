@@ -12,6 +12,8 @@
 //#include "lib/vamp_kv.h"
 #include "lib/vamp_table.h"
 
+#include "arch/rtc/rtc.h"
+
 
 #ifdef ARDUINO_ARCH_ESP8266
 #include "lib/vamp_json.h"  // Incluir header, no implementación
@@ -314,7 +316,7 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 	/* Comando no reconocido */
 
 	#ifdef VAMP_DEBUG
-	Serial.println("Cmd desconocido");
+	printf("[WSN] Unknown cmd: %02X\n", cmd[0]);
 	#endif /* VAMP_DEBUG */
 
 	return; 
@@ -337,7 +339,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 	/* Verificar que la longitud es válida */
 	if ((rec_len > (VAMP_MAX_PAYLOAD_SIZE - data_offset)) || ((rec_len + data_offset) != len)) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Longitud de datos inválida");
+			printf("[WSN] invalid data length: rec_len=%d, data_offset=%d, len=%d\n", rec_len, data_offset, len);
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Longitud inválida
 		}
@@ -345,7 +348,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		/* Verificar que el perfil es válido */
 		if (profile_index >= VAMP_MAX_PROFILES) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Índice de perfil inválido");
+			printf("[WSN] invalid profile index: %d\n", profile_index);
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Perfil inválido
 		}
@@ -355,25 +359,26 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 
 		if (!entry) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Entrada no encontrada");
+			printf("[WSN] entry not found for index: %d\n", node_index);
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no encontrada
 		}
 
 		if (entry->status != VAMP_DEV_STATUS_ACTIVE) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Entrada no activa");
+			printf("[WSN] entry not active for device: %02X\n", entry->wsn_id);
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no activa
 		}
 
 		/* Verificar que el dispositivo tiene el perfil solicitado */
-		const vamp_profile_t* profile = &entry->profiles[profile_index];
+		const vamp_profile_t * profile = &entry->profiles[profile_index];
 		if (!profile) {
 			#ifdef VAMP_DEBUG
-			Serial.print("Perfil ");
-			Serial.print(profile_index);
-			Serial.println(" no configurado para este dispositivo");
+			printf("[WSN] profile %d not configured for device: %02X\n", profile_index, entry->wsn_id);
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Perfil no configurado
 		}
@@ -382,14 +387,15 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		entry->last_activity = millis();
 
 		#ifdef VAMP_DEBUG
-		Serial.print("dev: ");
-		Serial.print(entry->wsn_id);
-		Serial.print(" profile: ");
-		Serial.print(profile_index);
-		Serial.print(" resource: ");
-		Serial.print(profile->endpoint_resource);
-		Serial.print(" data: ");
-		vamp_debug_msg(&data[data_offset], rec_len);
+		printf("[WSN] received from device %02X, profile %d, resource: %s, data len: %d\n", 
+				(entry->wsn_id & 0x7F), 
+				profile_index, 
+				profile->endpoint_resource ? profile->endpoint_resource : "N/A", 
+				rec_len);
+		delay(10);
+		printf("[WSN] data: %s\n", &data[data_offset]);
+		delay(10);
+		//vamp_debug_msg(&data[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
 
 		/** Como la respuesta del servidor puede demorar y 
@@ -405,17 +411,47 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		vamp_wsn_send_ticket(entry->rf_id, entry->ticket);
 
 
-		/* Copiar los datos recibidos al buffer de internet si es que hay datos */
-		if(rec_len > 0) {
-			memcpy(req_resp_internet_buff, &data[data_offset], rec_len);
+		/** ---------------------- Enviar al endpoint ---------------------- * 
+		* ToDo!!!
+		* Esta parte queda como muy especifica de la aplicacion farm, pues se construye un json
+		* con datetime, gw_id y data que es lo que este endpoint en particular espera
+		* por lo tanto en una aplicacion generica esto habria que modificarlo
+		*/
+
+		/* Construir respuesta JSON con datetime, gateway_id y data */
+		StaticJsonDocument<512> jsonDoc;
+		
+		// Obtener fecha/hora actual del RTC
+		char datetime_buf[DATE_TIME_BUFF];
+		rtc_get_utc_time(datetime_buf);
+		jsonDoc["datetime"] = datetime_buf;
+		
+		// Agregar gateway_id (placeholder - reemplazar con variable real)
+		jsonDoc["gw"] = "gateway_id"; // TODO: usar variable global de gateway_id
+		
+		// Agregar datos hexadecimales
+		if (rec_len > 0) {
+			char hex_data[VAMP_MAX_PAYLOAD_SIZE * 2 + 1];
+			memcpy(hex_data, &data[data_offset], rec_len);
+			hex_data[rec_len] = '\0';
+			jsonDoc["data"] = hex_data;
+		} else {
+			jsonDoc["data"] = "";
 		}
-		req_resp_internet_buff[rec_len] = '\0'; // Asegurar terminación de cadena si es necesario
+		
+		// Serializar JSON al buffer
+		size_t json_len = serializeJson(jsonDoc, req_resp_internet_buff, VAMP_IFACE_BUFF_SIZE - 1);
+		req_resp_internet_buff[json_len] = '\0';
+		rec_len = json_len;
+
+
+
 
 		/* Enviar con el perfil completo (método/endpoint/params) */
 		if (!profile->endpoint_resource || profile->endpoint_resource[0] == '\0') {
-
 			#ifdef VAMP_DEBUG
-			Serial.println("Endpoint resource vacío, no se envía a internet");
+			printf("[WSN] empty endpoint resource, not sending to internet\n");
+			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false;
 		}
@@ -487,10 +523,6 @@ int8_t vamp_gw_wsn(void) {
 
 
 	/* ----------------------- Si es un dato ----------------------- */
-
-	#ifdef VAMP_DEBUG
-	Serial.println("Datos recibidos del WSN");
-	#endif /* VAMP_DEBUG */
 
 	if (vamp_gw_process_data(wsn_buffer, recv_len)) {
 		return 1;
