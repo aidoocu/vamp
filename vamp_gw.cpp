@@ -65,7 +65,6 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 
 		#ifdef VAMP_DEBUG
 		printf("[GW] Invalid parameters VAMP init\n");
-		delay(10);
 		#endif /* VAMP_DEBUG */
 		return false;
 	}
@@ -354,7 +353,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 	if ((rec_len > (VAMP_MAX_PAYLOAD_SIZE - data_offset)) || ((rec_len + data_offset) != len)) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] invalid data length: rec_len=%d, data_offset=%d, len=%d\n", rec_len, data_offset, len);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Longitud inválida
 		}
@@ -363,7 +361,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (profile_index >= VAMP_MAX_PROFILES) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] invalid profile index: %d\n", profile_index);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Perfil inválido
 		}
@@ -374,7 +371,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (!entry) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] entry not found for index: %d\n", node_index);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no encontrada
 		}
@@ -382,7 +378,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (entry->status != VAMP_DEV_STATUS_ACTIVE) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] entry not active for device: %02X\n", entry->wsn_id);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no activa
 		}
@@ -392,7 +387,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (!profile) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] profile %d not configured for device: %02X\n", profile_index, entry->wsn_id);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Perfil no configurado
 		}
@@ -406,9 +400,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 				profile_index, 
 				profile->endpoint_resource ? profile->endpoint_resource : "N/A", 
 				rec_len);
-		delay(10);
 		printf("[WSN] data: %s\n", &data[data_offset]);
-		delay(10);
 		//vamp_debug_msg(&data[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
 
@@ -431,7 +423,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		* con datetime, gw_id y data que es lo que este endpoint en particular espera
 		* por lo tanto en una aplicacion generica esto habria que modificarlo
 		*/
-
+		/* ToDo HAY QUE RESISAR ESTO!!! */
+		#ifdef ARDUINOJSON_AVAILABLE
 		/* Construir respuesta JSON con datetime, gateway_id y data */
 		StaticJsonDocument<512> jsonDoc;
 		
@@ -458,6 +451,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		req_resp_internet_buff[json_len] = '\0';
 		rec_len = json_len;
 
+		/* HAY QUE RESISAR ESTO!!! */
+		#endif /* ARDUINOJSON_AVAILABLE */
 
 		/** ---------------------- /Enviar al endpoint ---------------------- */
 
@@ -466,7 +461,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (!profile->endpoint_resource || profile->endpoint_resource[0] == '\0') {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] empty endpoint resource, not sending to internet\n");
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false;
 		}

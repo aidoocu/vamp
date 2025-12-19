@@ -61,7 +61,7 @@ bool nrf_init(void) {
 		wsn_radio.flush_rx();
 
 		#ifdef VAMP_DEBUG
-		Serial.println("[RF24] OK");
+		printf("[F24] OK\n");
 		#endif /* VAMP_DEBUG */
 
 		/* Si es un gateway siempre debera estar escuchando */
@@ -69,7 +69,7 @@ bool nrf_init(void) {
 			// Modo siempre escucha
 			wsn_radio.startListening(); // Modo siempre escucha
 			#ifdef VAMP_DEBUG
-			Serial.println("[RF24] listening");
+			printf("[F24] listening\n");
 			#endif /* VAMP_DEBUG */
 
 			return true; // Éxito - salir de la función
@@ -80,7 +80,7 @@ bool nrf_init(void) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.println("[RF24]: Error init");
+	printf("[F24]: Error init\n");
 	#endif /* VAMP_DEBUG */
 
 	return false; // Fallo - salir de la función
@@ -152,7 +152,7 @@ bool nrf_tell(uint8_t * dst_addr, uint8_t len) {
 	if(VAMP_IS_BROADCAST_ADDR(dst_addr)){
 
 		#ifdef VAMP_DEBUG
-		Serial.println("BCAST");
+		printf("[WSN] BCAST\n");
 		#endif /* VAMP_DEBUG */
 
 		return wsn_radio.write(nrf_buff, len, true);
@@ -173,8 +173,7 @@ bool nrf_is_chip_active(void) {
 		
 		/* Chip no conectado */
 		#ifdef VAMP_DEBUG
-		Serial.print("[RF24] out - ");
-		Serial.println("reconnecting");
+		printf("[F24] out - reconn\n");
 		#endif /* VAMP_DEBUG */
 		return false;
 
@@ -191,7 +190,7 @@ bool nrf_is_chip_active(void) {
 			}
 		}
 		#ifdef VAMP_DEBUG
-		Serial.println("[RF24] reconnection failed");
+		printf("[F24] reconn failed\n");
 		#endif /* VAMP_DEBUG */
 		return false;
 	}

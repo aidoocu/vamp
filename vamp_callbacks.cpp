@@ -66,8 +66,7 @@ void vamp_add_settings(uint8_t settings) {
 void vamp_debug_msg(uint8_t * msg, uint8_t len) {
 
 	if (len == 0 || msg == NULL) {
-		Serial.println("[empty]");
-		delay(10);
+		printf("[empty]\n");
 		return;
 	}
 	
@@ -76,9 +75,7 @@ void vamp_debug_msg(uint8_t * msg, uint8_t len) {
     for (int i = 0; i < len; i++) {
         printf("%02X:", msg[i]);
     }
-	printf("%02X", msg[len]);
-    printf("\n");
-    delay(10);
+	printf("%02X\n", msg[len]);
 
 }
 #endif /* VAMP_DEBUG */
@@ -159,7 +156,6 @@ uint8_t vamp_wsn_send(uint8_t * dst_addr, uint8_t * data, size_t len) {
 	if (vamp_get_settings() & VAMP_RMODE_A) {
 		printf("[WSN] resp: %d bytes - ", len);
 		vamp_debug_msg(data, len);
-		delay(50);
 	}
 	#endif /* VAMP_DEBUG */
 
@@ -175,7 +171,6 @@ bool vamp_wsn_send_ticket(uint8_t * dst_addr, uint16_t ticket) {
 
 	#ifdef VAMP_DEBUG
 	printf("[WSN] send ticket: %04X\n", ticket);
-	delay(10);
 	#endif /* VAMP_DEBUG */
 
 	uint8_t send[] = { VAMP_TICKET | VAMP_IS_CMD_MASK, (uint8_t)((ticket >> 8) & 0xFF), (uint8_t)(ticket & 0xFF) };
