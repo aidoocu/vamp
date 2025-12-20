@@ -9,6 +9,16 @@
 #include <Arduino.h>
 #include <IPAddress.h>
 
+/** @brief Comentar/descomentar si el hardware tiene una SD asociada
+ *  @note Toda la configuracion de la SD esta hecha en la app asi que el 
+ * codigo asociado a la SD dentro de VAMP simplemente intentara utilizarla
+ * y si falla no hara nada al respecto.
+ */
+#define VAMP_SD
+
+/** @brief Directorio donde se salvan las lineas de datos */
+#define DATA_DIR "/DATA_MOTE"
+
 /** @brief Longitud máxima del payload VAMP (en bytes) */
 #ifndef VAMP_MAX_PAYLOAD_SIZE
 #define VAMP_MAX_PAYLOAD_SIZE 30

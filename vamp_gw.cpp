@@ -21,6 +21,12 @@
 #include <cstdlib>
 #endif
 
+/* Si incluimos la memoria dentro del hardware se 
+utilizara ra guardar todas las lineas */
+#ifdef VAMP_SD
+#include <SD.h>
+#endif /* VAMP_SD */
+
 /* Profile del recurso VREG */
 static vamp_profile_t vamp_vreg_profile;
 
@@ -401,11 +407,10 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		entry->last_activity = millis();
 
 		#ifdef VAMP_DEBUG
-		printf("[WSN] received from device %02X, profile %d, resource: %s, data len: %d\n", 
+		printf("[WSN] received from device %02X, profile %d, resource: %s\n", 
 				(entry->wsn_id & 0x7F), 
 				profile_index, 
-				profile->endpoint_resource ? profile->endpoint_resource : "N/A", 
-				rec_len);
+				profile->endpoint_resource ? profile->endpoint_resource : "N/A");
 		delay(10);
 		printf("[WSN] data: %s\n", &data[data_offset]);
 		delay(10);
@@ -437,26 +442,82 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		
 		/* Obtener fecha/hora actual del RTC */
 		char datetime_buf[DATE_TIME_BUFF];
+		datetime_buf[0] = '\0';
 		rtc_get_utc_time(datetime_buf);
 		jsonDoc["datetime"] = datetime_buf;
-		
-		/* Agregar gateway_id (placeholder - reemplazar con variable real) */
+
+		/* Agregar gateway_id */
 		jsonDoc["gw"] = gateway_conf->vamp.gw_id.c_str();
-		
-		/* Agregar datos */ 
+				
+		/* Agregar datos */
+		char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
+		to_send_data[0] = '\0';
 		if (rec_len > 0 && rec_len < VAMP_MAX_PAYLOAD_SIZE) {
-			char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
 			memcpy(to_send_data, &data[data_offset], rec_len);
 			to_send_data[rec_len] = '\0';
 			jsonDoc["data"] = to_send_data;
 		} else {
 			jsonDoc["data"] = "";
 		}
-		
-		// Serializar JSON al buffer
+
+		/* Serializar JSON al buffer */
 		size_t json_len = serializeJson(jsonDoc, req_resp_internet_buff, VAMP_IFACE_BUFF_SIZE - 1);
 		req_resp_internet_buff[json_len] = '\0';
-		rec_len = json_len;
+		
+		/* Antes de agregar el GW salvamos en memoria SD las linea datetime + data
+		en un archivo que tienga como nombre el ID del dispositivo que ha enviado el
+		dato
+		ToDo, lo mismo que pasa con RTC, hay que ver si esto tiene que ver con la implementacion
+		del gateway vamp como una biblioteca o como toda una app */
+
+		#ifdef VAMP_SD
+
+		/* Asegurarse que exista el directorio */
+		bool dir_exist;
+		if (!SD.exists(DATA_DIR)) {
+			dir_exist = SD.mkdir(DATA_DIR);
+		} else {
+			dir_exist = true;
+		}
+		/* Si realmente existe */
+		if (dir_exist) {
+			/* Preparamos la linea a guardar que no sera mas grande que el tamano del datetime 
+			(2024-01-15T14:30:45Z) + el tamanno maximo de data, que es el del buffer wsn */
+			char to_save_line[VAMP_MAX_PAYLOAD_SIZE + DATE_TIME_BUFF];
+			/* Aqui armamos el nombre del directorio + archivo. El nombre del archivo es el del 
+			id mote como cadena de 10 bytes*/
+			char file_full[32];
+			char file_name[12];
+			/* pasar de ID a ID_HEX */
+			rf_id_to_hex(entry->rf_id, file_name);
+			/* y construir la direccion completa */
+			sprintf(file_full, "%s/%s.csv", DATA_DIR, file_name);
+
+			/* y creamos la linea */
+			sprintf(to_save_line, "%s,%s", datetime_buf, to_send_data);
+
+			#ifdef VAMP_DEBUG
+			printf("[GW] saving line %s in %s", to_save_line, file_full);
+			#endif /* VAMP_DEBUG */
+
+			File to_save_file = SD.open(file_full, FILE_WRITE);
+			if(to_save_file){
+				to_save_file.println(to_save_line);
+				to_save_file.close();
+			}
+			#ifdef VAMP_DEBUG
+			else {
+				printf("[SD] Error opening or creating a %s's file\n", file_full);
+			}
+			#endif /* VAMP_DEBUG */
+		}
+		#ifdef VAMP_DEBUG
+		else {
+			printf("[SD] Error opening or creating a %s's folder\n", DATA_DIR);
+		}
+		#endif /* VAMP_DEBUG */
+
+		#endif /* VAMP_SD */
 
 
 		/** ---------------------- /Enviar al endpoint ---------------------- */
@@ -471,7 +532,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 			return false;
 		}
 
-		size_t rec_iface_len = vamp_iface_comm(profile, req_resp_internet_buff, rec_len);
+		size_t rec_iface_len = vamp_iface_comm(profile, req_resp_internet_buff, json_len);
 
 		if(rec_iface_len > 0) {
 			#ifdef VAMP_DEBUG
