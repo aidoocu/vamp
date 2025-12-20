@@ -71,7 +71,6 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 
 		#ifdef VAMP_DEBUG
 		printf("[GW] Invalid parameters VAMP init\n");
-		delay(10);
 		#endif /* VAMP_DEBUG */
 		return false;
 	}
@@ -360,7 +359,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 	if ((rec_len > (VAMP_MAX_PAYLOAD_SIZE - data_offset)) || ((rec_len + data_offset) != len)) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] invalid data length: rec_len=%d, data_offset=%d, len=%d\n", rec_len, data_offset, len);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Longitud inválida
 		}
@@ -369,7 +367,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (profile_index >= VAMP_MAX_PROFILES) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] invalid profile index: %d\n", profile_index);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Perfil inválido
 		}
@@ -380,7 +377,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (!entry) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] entry not found for index: %d\n", node_index);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no encontrada
 		}
@@ -388,7 +384,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (entry->status != VAMP_DEV_STATUS_ACTIVE) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] entry not active for device: %02X\n", entry->wsn_id);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Entrada no activa
 		}
@@ -398,7 +393,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (!profile) {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] profile %d not configured for device: %02X\n", profile_index, entry->wsn_id);
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false; // Perfil no configurado
 		}
@@ -410,10 +404,9 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		printf("[WSN] received from device %02X, profile %d, resource: %s\n", 
 				(entry->wsn_id & 0x7F), 
 				profile_index, 
-				profile->endpoint_resource ? profile->endpoint_resource : "N/A");
-		delay(10);
+				profile->endpoint_resource ? profile->endpoint_resource : "N/A", 
+				rec_len);
 		printf("[WSN] data: %s\n", &data[data_offset]);
-		delay(10);
 		//vamp_debug_msg(&data[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
 
@@ -436,7 +429,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		* con datetime, gw_id y data que es lo que este endpoint en particular espera
 		* por lo tanto en una aplicacion generica esto habria que modificarlo
 		*/
-
+		/* ToDo HAY QUE RESISAR ESTO!!! */
+		#ifdef ARDUINOJSON_AVAILABLE
 		/* Construir respuesta JSON con datetime, gateway_id y data */
 		StaticJsonDocument<512> jsonDoc;
 		
@@ -463,62 +457,10 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		/* Serializar JSON al buffer */
 		size_t json_len = serializeJson(jsonDoc, req_resp_internet_buff, VAMP_IFACE_BUFF_SIZE - 1);
 		req_resp_internet_buff[json_len] = '\0';
-		
-		/* Antes de agregar el GW salvamos en memoria SD las linea datetime + data
-		en un archivo que tienga como nombre el ID del dispositivo que ha enviado el
-		dato
-		ToDo, lo mismo que pasa con RTC, hay que ver si esto tiene que ver con la implementacion
-		del gateway vamp como una biblioteca o como toda una app */
+		rec_len = json_len;
 
-		#ifdef VAMP_SD
-
-		/* Asegurarse que exista el directorio */
-		bool dir_exist;
-		if (!SD.exists(DATA_DIR)) {
-			dir_exist = SD.mkdir(DATA_DIR);
-		} else {
-			dir_exist = true;
-		}
-		/* Si realmente existe */
-		if (dir_exist) {
-			/* Preparamos la linea a guardar que no sera mas grande que el tamano del datetime 
-			(2024-01-15T14:30:45Z) + el tamanno maximo de data, que es el del buffer wsn */
-			char to_save_line[VAMP_MAX_PAYLOAD_SIZE + DATE_TIME_BUFF];
-			/* Aqui armamos el nombre del directorio + archivo. El nombre del archivo es el del 
-			id mote como cadena de 10 bytes*/
-			char file_full[32];
-			char file_name[12];
-			/* pasar de ID a ID_HEX */
-			rf_id_to_hex(entry->rf_id, file_name);
-			/* y construir la direccion completa */
-			sprintf(file_full, "%s/%s.csv", DATA_DIR, file_name);
-
-			/* y creamos la linea */
-			sprintf(to_save_line, "%s,%s", datetime_buf, to_send_data);
-
-			#ifdef VAMP_DEBUG
-			printf("[GW] saving line %s in %s", to_save_line, file_full);
-			#endif /* VAMP_DEBUG */
-
-			File to_save_file = SD.open(file_full, FILE_WRITE);
-			if(to_save_file){
-				to_save_file.println(to_save_line);
-				to_save_file.close();
-			}
-			#ifdef VAMP_DEBUG
-			else {
-				printf("[SD] Error opening or creating a %s's file\n", file_full);
-			}
-			#endif /* VAMP_DEBUG */
-		}
-		#ifdef VAMP_DEBUG
-		else {
-			printf("[SD] Error opening or creating a %s's folder\n", DATA_DIR);
-		}
-		#endif /* VAMP_DEBUG */
-
-		#endif /* VAMP_SD */
-
+		/* HAY QUE RESISAR ESTO!!! */
+		#endif /* ARDUINOJSON_AVAILABLE */
 
 		/** ---------------------- /Enviar al endpoint ---------------------- */
 
@@ -527,7 +469,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		if (!profile->endpoint_resource || profile->endpoint_resource[0] == '\0') {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] empty endpoint resource, not sending to internet\n");
-			delay(10);
 			#endif /* VAMP_DEBUG */
 			return false;
 		}

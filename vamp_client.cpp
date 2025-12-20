@@ -38,7 +38,7 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 	vamp_wsn_init(vamp_client_id);
 
 	#ifdef VAMP_DEBUG
- 	Serial.println("id:");
+ 	printf("[WSN] id:");
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
 	vamp_debug_msg(local_wsn_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
@@ -71,10 +71,10 @@ bool vamp_join_network(void) {
 	/* Resetear la conexión */
 	vamp_clear_connection();
 
-	#ifdef VAMP_DEBUG
-	Serial.print("GW: ");
-	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
-	#endif /* VAMP_DEBUG */
+	//#ifdef VAMP_DEBUG
+	//printf("[WSN] GW: ");
+	//vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
+	//#endif /* VAMP_DEBUG */
 
 	uint8_t payload_len = 0;
 
@@ -88,14 +88,16 @@ bool vamp_join_network(void) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.println("Joining");
+	printf("[WSN] Joining\n");
 	#endif /* VAMP_DEBUG */
 
-	/*  Enviar mensaje de unión al gateway */
+	/* Enviar mensaje de unión al gateway */
 	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 	/* El mensaje recibido debe ser un JOIN_OK (0x82) + ID_IN_GW (1 byte) + dirección del gateway (5 bytes) */
-	if ((!payload_len) || (req_resp_wsn_buff[0] != (VAMP_JOIN_OK | VAMP_IS_CMD_MASK)) || (payload_len != (2 + VAMP_ADDR_LEN))) {
-		Serial.println("JOIN_REQ failed");
+	if ((payload_len == 0) 
+		|| (req_resp_wsn_buff[0] != (VAMP_JOIN_OK | VAMP_IS_CMD_MASK)) 
+		|| (payload_len != (2 + VAMP_ADDR_LEN))) {
+		printf("[WSN] join failed\n");
 		return false;
 	}
 
@@ -109,8 +111,8 @@ bool vamp_join_network(void) {
 		/* Verificar que la dirección del gateway sea válida */
 		if (!vamp_is_rf_id_valid(vamp_gw_addr)) {
 			#ifdef VAMP_DEBUG
-			Serial.println("gw addr invalid");
-			#endif /* VAMP_DEBUG */
+			printf("[WSN] invalid gw\n");
+			#endif
 
 			/* 	Resetear conexión si la dirección es inválida para mantener los chequeos
 				consistentes */
@@ -125,8 +127,7 @@ bool vamp_join_network(void) {
 	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 
 	#ifdef VAMP_DEBUG
-	Serial.print("joined! GW: ");
-	delay(10);
+	printf("[WSN] joined! GW: ");
 	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
 
@@ -183,13 +184,12 @@ bool vamp_fail_handle(void){
 		}
 
 		#ifdef VAMP_DEBUG
-		Serial.println("vamp disconnected");
+		Serial.println("[WSN] disconnected\n");
 		#endif /* VAMP_DEBUG */
-
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.println("comm failed");
+	printf("[WSN] comm failed\n");
 	#endif /* VAMP_DEBUG */
 
 	return false; // Fallo en el re-join o en el reenvío después de re-join
