@@ -21,11 +21,15 @@ bool esp8266_sta_init(const char * wifi_ssid, const char * wifi_password);
  */
 void esp8266_sta_static_ip(IPAddress ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
 
+/** @brief Inicializa los clientes TCP (HTTP y HTTPS)
+ */
+void esp8266_tcp_init(void);
+
 /** @brief Realiza una solicitud HTTP/HTTPS
  * 
  * @param profile Perfil de comunicación
  * @param data Datos a enviar
- * @param data_size Tamaño de los datos
+ * @param data_size Tamaño del buffer data
  * @return Tamaño de los datos recibidos, 0 en caso de error
  */
 size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t data_size);
