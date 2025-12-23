@@ -39,18 +39,10 @@ void vamp_gw_init(const gw_config_t * gw_config) {
 	/* Obtener el RF_ID del gateway desde la interfaz WSN */
 	hex_to_rf_id((const char*)gw_config->vamp.gw_id.c_str(), nrf_id);
 
-/* 	Serial.print("VAMP Gateway WSN ID: ");
-	for (int i = 0; i < 5; i++) {
-		Serial.print(nrf_id[i], HEX);
-		if (i < 4) {
-			Serial.print(":");
-		}
-	} */
-
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(nrf_id);
 
-    /* Inicializar la tabla VAMP */
+	/* Inicializar la tabla VAMP */
     vamp_table_init();
 
 	return;
