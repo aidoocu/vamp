@@ -284,7 +284,14 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 	}
 
 	/* Inicializar la interfaz WiFi */
-	return esp8266_sta_init(vamp_conf->wifi.ssid.c_str(), vamp_conf->wifi.password.c_str());
+	if(esp8266_sta_init(vamp_conf->wifi.ssid.c_str(), vamp_conf->wifi.password.c_str())){
+		/* Inicializar clientes TCP */
+		esp8266_tcp_init();
+		return true;
+	} else {
+		return false;
+	}
+
 	
 	#endif // ARDUINO_ARCH_ESP8266
 
@@ -293,7 +300,8 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 }
 
 /* Callback para comunicación con el servidor VREG */
-uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
+/* Revisar porque para un GET no hay data */
+uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, size_t len) {
 	/* Verificar que no sea nulo */
 	if (!url || !data) {
 		return 0;
@@ -316,7 +324,23 @@ uint8_t vamp_iface_comm(const char * url, char * data, size_t len) {
 	/* Asegurar terminación nula */
 	profile.endpoint_resource[url_len] = '\0';
 
-	len ? profile.method = VAMP_HTTP_METHOD_POST : profile.method = VAMP_HTTP_METHOD_GET;
+	/* Configurar método HTTP */
+	switch (method) {
+		case VAMP_HTTP_METHOD_GET:
+			profile.method = VAMP_HTTP_METHOD_GET;
+			break;
+		case VAMP_HTTP_METHOD_POST:
+			profile.method = VAMP_HTTP_METHOD_POST;
+			break;
+		default:
+			#ifdef VAMP_DEBUG
+			Serial.println("Error: Método HTTP no soportado");
+			#endif /* VAMP_DEBUG */
+			free(profile.endpoint_resource);
+			return 0;
+	}
+
+	/* Inicializar stores key-value */
 	vamp_kv_init(&profile.protocol_options);
 	vamp_kv_init(&profile.query_params);
 

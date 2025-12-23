@@ -109,12 +109,13 @@ bool vamp_iface_init(const gw_config_t * vamp_conf);
 
 /**
  * @brief Function for sending data to the VREG server
+ * @param method HTTP method to use (GET, POST, etc.)
  * @param url URL of the VREG resource
  * @param data Data to send, if answer, data will contain the response
  * @param len Length of data buffer
- * @return 
+ * @return len of data received from the server, 0 on failure
  */
-uint8_t vamp_iface_comm(const char * url, char * data, size_t len);
+uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, size_t len);
 
 // Forward declare profile type to avoid including vamp_gw.h here
 struct vamp_profile_t;
@@ -124,7 +125,7 @@ struct vamp_profile_t;
  * @param profile entire profile of the VREG resource
  * @param data  Data to send, if answer, data will contain the response
  * @param len Length of data buffer
- * @return 
+ * @return len of data received from the server, 0 on failure
  */
 uint8_t vamp_iface_comm(const vamp_profile_t * profile, char * data, size_t len);
 
