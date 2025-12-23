@@ -69,9 +69,9 @@
  * 						en que deberia estar organizado el mensaje que viene del dispositivo.
  */
 typedef struct vamp_profile_t {
-//	uint8_t protocol;				// Protocolo (HTTP, MQTT, CoAP, etc.)
-	uint8_t method;					// Método específico del protocolo
-	char * endpoint_resource;    	// URL/URI del endpoint sin esquema (dinámica)
+//	uint8_t protocol;							// Protocolo (HTTP, MQTT, CoAP, etc.)
+	uint8_t method;								// Método específico del protocolo
+	char * endpoint_resource;    				// URL/URI del endpoint sin esquema (dinámica)
 	vamp_key_value_store_t protocol_options;	// Opciones específicas del protocolo (key-value)
 	vamp_key_value_store_t query_params;		// Parámetros de consulta (key-value)
 //	char * payload_template;		// Plantilla de payload

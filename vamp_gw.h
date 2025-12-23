@@ -91,8 +91,12 @@ int8_t vamp_gw_wsn(void);
 /* --------------------- Funciones públicas para web server -------------------- */
 
 
-/** Inicializar el gateway VAMP con la configuración del servidor VREG
- * @param gw_config Puntero hacia la estructura donde esta toda la onfiguracion del gateway
+/** @brief 	Inicializar el gateway VAMP con la configuración del servidor VREG
+ * 			Esta función lo unico que hace es guardar la configuración del gateway
+ * 			de forma local y preparar el perfil de comunicación con el VREG, todo en 
+ * 			variales locales estaticas.
+ * 	@param gw_config Puntero hacia la estructura donde esta toda la configuracion del gateway
+ * 	@return true si la inicialización fue exitosa, false en caso contrario
 */
 bool vamp_gw_vreg_init(const gw_config_t * gw_config);
 

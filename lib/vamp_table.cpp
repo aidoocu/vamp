@@ -50,12 +50,13 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
   char iface_buffer[VAMP_MAX_UPDATE_BUFFER] = {0}; // Buffer para request y response
 
 	/* Enviar request usando TELL y recibir respuesta */
+  #ifdef VAMP_DEBUG
+  printf("[VAMP] sync vreg\n");
+  #endif /* VAMP_DEBUG */
+
 	if (vamp_iface_comm(vreg_profile, iface_buffer, VAMP_MAX_UPDATE_BUFFER)) {
 
-		Serial.println("Enviando solicitud de sincronización VREG...");
-		Serial.print(iface_buffer);
-
-		/* !!!!! Aqui se utiliza un buffer doble que habria que ver como se puede evitar, el problema es que la respuesta
+		/* !!!!! ToDo Aqui se utiliza un buffer doble que habria que ver como se puede evitar, el problema es que la respuesta
 		viene en iface_buffer que ya es bastante grande y se le pasa al parser de json el cual crea su propio
 		buffer interno. Esto puede llevar a un uso excesivo de memoria y posibles problemas de rendimiento. */
 

@@ -32,7 +32,7 @@ typedef struct {
 
 /** Estructura para almacenar múltiples pares key-value - Asignación dinámica */
 typedef struct {
-    vamp_key_value_pair_t* pairs;    // Puntero a array dinámico
+    vamp_key_value_pair_t * pairs;   // Puntero a array dinámico
     uint8_t count;                   // Número actual de pares
     uint8_t capacity;                // Capacidad máxima actual
 } vamp_key_value_store_t;
