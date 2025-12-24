@@ -61,13 +61,14 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 	String vreg_url = gateway_conf->vamp.vreg_resource + gateway_conf->vamp.gw_id;
 
 	#ifdef VAMP_DEBUG
-	printf("[GW] Resource: %s, ID: %s\n", vreg_url.c_str(), gateway_conf->vamp.gw_id.c_str());
+	printf("[GW] RF ID: %s\n", gateway_conf->vamp.gw_id.c_str());
+	printf("[GW] Resource: %s\n", vreg_url.c_str());
 	#endif /* VAMP_DEBUG */
 
 	/* Verificar que los parámetros son válidos */
-	if (vreg_url == NULL || 
+	if (vreg_url.length() == 0 || 
 	    vreg_url.length() >= VAMP_ENDPOINT_MAX_LEN || 
-	    strlen(gateway_conf->vamp.gw_id.c_str()) >= VAMP_GW_NAME_MAX_LEN) {
+	    strlen(gateway_conf->vamp.gw_id.c_str()) >= VAMP_GW_ID_MAX_LEN) {
 
 		#ifdef VAMP_DEBUG
 		printf("[GW] Invalid parameters VAMP init\n");
@@ -75,24 +76,34 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 		return false;
 	}
 
+	/* ------------------ Configurar el perfil de VREG  ------------------ */
+
+	/* GET como método */
 	vamp_vreg_profile.method = VAMP_HTTP_METHOD_GET;
+	/* Liberar memoria previa si es necesario */
 	if (vamp_vreg_profile.endpoint_resource) {
 		free(vamp_vreg_profile.endpoint_resource);
 	}
-	vamp_vreg_profile.endpoint_resource = strdup(vreg_url.c_str());
+	/* Copiar el endpoint al perfil local del vreg */
+	size_t url_len = vreg_url.length();
+	vamp_vreg_profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!vamp_vreg_profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
 		Serial.println("[GW] Error allocating memory for resource VREG");
 		#endif /* VAMP_DEBUG */
 		return false;
 	}
+	memcpy(vamp_vreg_profile.endpoint_resource, vreg_url.c_str(), url_len);
+	vamp_vreg_profile.endpoint_resource[url_len] = '\0';
 
-	// Inicializar y configurar protocol_options
-	//vamp_kv_init(&vamp_vreg_profile.protocol_options);
-	//vamp_kv_set(&vamp_vreg_profile.protocol_options, "X-VAMP-Gateway-ID", gw_id);
+	/* ------------------ Configurar opciones del protocolo ------------------ */
 
-	// Inicializar query_params (se configurará dinámicamente en vamp_table_update)
+	/* Inicializar los parámetros y las opciones del protocolo */
+	vamp_kv_init(&vamp_vreg_profile.protocol_options);
 	vamp_kv_init(&vamp_vreg_profile.query_params);
+
+	/* Agregar el ID del gateway en las opciones del protocolo */
+	//vamp_kv_set(&vamp_vreg_profile.protocol_options, "X-VAMP-Gateway-ID", gw_id);
 
 	return true;
 
@@ -404,8 +415,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		printf("[WSN] received from device %02X, profile %d, resource: %s\n", 
 				(entry->wsn_id & 0x7F), 
 				profile_index, 
-				profile->endpoint_resource ? profile->endpoint_resource : "N/A", 
-				rec_len);
+				profile->endpoint_resource ? profile->endpoint_resource : "N/A");
 		printf("[WSN] data: %s\n", &data[data_offset]);
 		//vamp_debug_msg(&data[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
