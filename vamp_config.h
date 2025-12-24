@@ -30,8 +30,12 @@
 #endif // VAMP_IFACE_BUFF_SIZE
 
 /** @brief Longitud máxima del ID del gateway VAMP (en bytes) */
+#ifndef VAMP_GW_ID_MAX_LEN
+#define VAMP_GW_ID_MAX_LEN 11
+#endif // VAMP_GW_ID_MAX_LEN
+
 #ifndef VAMP_GW_NAME_MAX_LEN
-#define VAMP_GW_NAME_MAX_LEN 11
+#define VAMP_GW_NAME_MAX_LEN 32
 #endif // VAMP_GW_NAME_MAX_LEN
 
 /** @brief Tiempo de espera por una respuesta */
@@ -67,6 +71,9 @@ typedef struct {
 /* Estructuras agrupadas para la configuración del gateway
    Mantener las propiedades antiguas para compatibilidad, pero
    preferir las sub-estructuras (VAMP, WIFI, NRF, STORAGE) en nuevo código.
+   (ToDo: estan utilizando String en vez de char[] por simplicidad, pero
+   esto puede ser ineficiente en memoria, revisar en el futuro, o utilizar el
+   tipo std::string si es posible)
 */
 typedef struct {
     String gw_id;                // vamp_gw_id
@@ -78,7 +85,7 @@ typedef struct {
 typedef struct {
     String ssid;                 // wifi_ssid
     String password;             // wifi_password
-    String ap_ssid;              // wifi_ap_ssid (opcional, ejemplo)
+    //String ap_ssid;              // wifi_ap_ssid (opcional, ejemplo)
 } wifi_settings_t;
 
 typedef struct {
