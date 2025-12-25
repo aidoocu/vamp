@@ -44,28 +44,21 @@
 /** @brief   Máximo de fallos consecutivos antes de re-join */
 #define MAX_SEND_FAILURES 3
 
-/* Parámetros para la comunicación del gateway VAMP con el VREG */
-/** @brief  ID del gateway VAMP */
-//#ifndef VAMP_GW_ID
-//#define VAMP_GW_ID  "GW_TEST_01"
-//#endif // VAMP_GW_ID
-
-/** @brief  URL del VAMP Registry */  
-//#ifndef VAMP_VREG_RESOURCE
-//#define VAMP_VREG_RESOURCE "http://10.1.111.249:8000/vreg/api/v1/gateway/sync/"
-//#endif // VAMP_VREG_RESOURCE
+/** @brief Modos de configuracion para IP */
+#define VAMP_NET_DHCP       0
+#define VAMP_NET_STATIC     1
 
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
 #define VAMP_DEBUG
 
 /** Estructura para configuración de red (IP estática o DHCP) */
 typedef struct {
-    String mode;      // "static" o "dhcp"
-    IPAddress ip;
-    IPAddress gateway;
-    IPAddress subnet;
-    IPAddress dns1;
-    IPAddress dns2;
+    uint8_t     mode;      // VAMP_NET_DHCP o VAMP_NET_STATIC
+    IPAddress   ip;
+    IPAddress   gateway;
+    IPAddress   subnet;
+    IPAddress   dns1;
+    IPAddress   dns2;
 } net_config_t;
 
 /* Estructuras agrupadas para la configuración del gateway
@@ -76,15 +69,15 @@ typedef struct {
    tipo std::string si es posible)
 */
 typedef struct {
-    String gw_id;                // vamp_gw_id
-    String gw_name;              // vamp_gw_name
-    String vreg_resource;        // vamp_vreg_resource
-    String gw_token;             // vamp_gw_token (opcional)
+    char * gw_id;                // vamp_gw_id
+    char * gw_name;              // vamp_gw_name
+    char * vreg_resource;        // vamp_vreg_resource
+    char * gw_token;             // vamp_gw_token (opcional)
 } vamp_settings_t;
 
 typedef struct {
-    String ssid;                 // wifi_ssid
-    String password;             // wifi_password
+    char * ssid;                 // wifi_ssid
+    char * password;             // wifi_password
     //String ap_ssid;              // wifi_ap_ssid (opcional, ejemplo)
 } wifi_settings_t;
 

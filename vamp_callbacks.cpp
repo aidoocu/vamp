@@ -5,6 +5,7 @@
  *  
  */
 #include <Arduino.h>
+#include <cstring>
 #include "vamp_callbacks.h"
 #include "vamp.h"
 #include "vamp_gw.h"
@@ -230,7 +231,7 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 	#if defined(ARDUINO_ARCH_ESP8266)
 
 	/* Si debe ser configurada como estática */
-	if (vamp_conf->net.mode == "static") {
+	if (vamp_conf->net.mode && vamp_conf->net.mode == VAMP_NET_STATIC) {
 
 		/* Validar que la IP estática esté definida (no 0.0.0.0) */
 		IPAddress ip = vamp_conf->net.ip;
@@ -284,7 +285,7 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 	}
 
 	/* Inicializar la interfaz WiFi */
-	if(esp8266_sta_init(vamp_conf->wifi.ssid.c_str(), vamp_conf->wifi.password.c_str())){
+	if(esp8266_sta_init(vamp_conf->wifi.ssid, vamp_conf->wifi.password)){
 		/* Inicializar clientes TCP */
 		esp8266_tcp_init();
 		return true;

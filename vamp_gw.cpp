@@ -58,17 +58,24 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 	/* Guardando de forma local la configuracion del gateway */
 	gateway_conf = gw_config;
 
-	String vreg_url = gateway_conf->vamp.vreg_resource + gateway_conf->vamp.gw_id;
+	size_t url_len;
 
-	#ifdef VAMP_DEBUG
-	printf("[GW] RF ID: %s\n", gateway_conf->vamp.gw_id.c_str());
-	printf("[GW] Resource: %s\n", vreg_url.c_str());
-	#endif /* VAMP_DEBUG */
+	if(!gateway_conf || 
+	   !gateway_conf->vamp.gw_id || 
+	   !gateway_conf->vamp.vreg_resource) {
+		#ifdef VAMP_DEBUG
+		printf("[GW] Invalid gateway configuration\n");
+		#endif /* VAMP_DEBUG */
+		return false;
+	}
+
+	/* Optener el tamaño que tendra la cadena con el URL completo, incluyendo el '\0' */
+	url_len = strlen(gateway_conf->vamp.vreg_resource) + strlen(gateway_conf->vamp.gw_id) + 1;
 
 	/* Verificar que los parámetros son válidos */
-	if (vreg_url.length() == 0 || 
-	    vreg_url.length() >= VAMP_ENDPOINT_MAX_LEN || 
-	    strlen(gateway_conf->vamp.gw_id.c_str()) >= VAMP_GW_ID_MAX_LEN) {
+	if (url_len == 0 || 
+	    url_len >= VAMP_ENDPOINT_MAX_LEN || 
+	    strlen(gateway_conf->vamp.gw_id) >= VAMP_GW_ID_MAX_LEN) {
 
 		#ifdef VAMP_DEBUG
 		printf("[GW] Invalid parameters VAMP init\n");
@@ -85,7 +92,6 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 		free(vamp_vreg_profile.endpoint_resource);
 	}
 	/* Copiar el endpoint al perfil local del vreg */
-	size_t url_len = vreg_url.length();
 	vamp_vreg_profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!vamp_vreg_profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
@@ -93,8 +99,12 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 		#endif /* VAMP_DEBUG */
 		return false;
 	}
-	memcpy(vamp_vreg_profile.endpoint_resource, vreg_url.c_str(), url_len);
-	vamp_vreg_profile.endpoint_resource[url_len] = '\0';
+	sprintf(vamp_vreg_profile.endpoint_resource, "%s%s", gw_config->vamp.vreg_resource, gw_config->vamp.gw_id);
+
+	#ifdef VAMP_DEBUG
+	printf("[GW] RF ID: %s\n", gateway_conf->vamp.gw_id);
+	printf("[GW] Resource: %s\n", vamp_vreg_profile.endpoint_resource);
+	#endif /* VAMP_DEBUG */
 
 	/* ------------------ Configurar opciones del protocolo ------------------ */
 
@@ -451,7 +461,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		jsonDoc["datetime"] = datetime_buf;
 
 		/* Agregar gateway_id */
-		jsonDoc["gw"] = gateway_conf->vamp.gw_id.c_str();
+		jsonDoc["gw"] = gateway_conf->vamp.gw_id ? gateway_conf->vamp.gw_id : "";
 				
 		/* Agregar datos */
 		char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
