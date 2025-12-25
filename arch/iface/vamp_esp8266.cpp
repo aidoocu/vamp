@@ -57,7 +57,7 @@ bool esp8266_conn(void){
 	int timeout = WIFI_TIMEOUT;
 
 	#ifdef VAMP_DEBUG
-	printf("[WiFi] Connecting to SSID: %s\n", wifi_ssid_local.c_str());
+	printf("[WiFi] Connecting to SSID: %s\n [WiFi] ", wifi_ssid_local.c_str());
 	#endif /* VAMP_DEBUG */
 
 	while (WiFi.status() != WL_CONNECTED && timeout > 0) {
@@ -229,7 +229,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	}
 	
 	#ifdef VAMP_DEBUG
-	printf("[HTTP] Connecting to: %s, with  %d query params and %d protocol options\n", 
+	printf("[HTTP] Remote: %s\n [HTTP] query params: %d - protocol optionsand: %d\n", 
 				full_url.c_str(), 
 				profile->query_params.count, 
 				profile->protocol_options.count);
@@ -279,9 +279,9 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	/* Enviar request según método */
 	int httpResponseCode = -1;
 	
-	Serial.printf("Memoria libre (Heap): %d bytes\n", ESP.getFreeHeap());
-    Serial.printf("Frag. inicial (Heap): %d bytes\n", ESP.getHeapFragmentation());
-    Serial.printf("Memoria libre Max. Contigua: %d bytes\n", ESP.getMaxFreeBlockSize());
+	Serial.printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
+    Serial.printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
+    Serial.printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
 
 	switch (profile->method) {
 		/* GET */
@@ -346,6 +346,9 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		printf("[WiFi] Error in %s: %d\n", (is_https ? "HTTPS" : "HTTP"), httpResponseCode);
 		#endif /* VAMP_DEBUG */
 		https_http.end();
+
+		/* Si es -1 es que no hay conexión asi que se puede intentar reconectar o algo asi */ 
+
 		return 0;
 	}
 }

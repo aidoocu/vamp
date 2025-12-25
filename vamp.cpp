@@ -31,16 +31,30 @@ void vamp_gw_init(const gw_config_t * gw_config) {
 		return;
 	}
 
+	#ifdef VAMP_DEBUG
+	printf("[GW] VAMP Gateway initialized\n");
+	#endif /* VAMP_DEBUG */
+
 	/* Inicializar la comunicación con internet */
 	vamp_iface_init(gw_config);
 
-	uint8_t nrf_id[5] = {0};
+	#ifdef VAMP_DEBUG
+	printf("[GW] Internet inface initialized\n");
+	#endif /* VAMP_DEBUG */
 
-	/* Obtener el RF_ID del gateway desde la interfaz WSN */
-	hex_to_rf_id((const char*)gw_config->vamp.gw_id.c_str(), nrf_id);
+	/* ToDo aqui hay que validar que efectivamente halla un ID de gateway 
+	y en caso de no haberlo hay que tomar una decision. Podrria ser utlizar
+	uno ya definido para todo gateway desconfiurado a al asi */
+	/* Obtener el RF_ID del gateway desde la configuración */
+	uint8_t nrf_id[5] = {0};
+	hex_to_rf_id((const char*)gw_config->vamp.gw_id, nrf_id);
 
 	/* Inicializar la comunicación WSN */
 	vamp_wsn_init(nrf_id);
+
+	#ifdef VAMP_DEBUG
+	printf("[GW] WSN interface initialized\n");
+	#endif /* VAMP_DEBUG */
 
 	/* Inicializar la tabla VAMP */
     vamp_table_init();

@@ -5,6 +5,7 @@
 
 
 #include "vamp_kv.h"
+#include "../vamp_config.h"
 
 /** @brief Inicializar un store de key-value */
 void vamp_kv_init(vamp_key_value_store_t* store) {
@@ -33,24 +34,21 @@ bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* val
         return false; // Key o value demasiado largo
     }
 
-	Serial.print("Añadiendo/actualizando key-value: ");
-	Serial.print(key);
-	Serial.print(" = ");
-	Serial.println(value);
-	Serial.print("Total pares actuales: ");
-	Serial.println(store->count);
+    #ifdef VAMP_DEBUG
+    printf("Init/update key-value: %s = %s: ", key, value);
+    #endif /* VAMP_DEBUG */
 
-    // Buscar si la key ya existe
+    /* Buscar si la key ya existe */
     for (uint8_t i = 0; i < store->count; i++) {
         if (strcmp(store->pairs[i].key, key) == 0) {
-            // Actualizar valor existente
+            /* Actualizar valor existente */
             strncpy(store->pairs[i].value, value, VAMP_VALUE_MAX_LEN - 1);
             store->pairs[i].value[VAMP_VALUE_MAX_LEN - 1] = '\0';
             return true;
         }
     }
     
-    // Necesita expandir la capacidad?
+    /* Necesita expandir la capacidad? */
     if (store->count >= store->capacity) {
         uint8_t new_capacity = (store->capacity == 0) ? 1 : store->capacity * 2;
         if (new_capacity > VAMP_MAX_KEY_VALUE_PAIRS) {
@@ -58,37 +56,34 @@ bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* val
         }
         
         if (store->count >= new_capacity) {
-            return false; // Límite máximo alcanzado
+            return false; /* Límite máximo alcanzado */
         }
         
-        // Reallocar memoria
+        /* Reallocar memoria */
         vamp_key_value_pair_t* new_pairs = (vamp_key_value_pair_t*)realloc(
             store->pairs, new_capacity * sizeof(vamp_key_value_pair_t));
         if (!new_pairs) {
-            return false; // Error de memoria
+            return false; /* Error de memoria */
         }
         
         store->pairs = new_pairs;
         store->capacity = new_capacity;
         
-        // Limpiar nueva memoria
+        /* Limpiar nueva memoria */
         memset(&store->pairs[store->count], 0, 
                (new_capacity - store->count) * sizeof(vamp_key_value_pair_t));
     }
     
-    // Añadir nueva entrada
+    /* Añadir nueva entrada */
     strncpy(store->pairs[store->count].key, key, VAMP_KEY_MAX_LEN - 1);
     store->pairs[store->count].key[VAMP_KEY_MAX_LEN - 1] = '\0';
     strncpy(store->pairs[store->count].value, value, VAMP_VALUE_MAX_LEN - 1);
     store->pairs[store->count].value[VAMP_VALUE_MAX_LEN - 1] = '\0';
     store->count++;
 
-	Serial.print("Añadido key-value: ");
-	Serial.print(key);
-	Serial.print(" = ");
-	Serial.println(value);
-	Serial.print("Total pares: ");
-	Serial.println(store->count);
+    #ifdef VAMP_DEBUG
+	printf("added, total: %u\n", store->count);
+    #endif /* VAMP_DEBUG */
 
     return true;
 }

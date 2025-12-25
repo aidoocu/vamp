@@ -25,7 +25,7 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 	/* Verificar que los valores de los recursos no estén vacíos */
 	if (vreg_profile->endpoint_resource[0] == '\0') {
 		#ifdef VAMP_DEBUG
-		Serial.println("no gw resources defined");
+		printf("[VAMP] no gw resources defined\n");
 		#endif /* VAMP_DEBUG */
 		return;
 	}
@@ -34,7 +34,7 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 	if(!vamp_is_table_initialized()) {
 		// La tabla no ha sido inicializada
 		#ifdef VAMP_DEBUG
-		Serial.println("init vamp table");
+		printf("[VAMP] init vamp table\n");
 		#endif /* VAMP_DEBUG */
 
 		/* Inicializar la tabla VAMP */
@@ -403,7 +403,7 @@ uint8_t vamp_generate_id_byte(const uint8_t table_index) {
 
 /* Verificar que el RF_ID sea válido */
 bool is_valid_rf_id(const char * rf_id) {
-  // Verificar que el RF_ID no sea NULL y tenga la longitud correcta
+  /* Verificar que el RF_ID no sea NULL y tenga la longitud correcta */
   if (rf_id == NULL || strlen(rf_id) != VAMP_ADDR_LEN * 2) {
 	return false;
   }
