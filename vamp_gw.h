@@ -50,7 +50,7 @@
 #define VAMP_PROTOCOL_MQTT    2
 #define VAMP_PROTOCOL_COAP    3
 #define VAMP_PROTOCOL_WEBSOCKET 4
-#define VAMP_PROTOCOL_CUSTOM  15    // Para protocolos definidos por usuario
+//#define VAMP_PROTOCOL_CUSTOM  15    // Para protocolos definidos por usuario
 
 
 
