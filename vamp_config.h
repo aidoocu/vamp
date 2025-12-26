@@ -38,6 +38,14 @@
 #define VAMP_GW_NAME_MAX_LEN 32
 #endif // VAMP_GW_NAME_MAX_LEN
 
+#ifndef VAMP_SSID_MAX_LEN
+#define VAMP_SSID_MAX_LEN 32
+#endif // VAMP_SSID_MAX_LEN
+
+#ifndef VAMP_PASSWORD_MAX_LEN
+#define VAMP_PASSWORD_MAX_LEN 64
+#endif // VAMP_PASSWORD_MAX_LEN
+
 /** @brief Tiempo de espera por una respuesta */
 #define VAMP_ANSW_TIMEOUT 500
 
@@ -78,7 +86,7 @@ typedef struct {
 typedef struct {
     char * ssid;                 // wifi_ssid
     char * password;             // wifi_password
-    //String ap_ssid;              // wifi_ap_ssid (opcional, ejemplo)
+    //char * ap_ssid;              // wifi_ap_ssid (opcional, ejemplo)
 } wifi_settings_t;
 
 typedef struct {
