@@ -47,8 +47,6 @@
 /* Máximo 4 perfiles por dispositivo o dos bits */
 #define VAMP_MAX_PROFILES 4
 
-#define VAMP_MAX_UPDATE_BUFFER 2048
-
 /* Status */
 #define VAMP_DEV_STATUS_FREE		0x01	// Libre, un dispositivo así deberá ignorarse sus campos 
 #define VAMP_DEV_STATUS_INACTIVE	0x02	// Inactivo y configurado

@@ -15,6 +15,9 @@
 
 #include "../vamp_gw.h"
 
+/* Crear buffer JSON */
+static StaticJsonDocument<4096> doc;
+
  /** @brief Parsear JSON object y llenar store */
 bool vamp_kv_parse_json(vamp_key_value_store_t* store, JsonObject json_obj) {
     if (!store) return false;
@@ -45,9 +48,6 @@ bool vamp_process_sync_json_response(const char* json_data) {
 	if (json_data == NULL) {
 		return false;
 	}
-
-	/* Crear buffer JSON dinámico */
-	DynamicJsonDocument doc(4096);
 	
 	/* Parsear el JSON */
 	DeserializationError error = deserializeJson(doc, json_data);

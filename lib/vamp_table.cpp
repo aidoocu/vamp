@@ -47,22 +47,16 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 	vamp_kv_clear(&vreg_profile->query_params);
 	vamp_kv_set(&vreg_profile->query_params, "last_update", last_table_update);
 
-  char iface_buffer[VAMP_MAX_UPDATE_BUFFER] = {0}; // Buffer para request y response
-
 	/* Enviar request usando TELL y recibir respuesta */
   #ifdef VAMP_DEBUG
   printf("[VAMP] sync vreg\n");
   #endif /* VAMP_DEBUG */
 
-	if (vamp_iface_comm(vreg_profile, iface_buffer, VAMP_MAX_UPDATE_BUFFER)) {
-
-		/* !!!!! ToDo Aqui se utiliza un buffer doble que habria que ver como se puede evitar, el problema es que la respuesta
-		viene en iface_buffer que ya es bastante grande y se le pasa al parser de json el cual crea su propio
-		buffer interno. Esto puede llevar a un uso excesivo de memoria y posibles problemas de rendimiento. */
+  if (vamp_iface_comm(vreg_profile, iface_buff, VAMP_IFACE_BUFF_SIZE)) {
 
 		/* Extraer los datos JSON de la respuesta */
 		#ifdef ARDUINOJSON_AVAILABLE
-		if (vamp_process_sync_json_response(iface_buffer)) {
+    if (vamp_process_sync_json_response(iface_buff)) {
 			Serial.println("Sincronización VREG completada exitosamente");
 		} else {
 			Serial.println("Error procesando respuesta VREG");

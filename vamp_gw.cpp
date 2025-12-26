@@ -32,9 +32,11 @@ static vamp_profile_t vamp_vreg_profile;
 
 static const gw_config_t * gateway_conf;
 
+/* Buffer para datos WSN */
+static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 
-/* Buffer para la solicitud y respuesta de internet */
-static char req_resp_internet_buff[VAMP_IFACE_BUFF_SIZE];
+/* Buffer para la solicitud y respuesta de internet (compartido en todo el módulo VAMP) */
+char iface_buff[VAMP_IFACE_BUFF_SIZE];
 
 
 /* Inicializar la tabla VAMP con el perfil de VREG */
@@ -132,8 +134,7 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	}
 
 	/* Buffer para el ID del nodo, 10 caracteres (5 bytes en hex) + '/0' */
-	char char_rf_id[11];
-	char dev_response[VAMP_IFACE_BUFF_SIZE];
+	char char_rf_id[VAMP_GW_ID_MAX_LEN] = {0};
 
 	/* Convertir RF_ID a cadena hex */
 	rf_id_to_hex(rf_id, char_rf_id);
@@ -143,11 +144,11 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	vamp_kv_set(&vamp_vreg_profile.query_params, "device", char_rf_id);
 
 	// Enviar request usando TELL y recibir respuesta
-	if (vamp_iface_comm(&vamp_vreg_profile, dev_response, VAMP_IFACE_BUFF_SIZE)) {
+	if (vamp_iface_comm(&vamp_vreg_profile, iface_buff, VAMP_IFACE_BUFF_SIZE)) {
 
 		/* Extraer los datos JSON de la respuesta */
 		#ifdef ARDUINOJSON_AVAILABLE
-		if (vamp_process_sync_json_response(dev_response)) {
+		if (vamp_process_sync_json_response(iface_buff)) {
 			/* Buscar el dispositivo en la tabla */
 			return vamp_find_device(rf_id);
 		}
@@ -479,8 +480,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		}
 
 		/* Serializar JSON al buffer */
-		size_t json_len = serializeJson(jsonDoc, req_resp_internet_buff, VAMP_IFACE_BUFF_SIZE - 1);
-		req_resp_internet_buff[json_len] = '\0';
+		size_t json_len = serializeJson(jsonDoc, iface_buff, VAMP_IFACE_BUFF_SIZE - 1);
+		iface_buff[json_len] = '\0';
 		rec_len = json_len;
 
 		/* HAY QUE RESISAR ESTO!!! */
@@ -497,7 +498,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 			return false;
 		}
 
-		size_t rec_iface_len = vamp_iface_comm(profile, req_resp_internet_buff, json_len);
+		size_t rec_iface_len = vamp_iface_comm(profile, iface_buff, json_len);
 
 		if(rec_iface_len > 0) {
 			#ifdef VAMP_DEBUG
@@ -519,7 +520,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 			}
 
 			//hay que dejar fuera el '\0'
-			memcpy(entry->data_buff, req_resp_internet_buff, rec_iface_len); // Copiar datos al buffer del dispositivo
+			memcpy(entry->data_buff, iface_buff, rec_iface_len); // Copiar datos al buffer del dispositivo
 
 			#ifdef VAMP_DEBUG
 			Serial.print("Datos recibidos del endpoint: ");
@@ -538,9 +539,6 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 /* --------------- WSN --------------- */
 
 int8_t vamp_gw_wsn(void) {
-
-	/* Buffer para datos WSN */
-	uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 
     /* Extraer el mensaje de la interface via callback */
 	int8_t recv_len = vamp_wsn_recv(wsn_buffer, VAMP_MAX_PAYLOAD_SIZE);

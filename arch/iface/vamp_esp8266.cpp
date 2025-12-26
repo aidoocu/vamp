@@ -205,14 +205,31 @@ bool esp8266_sta_init(const char * wifi_ssid, const char * wifi_password){
 		free(wifi_password_local);
 	}
 
-	wifi_ssid_local = (char*)malloc(strnlen(wifi_ssid, VAMP_SSID_MAX_LEN) + 1);
-	if (wifi_ssid_local) {
-		strncpy(wifi_ssid_local, wifi_ssid, VAMP_SSID_MAX_LEN);
+	/* Copiar SSID de forma segura usando su longitud real */
+	size_t ssid_len = strnlen(wifi_ssid, VAMP_SSID_MAX_LEN - 1);
+	wifi_ssid_local = (char*)malloc(ssid_len + 1);
+	if (!wifi_ssid_local) {
+		#ifdef VAMP_DEBUG
+		printf("[WiFi] Failed to allocate memory for SSID\n");
+		#endif /* VAMP_DEBUG */
+		return false;
 	}
-	wifi_password_local = (char*)malloc(strnlen(wifi_password, VAMP_PASSWORD_MAX_LEN) + 1);
-	if (wifi_password_local) {
-		strncpy(wifi_password_local, wifi_password, VAMP_PASSWORD_MAX_LEN);
+	memcpy(wifi_ssid_local, wifi_ssid, ssid_len);
+	wifi_ssid_local[ssid_len] = '\0';
+
+	/* Copiar password de forma segura usando su longitud real */
+	size_t pass_len = strnlen(wifi_password, VAMP_PASSWORD_MAX_LEN - 1);
+	wifi_password_local = (char*)malloc(pass_len + 1);
+	if (!wifi_password_local) {
+		#ifdef VAMP_DEBUG
+		printf("[WiFi] Failed to allocate memory for password\n");
+		#endif /* VAMP_DEBUG */
+		free(wifi_ssid_local);
+		wifi_ssid_local = NULL;
+		return false;
 	}
+	memcpy(wifi_password_local, wifi_password, pass_len);
+	wifi_password_local[pass_len] = '\0';
 
 	return esp8266_conn();
 
@@ -254,15 +271,19 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		return 0;
 	}
 
-	size_t full_url_len = strnlen(profile->endpoint_resource, VAMP_ENDPOINT_MAX_LEN);
-
 	/* Chequeo del recurso */
-	if (profile->endpoint_resource == NULL || 
-			full_url_len == 0 || 
-			full_url_len >= VAMP_ENDPOINT_MAX_LEN) {
+	if (profile->endpoint_resource == NULL) {
+		#ifdef VAMP_DEBUG
+		printf("[HTTP] Invalid endpoint resource (NULL)\n");
+		#endif /* VAMP_DEBUG */
+		return 0;
+	}
+
+	size_t full_url_len = strnlen(profile->endpoint_resource, VAMP_ENDPOINT_MAX_LEN);
+	if (full_url_len == 0 || full_url_len >= VAMP_ENDPOINT_MAX_LEN) {
 		/* Si llega aqui es que es un cadena vacía o no hay un '\0' dentro del límite */
 		#ifdef VAMP_DEBUG
-		printf("[HTTP] Invalid endpoint resource\n");
+		printf("[HTTP] Invalid endpoint resource length\n");
 		#endif /* VAMP_DEBUG */
 		return 0;
 	}
@@ -328,7 +349,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	}
 	
 	#ifdef VAMP_DEBUG
-	printf("[HTTP] Remote: %s\n [HTTP] query params: %d - protocol optionsand: %d\n", 
+	printf("[HTTP] Remote: %s\n[HTTP] query params: %d - protocol options: %d\n", 
 				full_url, 
 				profile->query_params.count, 
 				profile->protocol_options.count);
@@ -410,11 +431,6 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	// Procesar respuesta
 	if (httpResponseCode > 0) {
 
-		/* Obtener respuesta como String */
-		String response = https_http.getString();
-		/* Cerrar conexión */
-		https_http.end();
-
 		#ifdef VAMP_DEBUG
 		printf("[WiFi] Response code: %d - ", httpResponseCode);
 		#endif /* VAMP_DEBUG */
@@ -425,26 +441,59 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			#ifdef VAMP_DEBUG
 			printf("fail\n");
 			#endif /* VAMP_DEBUG */
-
+			https_http.end();
 			return 0;
 		}
 
-		if(response.length() == 0 || response.length() >= data_size) {
-			/* Buffer nulo o demasiado grande */
+		WiFiClient* stream = https_http.getStreamPtr();
+		if (!stream) {
 			#ifdef VAMP_DEBUG
-			printf("resplength invalid: %d\n", response.length());
+			printf("[WiFi] No stream available for response\n");
+			#endif /* VAMP_DEBUG */
+			https_http.end();
+			return 0;
+		}
+
+		int content_len = https_http.getSize();
+		if (content_len < 0) {
+			/* Desconocido: leer hasta que el servidor cierre */
+			content_len = (int)(data_size - 1);
+		}
+		if ((size_t)content_len >= data_size) {
+			content_len = (int)(data_size - 1);
+		}
+
+		int total_read = 0;
+		unsigned long start = millis();
+		while (total_read < content_len && (millis() - start) < HTTPS_TIMEOUT) {
+			if (stream->available()) {
+				int to_read = content_len - total_read;
+				int r = stream->readBytes((uint8_t*)data + total_read, to_read);
+				if (r <= 0) {
+					break;
+				}
+				total_read += r;
+			} else {
+				delay(1);
+			}
+		}
+
+		https_http.end();
+
+		if (total_read <= 0) {
+			#ifdef VAMP_DEBUG
+			printf("[WiFi] Empty or failed response body\n");
 			#endif /* VAMP_DEBUG */
 			return 0;
 		}
-		
-		/* Copiar respuesta al buffer proporcionado de forma segura */
-		sprintf(data, "%s", response.c_str());
+
+		data[total_read] = '\0';
 
 		#ifdef VAMP_DEBUG
 		printf("data: %s\n", data);
 		#endif /* VAMP_DEBUG */
 
-		return response.length(); // Éxito
+		return (size_t)total_read; // Éxito
 
 	} else {
 		#ifdef VAMP_DEBUG

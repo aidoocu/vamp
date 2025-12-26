@@ -67,6 +67,10 @@
 #define VAMP_DEVICE_TIMEOUT 600000   // Timeout de dispositivo (10 minutos)
 
 
+/* Buffer global para comunicación con interfaces IP (HTTP/HTTPS) */
+extern char iface_buff[VAMP_IFACE_BUFF_SIZE];
+
+
 void vamp_table_init(void);
 
 

@@ -35,7 +35,7 @@ bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* val
     }
 
     #ifdef VAMP_DEBUG
-    printf("Init/update key-value: %s = %s: ", key, value);
+    printf("[VAMP] Init/update key=value (%s=%s): ", key, value);
     #endif /* VAMP_DEBUG */
 
     /* Buscar si la key ya existe */
@@ -82,7 +82,7 @@ bool vamp_kv_set(vamp_key_value_store_t* store, const char* key, const char* val
     store->count++;
 
     #ifdef VAMP_DEBUG
-	printf("added, total: %u\n", store->count);
+	printf("(ADD) total: %u\n", store->count);
     #endif /* VAMP_DEBUG */
 
     return true;
