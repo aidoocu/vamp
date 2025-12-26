@@ -62,7 +62,11 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 
 	if(!gateway_conf || 
 	   !gateway_conf->vamp.gw_id || 
-	   !gateway_conf->vamp.vreg_resource) {
+	   !gateway_conf->vamp.vreg_resource ||
+		strnlen(gateway_conf->vamp.gw_id, VAMP_GW_ID_MAX_LEN) == 0 ||
+	   	strnlen(gateway_conf->vamp.vreg_resource, VAMP_ENDPOINT_MAX_LEN) == 0 ||
+	   	strnlen(gateway_conf->vamp.gw_id, VAMP_GW_ID_MAX_LEN) >= VAMP_GW_ID_MAX_LEN ||
+	   	strnlen(gateway_conf->vamp.vreg_resource, VAMP_ENDPOINT_MAX_LEN) >= VAMP_ENDPOINT_MAX_LEN) {
 		#ifdef VAMP_DEBUG
 		printf("[GW] Invalid gateway configuration\n");
 		#endif /* VAMP_DEBUG */
