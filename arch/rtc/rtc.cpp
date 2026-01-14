@@ -74,9 +74,19 @@ bool rtc_sync_time(void) {
     // Reutilizar rtc_set_date_time para parsear y aplicar al RTC
     if (!rtc_set_date_time(buf)) {
         Serial.println("[RTC_SYNC] failed to set RTC");
+        timeClient.end();
+        ntpUDP.stop();
         return false;
     }
 
+    // CRÍTICO: Liberar recursos NTP antes de salir
+    timeClient.end();
+    ntpUDP.stop();
+    
+    // Dar tiempo a la pila TCP/IP para limpiar sockets
+    delay(100);
+    
+    Serial.println("[RTC_SYNC] NTP resources released");
     return true;
 }
 

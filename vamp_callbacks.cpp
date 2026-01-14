@@ -229,69 +229,12 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 	}
 
 	#if defined(ARDUINO_ARCH_ESP8266)
-
-	/* Si debe ser configurada como estática */
-	if (vamp_conf->net.mode && vamp_conf->net.mode == VAMP_NET_STATIC) {
-
-		/* Validar que la IP estática esté definida (no 0.0.0.0) */
-		IPAddress ip = vamp_conf->net.ip;
-		if (ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0) {
-			#ifdef VAMP_DEBUG
-			Serial.println("[NET] Error: NET.mode == static pero NET.ip no está definida");
-			#endif
-			
-			/* No tiene sentido continuar sin IP */
-			return false;
-		}
-
-		/* Preparar valores de red, usar defaults cuando falten */
-			IPAddress gateway = vamp_conf->net.gateway;
-			IPAddress subnet = vamp_conf->net.subnet;
-			IPAddress dns1 = vamp_conf->net.dns1;
-			IPAddress dns2 = vamp_conf->net.dns2;
-
-		// Subnet por defecto
-		if (subnet[0] == 0 && subnet[1] == 0 && subnet[2] == 0 && subnet[3] == 0) {
-			subnet = IPAddress(255,255,255,0);
-			#ifdef VAMP_DEBUG
-			Serial.println("[NET] Subnet no proporcionada, usando 255.255.255.0");
-			#endif
-		}
-
-		// Gateway por defecto: misma red que la IP con .1
-		if (gateway[0] == 0 && gateway[1] == 0 && gateway[2] == 0 && gateway[3] == 0) {
-			gateway = ip;
-			gateway[3] = 1;
-			#ifdef VAMP_DEBUG
-			Serial.print("[NET] Gateway no proporcionado, usando: "); Serial.println(gateway);
-			#endif
-		}
-
-		// DNS por defecto
-		if (dns1[0] == 0 && dns1[1] == 0 && dns1[2] == 0 && dns1[3] == 0) {
-			dns1 = gateway;
-			#ifdef VAMP_DEBUG
-			Serial.print("[NET] DNS1 no proporcionado, usando gateway: "); Serial.println(dns1);
-			#endif
-		}
-		if (dns2[0] == 0 && dns2[1] == 0 && dns2[2] == 0 && dns2[3] == 0) {
-			dns2 = IPAddress(8,8,8,8);
-			#ifdef VAMP_DEBUG
-			Serial.print("[NET] DNS2 no proporcionado, usando 8.8.8.8\n");
-			#endif
-		}
-
-		esp8266_sta_static_ip(ip, gateway, subnet, dns1, dns2);
-	}
-
-	/* Inicializar la interfaz WiFi */
-	if(esp8266_sta_init(vamp_conf->wifi.ssid, vamp_conf->wifi.password)){
-		/* Inicializar clientes TCP */
-		esp8266_tcp_init();
+	/* Inicializar la interfaz WiFi - esto conecta y configura */
+	if(esp8266_sta_init(vamp_conf)){
 		return true;
-	} else {
-		return false;
-	}
+	} 
+	
+	return false;
 
 	
 	#endif // ARDUINO_ARCH_ESP8266
