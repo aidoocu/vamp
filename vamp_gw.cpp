@@ -101,7 +101,7 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 	vamp_vreg_profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!vamp_vreg_profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
-		Serial.println("[GW] Error allocating memory for resource VREG");
+		printf("[GW] Error allocating memory for resource VREG\n");
 		#endif /* VAMP_DEBUG */
 		return false;
 	}
@@ -156,7 +156,7 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	}
 
 	#ifdef VAMP_DEBUG
-	Serial.println("Error procesando respuesta VREG");
+	printf("[GW] Error procesando respuesta VREG\n");
 	#endif /* VAMP_DEBUG */
 	return VAMP_MAX_DEVICES; // No se espera respuesta de datos
 
@@ -175,13 +175,13 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 	if (cmd[0] == VAMP_JOIN_REQ) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("JOIN_REQ cmd");
+		printf("[GW] JOIN_REQ cmd\n");
 		#endif /* VAMP_DEBUG */
 
 		/* Verificamos que tenga el largo correcto */
 		if (len != VAMP_JOIN_REQ_LEN) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_REQ inválido, largo incorrecto");
+			printf("[GW] JOIN_REQ inválido, largo incorrecto\n");
 			#endif /* VAMP_DEBUG */
 			return; // Comando inválido
 		}
@@ -195,7 +195,7 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 			/* Dispositivo no encontrado en caché, hay que solicitarlo al VREG */
 			#ifdef VAMP_DEBUG
-			Serial.println("no in cache, asking VREG");
+			printf("[GW] no in cache, asking VREG\n");
 			#endif /* VAMP_DEBUG */
 
 					/* Si no esta en el cache hay que preguntarle al VREG */
@@ -203,27 +203,27 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 
 			if (node_index == VAMP_MAX_DEVICES) {
 				#ifdef VAMP_DEBUG
-				Serial.println("VREG: no device found");
+				printf("[GW] VREG: no device found\n");
 				#endif /* VAMP_DEBUG */
 				return; // Error al obtener el dispositivo
 			}
 
 			#ifdef VAMP_DEBUG
-			Serial.print("Dev found in VREG: ");
+			printf("[GW] Dev found in VREG: ");
 			#endif /* VAMP_DEBUG */
 
 
 		} 
 		#ifdef VAMP_DEBUG
 		else {
-			Serial.print("Dev in cache: ");
+			printf("Dev in cache: ");
 		}
 		#endif /* VAMP_DEBUG */
 		
 		vamp_entry_t * entry = vamp_get_table_entry(node_index);
 
 		#ifdef VAMP_DEBUG
-		Serial.println(entry->wsn_id);
+		printf("%d\n", entry->wsn_id);
 		#endif /* VAMP_DEBUG */
 
 		entry->status = VAMP_DEV_STATUS_REQUEST; // Marcar como en solicitud
@@ -251,28 +251,28 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 	if (cmd[0] ==  VAMP_JOIN_OK) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("JOIN_OK");
+		printf("[GW] JOIN_OK\n");
 		#endif /* VAMP_DEBUG */
 
 		vamp_entry_t * entry = vamp_get_table_entry(VAMP_GET_INDEX(cmd[1]));
 
 		if (!entry) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_OK: entrada no encontrada");
+			printf("[GW] JOIN_OK: entrada no encontrada\n");
 			#endif /* VAMP_DEBUG */
 			return; // Entrada no encontrada
 		}
 
 		if (entry->wsn_id != cmd[1]) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_OK: no coincide ID");
+			printf("[GW] JOIN_OK: no coincide ID\n");
 			#endif /* VAMP_DEBUG */
 			return; // ID no válido
 		}
 
 		if (entry->status != VAMP_DEV_STATUS_REQUEST) {
 			#ifdef VAMP_DEBUG
-			Serial.println("JOIN_OK: entrada no solicitada");
+			printf("[GW] JOIN_OK: entrada no solicitada\n");
 			#endif /* VAMP_DEBUG */
 			return; // Estado no válido
 		}
@@ -287,7 +287,7 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 	if (cmd[0] ==  VAMP_PING) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("PING");
+		printf("[GW] PING\n");
 		#endif /* VAMP_DEBUG */
 
 		/* ... */
@@ -300,7 +300,7 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 	if (cmd[0] ==  VAMP_PONG) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("PONG");
+		printf("[GW] PONG\n");
 		#endif /* VAMP_DEBUG */
 
 		/* ... */
@@ -314,14 +314,14 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		
 		/* Manejar el comando POLL */
 		#ifdef VAMP_DEBUG
-		Serial.println("Comando POLL recibido");
+		printf("[GW] Comando POLL recibido\n");
 		#endif /* VAMP_DEBUG */
 
 		/* buscar la entrada */
 		vamp_entry_t * entry = vamp_get_table_entry(VAMP_GET_INDEX(cmd[1]));
 		if (!entry) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Entrada no encontrada");
+			printf("[GW] Entrada no encontrada\n");
 			#endif /* VAMP_DEBUG */
 			return; // Entrada no encontrada
 		}
@@ -330,14 +330,13 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		uint16_t ticket = cmd[3] | (cmd[2] << 8);
 
 		#ifdef VAMP_DEBUG
-		Serial.print("Ticket recv: ");
-		Serial.println(ticket);
+		printf("[GW] Ticket recv: %d\n", ticket);
 		#endif /* VAMP_DEBUG */
 
 		if (ticket == entry->ticket) {
 			/* Si el ticket coincide, se puede procesar la solicitud */
 			#ifdef VAMP_DEBUG
-			Serial.println("and found it...");
+			printf("[GW] and found it...\n");
 			#endif /* VAMP_DEBUG */
 
 			uint8_t response[VAMP_MAX_PAYLOAD_SIZE];
@@ -350,7 +349,7 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		} else {
 			/* Si el ticket no coincide, se ignora la solicitud */
 			#ifdef VAMP_DEBUG
-			Serial.println("ticket deprecate");
+			printf("[GW] ticket deprecate\n");
 			#endif /* VAMP_DEBUG */
 		}
 
@@ -502,8 +501,8 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 
 		if(rec_iface_len > 0) {
 			#ifdef VAMP_DEBUG
-			Serial.println("respuesta desde el endpoint");
-			#endif /* VAMP_DEBUG */
+		printf("[GW] respuesta desde el endpoint\n");
+		#endif /* VAMP_DEBUG */
 
 			/* Liberar el buffer de datos anterior */
 			if (entry->data_buff) {
@@ -514,7 +513,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 			entry->data_buff = (char * )malloc(rec_iface_len + 1); // +1 para '\0'
 			if (!entry->data_buff) {
 				#ifdef VAMP_DEBUG
-				Serial.println("Error: No se pudo asignar memoria para el buffer de datos");
+				printf("Error: No se pudo asignar memoria para el buffer de datos\n");
 				#endif /* VAMP_DEBUG */
 				return false;
 			}
@@ -523,17 +522,14 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 			memcpy(entry->data_buff, iface_buff, rec_iface_len); // Copiar datos al buffer del dispositivo
 
 			#ifdef VAMP_DEBUG
-			Serial.print("Datos recibidos del endpoint: ");
-			Serial.println(entry->data_buff);
+			printf("Datos recibidos del endpoint: %s\n", entry->data_buff);
 			#endif /* VAMP_DEBUG */
 			return true;
 
 		}
 
-
 	/* Procesamiento exitoso */
 	return true;
-
 }
 
 /* --------------- WSN --------------- */
@@ -551,7 +547,7 @@ int8_t vamp_gw_wsn(void) {
 	if (wsn_buffer[0] & VAMP_IS_CMD_MASK) {
 
 		#ifdef VAMP_DEBUG
-		Serial.println("Comando recibido del WSN");
+		printf("[GW] Comando recibido del WSN\n");
 		#endif /* VAMP_DEBUG */
 
 		/* !!!!!!!!!!!!!!!! Si falla algun procesamiento de comando hay que manejarlo aqui !!!!!!! */

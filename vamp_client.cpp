@@ -38,7 +38,7 @@ void vamp_client_init(uint8_t * vamp_client_id) {
 	vamp_wsn_init(vamp_client_id);
 
 	#ifdef VAMP_DEBUG
- 	printf("[WSN] id:");
+ 	printf("[CLIENT] id:");
 	uint8_t * local_wsn_addr = vamp_get_local_wsn_addr();
 	vamp_debug_msg(local_wsn_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
@@ -88,7 +88,7 @@ bool vamp_join_network(void) {
 	}
 
 	#ifdef VAMP_DEBUG
-	printf("[WSN] Joining\n");
+	printf("[CLIENT] Joining\n");
 	#endif /* VAMP_DEBUG */
 
 	/* Enviar mensaje de unión al gateway */
@@ -97,7 +97,7 @@ bool vamp_join_network(void) {
 	if ((payload_len == 0) 
 		|| (req_resp_wsn_buff[0] != (VAMP_JOIN_OK | VAMP_IS_CMD_MASK)) 
 		|| (payload_len != (2 + VAMP_ADDR_LEN))) {
-		printf("[WSN] join failed\n");
+		printf("[CLIENT] join failed\n");
 		return false;
 	}
 
@@ -111,7 +111,7 @@ bool vamp_join_network(void) {
 		/* Verificar que la dirección del gateway sea válida */
 		if (!vamp_is_rf_id_valid(vamp_gw_addr)) {
 			#ifdef VAMP_DEBUG
-			printf("[WSN] invalid gw\n");
+			printf("[CLIENT] invalid gw\n");
 			#endif
 
 			/* 	Resetear conexión si la dirección es inválida para mantener los chequeos
@@ -127,7 +127,7 @@ bool vamp_join_network(void) {
 	payload_len = vamp_wsn_send(vamp_gw_addr, req_resp_wsn_buff, payload_len);
 
 	#ifdef VAMP_DEBUG
-	printf("[WSN] joined! GW: ");
+	printf("[CLIENT] joined! GW: ");
 	vamp_debug_msg(vamp_gw_addr, VAMP_ADDR_LEN);
 	#endif /* VAMP_DEBUG */
 
@@ -184,12 +184,12 @@ bool vamp_fail_handle(void){
 		}
 
 		#ifdef VAMP_DEBUG
-		Serial.println("[WSN] disconnected\n");
+		printf("[CLIENT] disconnected\n");
 		#endif /* VAMP_DEBUG */
 	}
 
 	#ifdef VAMP_DEBUG
-	printf("[WSN] comm failed\n");
+	printf("[CLIENT] comm failed\n");
 	#endif /* VAMP_DEBUG */
 
 	return false; // Fallo en el re-join o en el reenvío después de re-join
@@ -285,8 +285,7 @@ uint16_t vamp_client_ask(uint8_t profile) {
 			ticket |= ((uint16_t)req_resp_wsn_buff[1] << 8);
 
 			#ifdef VAMP_DEBUG
-			Serial.print("Ticket: ");
-			Serial.println(ticket);
+			printf("[CLIENT] Ticket: %d\n", ticket);
 			#endif /* VAMP_DEBUG */
 
 			return ticket;

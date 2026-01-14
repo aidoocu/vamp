@@ -182,7 +182,7 @@ bool nrf_is_chip_active(void) {
 			delay(100);
 
 			#ifdef VAMP_DEBUG
-			Serial.print(".");
+			printf(".");
 			#endif /* VAMP_DEBUG */
 
 			if (nrf_init()) {

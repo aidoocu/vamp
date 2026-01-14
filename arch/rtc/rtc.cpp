@@ -20,7 +20,7 @@ uRTCLib rtc(RTC_ADDR);
 bool rtc_sync_time(void) {
 
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("[RTC_SYNC] WiFi not connected");
+        printf("[RTC_SYNC] WiFi not connected\n");
         return false;
     }
 
@@ -50,30 +50,29 @@ bool rtc_sync_time(void) {
     }
 
     if (tries == RTC_NTP_MAX_TRIES && epoch < RTC_NTP_EPOCH_CHECK) {
-        Serial.println("[RTC_SYNC] NTP update failed after retries");
+        printf("[RTC_SYNC] NTP update failed after retries\n");
         return false;
     }
 
     time_t t = (time_t)timeClient.getEpochTime();
     struct tm *utc = gmtime(&t);
     if (!utc) {
-        Serial.println("[RTC_SYNC] gmtime failed");
+        printf("[RTC_SYNC] gmtime failed\n");
         return false;
     }
 
     // Construir cadena ISO 8601 UTC: yyyy-mm-ddThh:mm:ssZ
     char buf[DATE_TIME_BUFF];
     if (strftime(buf, DATE_TIME_BUFF, "%Y-%m-%dT%H:%M:%SZ", utc) == 0) {
-        Serial.println("[RTC_SYNC] strftime failed");
+        printf("[RTC_SYNC] strftime failed\n");
         return false;
     }
 
-    Serial.print("[RTC_SYNC] setting RTC to ");
-    Serial.println(buf);
+    printf("[RTC_SYNC] setting RTC to %s\n", buf);
 
     // Reutilizar rtc_set_date_time para parsear y aplicar al RTC
     if (!rtc_set_date_time(buf)) {
-        Serial.println("[RTC_SYNC] failed to set RTC");
+        printf("[RTC_SYNC] failed to set RTC\n");
         timeClient.end();
         ntpUDP.stop();
         return false;
@@ -86,7 +85,7 @@ bool rtc_sync_time(void) {
     // Dar tiempo a la pila TCP/IP para limpiar sockets
     delay(100);
     
-    Serial.println("[RTC_SYNC] NTP resources released");
+    printf("[RTC_SYNC] NTP resources released\n");
     return true;
 }
 
@@ -125,7 +124,7 @@ void rtc_get_time(char * time) {
 bool rtc_set_date_time(char * date_time) {
     // Acepta formato ISO 8601 UTC (Z)
     if(!rtc_validate_date_time(date_time)) {
-        Serial.println("Invalid date_time");
+        printf("[RTC] Invalid date_time\n");
         return false;
     }
     int year, month, day, hour, minute, second;

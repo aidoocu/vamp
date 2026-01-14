@@ -259,7 +259,7 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 	profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
-		Serial.println("Error: No se pudo reservar memoria para endpoint");
+		printf("[CALLBACK] Error: No se pudo reservar memoria para endpoint\n");
 		#endif /* VAMP_DEBUG */
 		return 0;
 	}
@@ -278,7 +278,7 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 			break;
 		default:
 			#ifdef VAMP_DEBUG
-			Serial.println("Error: Método HTTP no soportado");
+			printf("[CALLBACK] Error: Método HTTP no soportado\n");
 			#endif /* VAMP_DEBUG */
 			free(profile.endpoint_resource);
 			return 0;

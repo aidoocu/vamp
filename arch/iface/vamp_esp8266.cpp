@@ -56,6 +56,40 @@ static bool tls_ok = false;
 static WiFiClient tcp_client;
 static HTTPClient https_http;
 
+/* Intentar reservar memoria TLS haciendo un handshake de prueba */
+static bool esp8266_tls_init() {
+	/* Verificar si hay suficiente memoria para el handshake
+	6K para TLS + 2K para overhead + 512 + 256 para buffers */
+	if (ESP.getFreeHeap() < (6000 + 2048 + 512 + 256)) {
+		#ifdef VAMP_DEBUG
+		printf("[TLS] Not enough heap for TLS init\n");
+		#endif
+		return false;
+	}
+
+	#ifdef VAMP_DEBUG
+	printf("[TLS] Attempting handshake to reserve memory...\n");
+	#endif
+
+	tcp_secure_client.setInsecure();
+	/* utilizar tamaños de buffers mínimos para garantizar la conexión */
+	tcp_secure_client.setBufferSizes(512, 256);
+
+	if(tcp_secure_client.connect("httpbin.org", 443)) {
+		#ifdef VAMP_DEBUG
+		printf("[TLS] Handshake OK\n");
+		#endif
+		tcp_secure_client.stop();
+		return true;
+	} else {
+		#ifdef VAMP_DEBUG
+		printf("[TLS] Handshake failed\n");
+		#endif
+		tcp_secure_client.stop();
+		return false;
+	}
+}
+
 /* Inicializar cliente HTTPS */
 bool esp8266_conn() {
 
@@ -81,7 +115,7 @@ bool esp8266_conn() {
 		IPAddress ip = vamp_conf_local->net.ip;
 		if (ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0) {
 			#ifdef VAMP_DEBUG
-			Serial.println("[NET] Error: NET.mode == static pero NET.ip no está definida");
+			printf("[NET] Error: NET.mode == static pero NET.ip no está definida\n");
 			#endif
 			
 			/* No tiene sentido continuar sin IP */
@@ -98,7 +132,7 @@ bool esp8266_conn() {
 		if (subnet[0] == 0 && subnet[1] == 0 && subnet[2] == 0 && subnet[3] == 0) {
 			subnet = IPAddress(255,255,255,0);
 			#ifdef VAMP_DEBUG
-			Serial.println("[NET] Subnet no proporcionada, usando 255.255.255.0");
+			printf("[NET] Subnet no proporcionada, usando 255.255.255.0\n");
 			#endif
 		}
 
@@ -107,7 +141,8 @@ bool esp8266_conn() {
 			gateway = ip;
 			gateway[3] = 1;
 			#ifdef VAMP_DEBUG
-			Serial.print("[NET] Gateway no proporcionado, usando: "); Serial.println(gateway);
+			printf("[NET] Gateway no proporcionado, usando: %d.%d.%d.%d\n", 
+			       gateway[0], gateway[1], gateway[2], gateway[3]);
 			#endif
 		}
 
@@ -115,13 +150,14 @@ bool esp8266_conn() {
 		if (dns1[0] == 0 && dns1[1] == 0 && dns1[2] == 0 && dns1[3] == 0) {
 			dns1 = gateway;
 			#ifdef VAMP_DEBUG
-			Serial.print("[NET] DNS1 no proporcionado, usando gateway: "); Serial.println(dns1);
+			printf("[NET] DNS1 no proporcionado, usando gateway: %d.%d.%d.%d\n", 
+			       dns1[0], dns1[1], dns1[2], dns1[3]);
 			#endif
 		}
 		if (dns2[0] == 0 && dns2[1] == 0 && dns2[2] == 0 && dns2[3] == 0) {
 			dns2 = IPAddress(8,8,8,8);
 			#ifdef VAMP_DEBUG
-			Serial.print("[NET] DNS2 no proporcionado, usando 8.8.8.8\n");
+			printf("[NET] DNS2 no proporcionado, usando 8.8.8.8\n");
 			#endif
 		}
 
@@ -193,28 +229,16 @@ bool esp8266_conn() {
 		//draw_wifi_signal_bar();
 		#endif	 /* OLED_DISPLAY */
 
-		Serial.printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
-    	Serial.printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
-   		Serial.printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
+		printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
+    	printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
+   		printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
 
 		/* Inicialización de la conexion TLS, aqui se reserva heap para BearSSL */
-		tcp_secure_client.setInsecure();
-		if(tcp_secure_client.connect("https://httpbin.org/get", 443)) {
-			#ifdef VAMP_DEBUG
-			printf("[WiFi] TLS handshake OK\n");
-			#endif /* VAMP_DEBUG */
-			tls_ok = true;
-    	} else {
-			#ifdef VAMP_DEBUG
-			printf("[WiFi] TLS handshake failed\n");
-			#endif /* VAMP_DEBUG */
-		}
-		/* Liberar recursos pase lo que pase */
-    	tcp_secure_client.stop();
+		tls_ok = esp8266_tls_init();
 
-		Serial.printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
-    	Serial.printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
-    	Serial.printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
+		printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
+    	printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
+    	printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
 
 		return true;
 
@@ -419,12 +443,18 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	/* Discriminar entre HTTP y HTTPS */
 	if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
 
-		/* verificar si TLS está disponible */
-		if (tls_ok) {
+		/* verificar si TLS está disponible, si no, intentar inicializarlo */
+		if (!tls_ok) {
 			#ifdef VAMP_DEBUG
-			printf("[HTTP] TLS not available, cannot proceed with HTTPS request\n");
+			printf("[HTTP] TLS not initialized, attempting to initialize...\n");
 			#endif /* VAMP_DEBUG */
-			return 0;
+			tls_ok = esp8266_tls_init();
+			if (!tls_ok) {
+				#ifdef VAMP_DEBUG
+				printf("[HTTP] TLS initialization failed, cannot proceed with HTTPS request\n");
+				#endif /* VAMP_DEBUG */
+				return 0;
+			}
 		}
 
 		/* verificar cuanta memoria libre hay para TLS */

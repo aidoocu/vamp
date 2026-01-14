@@ -160,7 +160,7 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 	/* Asegurarse que el dispositivo es válido */
 	if (!vamp_is_rf_id_valid(rf_id)) {
 		#ifdef VAMP_DEBUG
-		Serial.println("RF_ID no válido");
+		printf("[TABLE] RF_ID no válido\n");
 		#endif /* VAMP_DEBUG */
 		return VAMP_MAX_DEVICES;
 	}
@@ -180,7 +180,7 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 
 		if(table_index >= VAMP_MAX_DEVICES) {
 			#ifdef VAMP_DEBUG
-			Serial.println("No hay slots libres ni inactivos");
+			printf("[TABLE] No hay slots libres ni inactivos\n");
 			#endif /* VAMP_DEBUG */
 			return VAMP_MAX_DEVICES; // No hay espacio para un nuevo dispositivo
 		}
@@ -201,7 +201,7 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		vamp_table[table_index].data_buff = (char * )malloc(VAMP_MAX_PAYLOAD_SIZE + 1);
 		if (!vamp_table[table_index].data_buff) {
 			#ifdef VAMP_DEBUG
-			Serial.println("Error: No se pudo reservar memoria para data_buff");
+			printf("[TABLE] Error: No se pudo reservar memoria para data_buff\n");
 			#endif /* VAMP_DEBUG */
 			// Si falla la reserva, limpiar la entrada y retornar error
 			vamp_table[table_index].status = VAMP_DEV_STATUS_FREE;
@@ -209,8 +209,7 @@ uint8_t vamp_add_device(const uint8_t* rf_id) {
 		}
 		
 		#ifdef VAMP_DEBUG
-		Serial.print("Buffer de datos reservado para dispositivo en índice ");
-		Serial.println(table_index);
+		printf("[TABLE] Buffer de datos reservado para dispositivo en índice %d\n", table_index);
 		#endif /* VAMP_DEBUG */
 	}
   
