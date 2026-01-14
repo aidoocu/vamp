@@ -50,7 +50,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 	DeserializationError error = deserializeJson(doc, json_data);
 	if (error) {
 		#ifdef VAMP_DEBUG
-		printf("[JSON] Error parseando JSON: %s\n", error.c_str());
+		printf("[JSON] Error parseando JSON: %d\n", (int)error.code());
 		#endif /* VAMP_DEBUG */
 		return false;
 	}

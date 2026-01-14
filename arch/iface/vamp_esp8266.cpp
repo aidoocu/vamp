@@ -100,7 +100,7 @@ bool esp8266_conn() {
 		IPAddress ip = WiFi.localIP();
 		snprintf(ip_buf, sizeof(ip_buf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
 		printf("[WiFi] Already connected to %s, IP: %s\n", 
-			WiFi.SSID().c_str(), ip_buf);
+			vamp_conf_local->wifi.ssid, ip_buf);
 		#endif
 		return true;
 	}
