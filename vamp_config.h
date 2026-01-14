@@ -72,9 +72,6 @@ typedef struct {
 /* Estructuras agrupadas para la configuración del gateway
    Mantener las propiedades antiguas para compatibilidad, pero
    preferir las sub-estructuras (VAMP, WIFI, NRF, STORAGE) en nuevo código.
-   (ToDo: estan utilizando String en vez de char[] por simplicidad, pero
-   esto puede ser ineficiente en memoria, revisar en el futuro, o utilizar el
-   tipo std::string si es posible)
 */
 typedef struct {
     char * gw_id;                // vamp_gw_id

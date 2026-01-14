@@ -62,8 +62,11 @@ bool esp8266_conn() {
 	/* Si ya estamos conectados, no reinicializar */
 	if (WiFi.status() == WL_CONNECTED) {
 		#ifdef VAMP_DEBUG
+		char ip_buf[16];
+		IPAddress ip = WiFi.localIP();
+		snprintf(ip_buf, sizeof(ip_buf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
 		printf("[WiFi] Already connected to %s, IP: %s\n", 
-			WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+			WiFi.SSID().c_str(), ip_buf);
 		#endif
 		return true;
 	}
@@ -176,7 +179,10 @@ bool esp8266_conn() {
 	if (WiFi.status() == WL_CONNECTED) {
 
 		#ifdef VAMP_DEBUG
-		printf("\n[WiFi] connected! IP: %s\n", WiFi.localIP().toString().c_str());
+		char ip_buf[16];
+		IPAddress ip = WiFi.localIP();
+		snprintf(ip_buf, sizeof(ip_buf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+		printf("\n[WiFi] connected! IP: %s\n", ip_buf);
 		#endif /* VAMP_DEBUG */
 
 		/* Display */
@@ -259,7 +265,10 @@ bool esp8266_check_conn() {
 	
 	if (WiFi.status() == WL_CONNECTED) {
 		#ifdef VAMP_DEBUG
-		printf("[WiFi] Reconnected! IP: %s\n", WiFi.localIP().toString().c_str());
+		char ip_buf[16];
+		IPAddress ip = WiFi.localIP();
+		snprintf(ip_buf, sizeof(ip_buf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+		printf("[WiFi] Reconnected! IP: %s\n", ip_buf);
 		#endif /* VAMP_DEBUG */
 		return true;
 	} else {
@@ -539,7 +548,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		total_read = 0;
 
 		if (is_chunked) {
-		    /* CHUNKED: Decodificar manualmente SIN String */
+		    /* CHUNKED: Decodificar manualmente SIN string */
 		    while (total_read < (int)(data_size - 1)) {
 		        /* Leer tamaño del chunk (línea HEX) byte a byte */
 		        char hex_buf[16];
@@ -608,9 +617,8 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 
 	} else {
 		#ifdef VAMP_DEBUG
-		printf("[WiFi] Error in %s: %d -> %s\n", ((profile_protocol == VAMP_PROTOCOL_HTTPS) ? "HTTPS" : "HTTP"), 
-													httpResponseCode, 
-													https_http.errorToString(httpResponseCode).c_str());
+		printf("[WiFi] Error in %s: %d\n", ((profile_protocol == VAMP_PROTOCOL_HTTPS) ? "HTTPS" : "HTTP"), 
+													httpResponseCode);
 		#endif /* VAMP_DEBUG */
 		https_http.end();
 		

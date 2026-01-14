@@ -110,7 +110,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 		#ifdef VAMP_DEBUG
 		Serial.print("RF_ID recibido: ");
-		Serial.println(node["rf_id"].as<String>());
+		Serial.println(node["rf_id"].as<const char*>());
 		#endif /* VAMP_DEBUG */
 
 		/* Buscar si el nodo ya esta en la tabla */
@@ -118,7 +118,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 		if (table_index < VAMP_MAX_DEVICES) {
 			#ifdef VAMP_DEBUG
 			Serial.print("Nodo registrado ");
-			Serial.println(node["rf_id"].as<String>());
+			Serial.println(node["rf_id"].as<const char*>());
 			#endif /* VAMP_DEBUG */
 		}
 		if (table_index > VAMP_MAX_DEVICES) {
@@ -148,7 +148,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 			if (table_index >= VAMP_MAX_DEVICES) {
 				#ifdef VAMP_DEBUG
 				Serial.print("Error agregando nodo a la tabla: ");
-				Serial.print(node["rf_id"].as<String>());
+				Serial.print(node["rf_id"].as<const char*>());
 				Serial.println(" - Sin slots disponibles o error interno");
 				#endif /* VAMP_DEBUG */
 				continue; // Saltar este dispositivo y continuar con el siguiente
@@ -156,7 +156,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 			#ifdef VAMP_DEBUG
 			Serial.print("Nodo agregado ");
-			Serial.println(node["rf_id"].as<String>());
+			Serial.println(node["rf_id"].as<const char*>());
 			#endif /* VAMP_DEBUG */
 
 			vamp_entry_t * entry = vamp_get_table_entry(table_index);
@@ -181,7 +181,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 				/* !!!!! valor por defecto ???? */
 				#ifdef VAMP_DEBUG
 				Serial.print("Tipo de dispositivo desconocido: ");
-				Serial.println(node["type"].as<String>());
+				Serial.println(node["type"].as<const char*>());
 				#endif /* VAMP_DEBUG */
 				entry->type = 0; // Valor por defecto
 			}
@@ -225,7 +225,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 					} else {
 						#ifdef VAMP_DEBUG
 						Serial.print("Método desconocido: ");
-						Serial.println(profile["method"].as<String>());
+					Serial.println(profile["method"].as<const char*>());
 						#endif /* VAMP_DEBUG */
 						/* !!! no me gustan estos valores por defecto !!!  */
 						entry->profiles[profile_index].method = 0; // Valor por defecto
