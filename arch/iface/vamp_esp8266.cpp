@@ -75,17 +75,21 @@ static bool esp8266_tls_init() {
 	/* utilizar tamaños de buffers mínimos para garantizar la conexión */
 	tcp_secure_client.setBufferSizes(512, 256);
 
-	if(tcp_secure_client.connect("httpbin.org", 443)) {
+	/* Handshake de prueba para reservar memoria TLS */
+	bool handshake_ok = tcp_secure_client.connect("httpbin.org", 443);
+	/* E inmediatamente pase lo que pase cerrar la conexión */
+	tcp_secure_client.stop();
+
+	/* Evaluar resultado del handshake */
+	if(handshake_ok) {
 		#ifdef VAMP_DEBUG
 		printf("[TLS] Handshake OK\n");
 		#endif
-		tcp_secure_client.stop();
 		return true;
 	} else {
 		#ifdef VAMP_DEBUG
 		printf("[TLS] Handshake failed\n");
 		#endif
-		tcp_secure_client.stop();
 		return false;
 	}
 }
@@ -229,16 +233,8 @@ bool esp8266_conn() {
 		//draw_wifi_signal_bar();
 		#endif	 /* OLED_DISPLAY */
 
-		printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
-    	printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
-   		printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
-
 		/* Inicialización de la conexion TLS, aqui se reserva heap para BearSSL */
 		tls_ok = esp8266_tls_init();
-
-		printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
-    	printf("{MEN} frag. Heap: %d B\n", ESP.getHeapFragmentation());
-    	printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
 
 		return true;
 

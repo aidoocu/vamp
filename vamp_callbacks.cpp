@@ -252,11 +252,10 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 	}
 
 	/* crear perfil temporal para comunicación */
-	uint8_t url_len = strlen(url);
 	vamp_profile_t profile = {};
 
 	/* Reservar memoria para el endpoint antes de usarlo */
-	profile.endpoint_resource = (char*)malloc(url_len + 1);
+	profile.endpoint_resource = (char*)url;
 	if (!profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
 		printf("[CALLBACK] Error: No se pudo reservar memoria para endpoint\n");
@@ -264,10 +263,6 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 		return 0;
 	}
 	
-	memcpy(profile.endpoint_resource, url, url_len);
-	/* Asegurar terminación nula */
-	profile.endpoint_resource[url_len] = '\0';
-
 	/* Configurar método HTTP */
 	switch (method) {
 		case VAMP_HTTP_METHOD_GET:
@@ -280,7 +275,6 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 			#ifdef VAMP_DEBUG
 			printf("[CALLBACK] Error: Método HTTP no soportado\n");
 			#endif /* VAMP_DEBUG */
-			free(profile.endpoint_resource);
 			return 0;
 	}
 
@@ -295,9 +289,6 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 	/* Se devuelve 0 en caso de no tener ninguna arquitectura definida */
 	len = 0;
 	#endif // ARDUINO_ARCH_ESP8266
-
-	/* Liberar memoria reservada siempre */
-	free(profile.endpoint_resource);
 
 	return len; // Implementar la comunicación con el servidor VREG
 

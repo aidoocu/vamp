@@ -93,10 +93,7 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 
 	/* GET como método */
 	vamp_vreg_profile.method = VAMP_HTTP_METHOD_GET;
-	/* Liberar memoria previa si es necesario */
-	if (vamp_vreg_profile.endpoint_resource) {
-		free(vamp_vreg_profile.endpoint_resource);
-	}
+	
 	/* Copiar el endpoint al perfil local del vreg */
 	vamp_vreg_profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!vamp_vreg_profile.endpoint_resource) {
