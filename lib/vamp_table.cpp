@@ -57,9 +57,9 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 		/* Extraer los datos JSON de la respuesta */
 		#ifdef ARDUINOJSON_AVAILABLE
     if (vamp_process_sync_json_response(iface_buff)) {
-			Serial.println("Sincronización VREG completada exitosamente");
+			printf("[VAMP] VREG Sync successful\n");
 		} else {
-			Serial.println("Error procesando respuesta VREG");
+			printf("[VAMP] VREG Sync failed\n");
 		}
 		#endif /* ARDUINOJSON_AVAILABLE */
 
