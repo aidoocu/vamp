@@ -671,16 +671,12 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		#ifdef VAMP_DEBUG
 		printf("data: %s\n", data);
 		#endif /* VAMP_DEBUG */
-		
-		/* Éxito */
-		goto end_response; 
 
 	} else {
 		#ifdef VAMP_DEBUG
 		printf("[WiFi] Error in %s: %d\n", ((profile_protocol == VAMP_PROTOCOL_HTTPS) ? "HTTPS" : "HTTP"), 
 													httpResponseCode);
 		#endif /* VAMP_DEBUG */
-		https_http->end();
 		
 		fail = true;
 		/* Si es -1 es que no hay conexión asi que se puede intentar reconectar o algo asi */ 
