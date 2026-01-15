@@ -115,7 +115,7 @@ bool vamp_iface_init(const gw_config_t * vamp_conf);
  * @param len Length of data buffer
  * @return len of data received from the server, 0 on failure
  */
-uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, size_t len);
+//uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, size_t len);
 
 // Forward declare profile type to avoid including vamp_gw.h here
 struct vamp_profile_t;

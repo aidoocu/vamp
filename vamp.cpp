@@ -56,20 +56,13 @@ void vamp_gw_init(const gw_config_t * gw_config) {
 	printf("[GW] WSN interface initialized\n");
 	#endif /* VAMP_DEBUG */
 
-	printf("TABLE INIT BEFORE\n");
-
-	printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
-	printf("{MEN} frag. Heap: %d%%\n", ESP.getHeapFragmentation());
-	printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
-
 	/* Inicializar la tabla VAMP */
     vamp_table_init();
 
-	printf("TABLE INIT AFTER\n");
-
-	printf("{MEN} free heap: %d B\n", ESP.getFreeHeap());
-	printf("{MEN} frag. Heap: %d%%\n", ESP.getHeapFragmentation());
-	printf("{MEN} max free block: %d B\n", ESP.getMaxFreeBlockSize());
+	printf("[TABLE]TABLE INIT AFTER\n");
+	//printf("{MEM} free heap: %d B\n", ESP.getFreeHeap());
+	printf("{MEM} frag. Heap: %d%%\n", ESP.getHeapFragmentation());
+	printf("{MEM} ---- max free block: %d B\n", ESP.getMaxFreeBlockSize());
 
 	return;
 }

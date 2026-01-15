@@ -245,26 +245,26 @@ bool vamp_iface_init(const gw_config_t * vamp_conf) {
 
 /* Callback para comunicación con el servidor VREG */
 /* Revisar porque para un GET no hay data */
-uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, size_t len) {
+/* uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, size_t len) { */
 	/* Verificar que no sea nulo */
-	if (!url || !data) {
+/* 	if (!url || !data) {
 		return 0;
-	}
+	} */
 
 	/* crear perfil temporal para comunicación */
-	vamp_profile_t profile = {};
+/* 	vamp_profile_t profile = {}; */
 
 	/* Reservar memoria para el endpoint antes de usarlo */
-	profile.endpoint_resource = (char*)url;
+/* 	profile.endpoint_resource = (char*)url;
 	if (!profile.endpoint_resource) {
 		#ifdef VAMP_DEBUG
 		printf("[CALLBACK] Error: No se pudo reservar memoria para endpoint\n");
-		#endif /* VAMP_DEBUG */
+		#endif // VAMP_DEBUG
 		return 0;
-	}
+	} */
 	
 	/* Configurar método HTTP */
-	switch (method) {
+/* 	switch (method) {
 		case VAMP_HTTP_METHOD_GET:
 			profile.method = VAMP_HTTP_METHOD_GET;
 			break;
@@ -274,25 +274,25 @@ uint8_t vamp_iface_comm(const uint8_t method, const char * url, char * data, siz
 		default:
 			#ifdef VAMP_DEBUG
 			printf("[CALLBACK] Error: Método HTTP no soportado\n");
-			#endif /* VAMP_DEBUG */
-			return 0;
-	}
+			#endif // VAMP_DEBUG
+ 			return 0;
+	} */
 
 	/* Inicializar stores key-value */
-	vamp_kv_init(&profile.protocol_options);
-	vamp_kv_init(&profile.query_params);
+/* 	vamp_kv_init(&profile.protocol_options);
+	vamp_kv_init(&profile.query_params); */
 
-	#if defined(ARDUINO_ARCH_ESP8266)
+/* 	#if defined(ARDUINO_ARCH_ESP8266) */
 	/* Usar función unificada para HTTP/HTTPS */
-	len = (uint8_t)esp8266_http_request(&profile, data, len);
-	#else //#elif en caso de otras arquitecturas
+/* 	len = (uint8_t)esp8266_http_request(&profile, data, len); */
+/* 	#else //#elif en caso de otras arquitecturas */
 	/* Se devuelve 0 en caso de no tener ninguna arquitectura definida */
-	len = 0;
-	#endif // ARDUINO_ARCH_ESP8266
+/* 	len = 0; */
+/* 	#endif // ARDUINO_ARCH_ESP8266 */
 
-	return len; // Implementar la comunicación con el servidor VREG
+/* 	return len; // Implementar la comunicación con el servidor VREG
 
-}
+} */
 
 /* Internal helper that uses explicit method and params */
 uint8_t vamp_iface_comm(const vamp_profile_t * profile, char * data, size_t len) {

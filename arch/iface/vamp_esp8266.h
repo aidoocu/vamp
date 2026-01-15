@@ -11,8 +11,8 @@
 #include "../../lib/vamp_table.h"
 
 
-#define TLS_BUFFER_SIZE_TX 3072
-#define TLS_BUFFER_SIZE_RX 2048
+#define TLS_BUFFER_SIZE_TX 512
+#define TLS_BUFFER_SIZE_RX 1024
 
 /** Mínimo de heap para TLS
  * El BearSSL la primera vez que intenta una conexion usa 6KB de stack, los reserva
@@ -28,7 +28,7 @@
  * @note Si se usan certificados, este valor debe ser mayor.
  * @note Este valor no puede ser menor que los buffers que van a procesar los datos.
 */
-#define MIN_HEAP_FOR_TLS 2000 + TLS_BUFFER_SIZE_TX + TLS_BUFFER_SIZE_RX /* 2KB overhead + Tx + Rx buffers */
+#define MIN_HEAP_FOR_TLS 6000 + 2000 + TLS_BUFFER_SIZE_TX + TLS_BUFFER_SIZE_RX /* 2KB overhead + Tx + Rx buffers */
 
  /** @brief Inicializa la WiFi station (STA) en el ESP8266
   * 

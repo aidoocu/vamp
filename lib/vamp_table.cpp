@@ -56,10 +56,28 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 
 		/* Extraer los datos JSON de la respuesta */
 		#ifdef ARDUINOJSON_AVAILABLE
+
+    printf("{MEM} memory status before table update\n");
+		//printf("{TLS} free heap: %d B\n", ESP.getFreeHeap());
+		printf("{MEM} frag: %d%%\n", ESP.getHeapFragmentation());
+		printf("{MEM} ---- max block: %d B\n", ESP.getMaxFreeBlockSize());
+
     if (vamp_process_sync_json_response(iface_buff)) {
+      #ifdef VAMP_DEBUG
 			printf("[VAMP] VREG Sync successful\n");
-		} else {
+      #endif /* VAMP_DEBUG */
+
+      printf("{MEM} memory status after table update\n");
+      //printf("{TLS} free heap: %d B\n", ESP.getFreeHeap());
+      printf("{MEM} frag: %d%%\n", ESP.getHeapFragmentation());
+      printf("{MEM} ---- max block: %d B\n", ESP.getMaxFreeBlockSize());
+
+		}
+    #ifdef VAMP_DEBUG
+    else {
+      
 			printf("[VAMP] VREG Sync failed\n");
+    #endif /* VAMP_DEBUG */
 		}
 		#endif /* ARDUINOJSON_AVAILABLE */
 
@@ -142,10 +160,9 @@ void vamp_clear_entry(int index) {
 		// Liberar recursos asignados dinámicamente en todos los perfiles
 		vamp_clear_device_profiles(index);
 		
-		// Liberar buffer de datos temporales si existe
+		// Limpiar contenido del buffer (NO liberar memoria pre-asignada)
 		if (vamp_table[index].data_buff) {
-			free(vamp_table[index].data_buff);
-			vamp_table[index].data_buff = NULL;
+			memset(vamp_table[index].data_buff, 0, VAMP_MAX_PAYLOAD_SIZE + 1);
 		}
 		
     // Solo marcar como libre - otros campos se sobrescriben cuando se reasigna

@@ -41,6 +41,9 @@ typedef struct {
 /** @brief Inicializar un store de key-value */
 void vamp_kv_init(vamp_key_value_store_t* store);
 
+/** @brief Pre-asignar capacidad máxima (llamar una vez al inicio) */
+bool vamp_kv_preallocate(vamp_key_value_store_t* store);
+
 /** @brief Liberar memoria de un store de key-value */
 void vamp_kv_free(vamp_key_value_store_t* store);
 

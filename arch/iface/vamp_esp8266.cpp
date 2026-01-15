@@ -50,11 +50,31 @@ static gw_config_t * vamp_conf_local = NULL;
 /* -----------------------------  /WiFi --------------------------------- */
 
 
-/* Objetos globales para comunicación (reutilizables - estáticos para persistencia) */
-static WiFiClientSecure tcp_secure_client;
+/* Objetos globales para comunicación (reutilizables - punteros para control de construcción) */
+static WiFiClientSecure* tcp_secure_client = nullptr;
 static bool tls_ok = false;
-static WiFiClient tcp_client;
-static HTTPClient https_http;
+static WiFiClient* tcp_client = nullptr;
+static HTTPClient* https_http = nullptr;
+
+/* Función para inicializar objetos de red ANTES de cualquier uso */
+static void esp8266_init_network_objects() {
+	if (!tcp_secure_client) {
+		#ifdef VAMP_DEBUG
+		printf("[NET] Inicializando objetos de red...\n");
+		printf("{MEM} BEFORE NET OBJ: frag=%d%%, max=%d\n", 
+		       ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
+		#endif
+		
+		tcp_secure_client = new WiFiClientSecure();
+		tcp_client = new WiFiClient();
+		https_http = new HTTPClient();
+		
+		#ifdef VAMP_DEBUG
+		printf("{MEM} AFTER NET OBJ: frag=%d%%, max=%d\n", 
+		       ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
+		#endif
+	}
+}
 
 /* Intentar reservar memoria TLS haciendo un handshake de prueba */
 static bool esp8266_tls_init() {
@@ -71,14 +91,17 @@ static bool esp8266_tls_init() {
 	printf("[TLS] Attempting handshake to reserve memory...\n");
 	#endif
 
-	tcp_secure_client.setInsecure();
+	/* Asegurar que el objeto existe */
+	esp8266_init_network_objects();
+
+	tcp_secure_client->setInsecure();
 	/* utilizar tamaños de buffers mínimos para garantizar la conexión */
-	tcp_secure_client.setBufferSizes(512, 256);
+	tcp_secure_client->setBufferSizes(512, 256);
 
 	/* Handshake de prueba para reservar memoria TLS */
-	bool handshake_ok = tcp_secure_client.connect("httpbin.org", 443);
+	bool handshake_ok = tcp_secure_client->connect("httpbin.org", 443);
 	/* E inmediatamente pase lo que pase cerrar la conexión */
-	tcp_secure_client.stop();
+	tcp_secure_client->stop();
 
 	/* Evaluar resultado del handshake */
 	if(handshake_ok) {
@@ -96,6 +119,9 @@ static bool esp8266_tls_init() {
 
 /* Inicializar cliente HTTPS */
 bool esp8266_conn() {
+
+	/* Asegurar que los objetos de red estén inicializados */
+	esp8266_init_network_objects();
 
 	/* Si ya estamos conectados, no reinicializar */
 	if (WiFi.status() == WL_CONNECTED) {
@@ -422,9 +448,6 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			sprintf(full_url + strnlen(full_url, VAMP_URL_MAX_LEN), "?%s", query_buffer);
 		}
 	}
-
-	//sprintf(full_url,"%s", "https://httpbin.org/get"); // ToDo eliminar esto
-	//profile_protocol = VAMP_PROTOCOL_HTTPS;      // ToDo eliminar esto
 	
 	#ifdef VAMP_DEBUG
 	printf("[HTTP] Remote: %s\n[HTTP] query params: %d - protocol options: %d\n", 
@@ -434,7 +457,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	#endif /* VAMP_DEBUG */
 
 	/* Hacer siempre una nueva conexion */
-	https_http.setReuse(false);
+	https_http->setReuse(false);
 
 	/* Discriminar entre HTTP y HTTPS */
 	if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
@@ -453,10 +476,21 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			}
 		}
 
+		/* FORZAR liberación del cliente anterior para evitar acumulación */
+		tcp_secure_client->stop();
+
+		/* Logs de memoria ANTES de intentar TLS */
+		#ifdef VAMP_DEBUG
+		//printf("{MEM} memory status before TLS\n");
+		//printf("{MEM} free heap: %d B\n", ESP.getFreeHeap());
+		//printf("{MEM} frag: %d%%\n", ESP.getHeapFragmentation());
+		//printf("{MEM} max block: %d B\n", ESP.getMaxFreeBlockSize());
+		#endif
+
 		/* verificar cuanta memoria libre hay para TLS */
-		if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
+		if (ESP.getMaxFreeBlockSize() < MIN_HEAP_FOR_TLS) {
 			#ifdef VAMP_DEBUG
-			printf("[HTTP] Not enough heap for TLS\n");
+			printf("[HTTP] Not enough heap for TLS (need %d, have %d)\n", MIN_HEAP_FOR_TLS, ESP.getMaxFreeBlockSize());
 			#endif /* VAMP_DEBUG */
 			return 0;
 		}
@@ -465,29 +499,29 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		evitando reservar mas de lo necesario. hay que verificar que pasa cuando el servidor envia un texto mas largo 
 		que el buffer ???? */
 
-		tcp_secure_client.setBufferSizes(TLS_BUFFER_SIZE_RX, TLS_BUFFER_SIZE_TX);
+		tcp_secure_client->setBufferSizes(TLS_BUFFER_SIZE_RX, TLS_BUFFER_SIZE_TX);
 		
 		/* Configurar cliente HTTPS justo antes de usarlo */
-		tcp_secure_client.setInsecure(); // ToDo: usar certificados en producción
+		tcp_secure_client->setInsecure(); // ToDo: usar certificados en producción
 		
 		#ifdef VAMP_DEBUG
 		printf("[HTTP] secured\n");
 		#endif /* VAMP_DEBUG */
-		https_http.begin(tcp_secure_client, full_url);
+		https_http->begin(*tcp_secure_client, full_url);
 	} 
 	else if (profile_protocol == VAMP_PROTOCOL_HTTP) {
 		/* Configurar cliente HTTP normal (usando variable estática con persistencia) */
 		#ifdef VAMP_DEBUG
 		printf("[HTTP] plain\n");
 		#endif /* VAMP_DEBUG */
-		https_http.begin(tcp_client, full_url);
+		https_http->begin(*tcp_client, full_url);
 	}
 	/* rest of the protocols not implemented */
 
 	/* Configurar User-Agent */
 	/* ToDo: Pasar el ID del gateway como parte del User-Agent para que el extremo pueda identificarlo
 	y verificar la autenticidad de la solicitud */
-	https_http.setUserAgent(HTTPS_USER_AGENT);
+	https_http->setUserAgent(HTTPS_USER_AGENT);
 
 	/* Añadir headers personalizados desde key-value store */
 	if( profile->protocol_options.count > 0 && profile->protocol_options.pairs != NULL ) {
@@ -502,7 +536,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			const char* value = profile->protocol_options.pairs[i].value;
 			
 			if (key[0] != '\0' && value[0] != '\0') {
-				https_http.addHeader(key, value);
+				https_http->addHeader(key, value);
 				
 				#ifdef VAMP_DEBUG
 				printf("[HTTP] Adding header: %s = %s\n", key, value);
@@ -511,7 +545,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		}
 	}
 
-	https_http.setTimeout(HTTPS_TIMEOUT);
+	https_http->setTimeout(HTTPS_TIMEOUT);
 
 	/* Enviar request según método */
 	int httpResponseCode = -1;
@@ -522,14 +556,14 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			#ifdef VAMP_DEBUG
 			printf("[HTTP] Sending GET request %s...\n", (profile_protocol == VAMP_PROTOCOL_HTTPS) ? "(HTTPS)" : "(HTTP)");
 			#endif /* VAMP_DEBUG */
-			httpResponseCode = https_http.GET();
+			httpResponseCode = https_http->GET();
 			break;
 		/* POST */
 		case VAMP_HTTP_METHOD_POST:
 			#ifdef VAMP_DEBUG
 			printf("[HTTP] Sending POST request %s...\n", (profile_protocol == VAMP_PROTOCOL_HTTPS) ? "(HTTPS)" : "(HTTP)");
 			#endif /* VAMP_DEBUG */
-			httpResponseCode = https_http.POST((uint8_t*)data, data_size);
+			httpResponseCode = https_http->POST((uint8_t*)data, data_size);
 			break;
 		default:
 			break;
@@ -557,7 +591,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			goto end_response;
 		}
 
-		WiFiClient * stream = https_http.getStreamPtr();
+		WiFiClient * stream = https_http->getStreamPtr();
 		
 		if (!stream) {
 			#ifdef VAMP_DEBUG
@@ -568,7 +602,7 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		}
 
 		/* Determinar si es chunked o tiene Content-Length */
-		int content_len = https_http.getSize();
+		int content_len = https_http->getSize();
 		bool is_chunked = (content_len < 0);
 
 		total_read = 0;
@@ -646,29 +680,25 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		printf("[WiFi] Error in %s: %d\n", ((profile_protocol == VAMP_PROTOCOL_HTTPS) ? "HTTPS" : "HTTP"), 
 													httpResponseCode);
 		#endif /* VAMP_DEBUG */
-		https_http.end();
+		https_http->end();
 		
-		/* Liberar recursos del cliente TLS en caso de error */
-		if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
-			tcp_secure_client.stop();
-		}
-
+		fail = true;
 		/* Si es -1 es que no hay conexión asi que se puede intentar reconectar o algo asi */ 
 	}
 
 	end_response:
 
 	/* Cerrar la conexión */
-	https_http.end();
+	https_http->end();
 
 	/* Liberar recursos del cliente TLS en caso de error */
 	switch (profile_protocol) {
 		case VAMP_PROTOCOL_HTTPS:
-			tcp_secure_client.stop();
+			tcp_secure_client->stop();
 			break;
 		case VAMP_PROTOCOL_HTTP:
 			/* No hay recursos especiales que liberar */
-			tcp_client.stop();
+			tcp_client->stop();
 			break;
 		/* ToDo Aqui faltaria evaluar los otros protocolos cuando se implementen */
 		default:

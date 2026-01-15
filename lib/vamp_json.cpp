@@ -224,7 +224,7 @@ bool vamp_process_sync_json_response(const char* json_data) {
 
 				/* Extraer endpoint_resource */
 				if (profile.containsKey("endpoint")) {
-					const char* endpoint_str = profile["endpoint"];
+					const char * endpoint_str = profile["endpoint"];
 					if (endpoint_str && strlen(endpoint_str) > 0 && strlen(endpoint_str) < VAMP_ENDPOINT_MAX_LEN) {
 						/* Liberar memoria previa si existe */
 						if (entry->profiles[profile_index].endpoint_resource) {
@@ -249,6 +249,15 @@ bool vamp_process_sync_json_response(const char* json_data) {
 				if (profile.containsKey("options")) {
 					if (profile["options"].is<JsonObject>()) {
 						JsonObject options_obj = profile["options"];
+						
+						/* Pre-asignar antes de parsear */
+						if (!vamp_kv_preallocate(&entry->profiles[profile_index].protocol_options)) {
+							#ifdef VAMP_DEBUG
+							printf("[JSON] Error pre-asignando protocol_options\n");
+							#endif
+							break;
+						}
+						
 						vamp_kv_parse_json(&entry->profiles[profile_index].protocol_options, options_obj);
 
 						#ifdef VAMP_DEBUG
@@ -265,6 +274,15 @@ bool vamp_process_sync_json_response(const char* json_data) {
 				if (profile.containsKey("params")) {
 					if (profile["params"].is<JsonObject>()) {
 						JsonObject params_obj = profile["params"];
+						
+						/* Pre-asignar antes de parsear */
+						if (!vamp_kv_preallocate(&entry->profiles[profile_index].query_params)) {
+							#ifdef VAMP_DEBUG
+							printf("[JSON] Error pre-asignando query_params\n");
+							#endif
+							break;
+						}
+						
 						vamp_kv_parse_json(&entry->profiles[profile_index].query_params, params_obj);
 
 						#ifdef VAMP_DEBUG

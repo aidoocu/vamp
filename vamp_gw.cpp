@@ -38,6 +38,11 @@ static uint8_t wsn_buffer[VAMP_MAX_PAYLOAD_SIZE];
 /* Buffer para la solicitud y respuesta de internet (compartido en todo el módulo VAMP) */
 char iface_buff[VAMP_IFACE_BUFF_SIZE];
 
+/* StaticJsonDocument para construir payload - REUTILIZABLE (evita fragmentación de stack) */
+#ifdef ARDUINOJSON_AVAILABLE
+static StaticJsonDocument<256> json_payload_doc;
+#endif
+
 
 /* Inicializar la tabla VAMP con el perfil de VREG */
 void vamp_table_init(void) {
@@ -93,7 +98,7 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 
 	/* GET como método */
 	vamp_vreg_profile.method = VAMP_HTTP_METHOD_GET;
-	
+
 	/* Copiar el endpoint al perfil local del vreg */
 	vamp_vreg_profile.endpoint_resource = (char*)malloc(url_len + 1);
 	if (!vamp_vreg_profile.endpoint_resource) {
@@ -114,6 +119,25 @@ bool vamp_gw_vreg_init(const gw_config_t * gw_config){
 	/* Inicializar los parámetros y las opciones del protocolo */
 	vamp_kv_init(&vamp_vreg_profile.protocol_options);
 	vamp_kv_init(&vamp_vreg_profile.query_params);
+
+	/* Pre-asignar capacidad máxima ANTES de cualquier conexión TLS */
+	if (!vamp_kv_preallocate(&vamp_vreg_profile.protocol_options)) {
+		#ifdef VAMP_DEBUG
+		printf("[GW] Failed to preallocate protocol_options\n");
+		#endif
+		return false;
+	}
+	
+	if (!vamp_kv_preallocate(&vamp_vreg_profile.query_params)) {
+		#ifdef VAMP_DEBUG
+		printf("[GW] Failed to preallocate query_params\n");
+		#endif
+		return false;
+	}
+
+	#ifdef VAMP_DEBUG
+	printf("[GW] vamp_kv pre-allocated successfully\n");
+	#endif
 
 	/* Agregar el ID del gateway en las opciones del protocolo */
 	//vamp_kv_set(&vamp_vreg_profile.protocol_options, "X-VAMP-Gateway-ID", gw_id);
@@ -137,6 +161,8 @@ uint8_t vamp_get_vreg_device(const uint8_t * rf_id) {
 	rf_id_to_hex(rf_id, char_rf_id);
 
 	/* Configurar query_params con device */
+	//vamp_clear_profile.query_params.pairs[0].key = NULL;
+	//vamp_clear_profile.query_params.pairs[0].value = NULL;
 	vamp_kv_clear(&vamp_vreg_profile.query_params);
 	vamp_kv_set(&vamp_vreg_profile.query_params, "device", char_rf_id);
 
@@ -426,7 +452,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		printf("[WSN] received from device %02X, profile %d, resource: %s\n", 
 				(entry->wsn_id & 0x7F), 
 				profile_index, 
-				profile->endpoint_resource ? profile->endpoint_resource : "N/A");
+					profile->endpoint_resource ? profile->endpoint_resource : "N/A");
 		printf("[WSN] data: %s\n", &data[data_offset]);
 		//vamp_debug_msg(&data[data_offset], rec_len);
 		#endif /* VAMP_DEBUG */
@@ -452,41 +478,41 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		*/
 		/* ToDo HAY QUE RESISAR ESTO!!! */
 		#ifdef ARDUINOJSON_AVAILABLE
-		/* Construir respuesta JSON con datetime, gateway_id y data */
-		StaticJsonDocument<512> jsonDoc;
-		
-		/* Obtener fecha/hora actual del RTC */
-		char datetime_buf[DATE_TIME_BUFF];
-		datetime_buf[0] = '\0';
-		rtc_get_utc_time(datetime_buf);
-		jsonDoc["datetime"] = datetime_buf;
+	/* Reutilizar documento JSON estático (NO crear en stack cada vez) */
+	json_payload_doc.clear();
+	
+	/* Obtener fecha/hora actual del RTC */
+	char datetime_buf[DATE_TIME_BUFF];
+	datetime_buf[0] = '\0';
+	rtc_get_utc_time(datetime_buf);
+	json_payload_doc["datetime"] = datetime_buf;
 
-		/* Agregar gateway_id */
-		jsonDoc["gw"] = gateway_conf->vamp.gw_id ? gateway_conf->vamp.gw_id : "";
-				
-		/* Agregar datos */
-		char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
-		to_send_data[0] = '\0';
-		if (rec_len > 0 && rec_len < VAMP_MAX_PAYLOAD_SIZE) {
-			memcpy(to_send_data, &data[data_offset], rec_len);
-			to_send_data[rec_len] = '\0';
-			jsonDoc["data"] = to_send_data;
-		} else {
-			jsonDoc["data"] = "";
-		}
+	/* Agregar gateway_id */
+	json_payload_doc["gw"] = gateway_conf->vamp.gw_id ? gateway_conf->vamp.gw_id : "";
+			
+	/* Agregar datos */
+	char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
+	to_send_data[0] = '\0';
+	if (rec_len > 0 && rec_len < VAMP_MAX_PAYLOAD_SIZE) {
+		memcpy(to_send_data, &data[data_offset], rec_len);
+		to_send_data[rec_len] = '\0';
+		json_payload_doc["data"] = to_send_data;
+	} else {
+		json_payload_doc["data"] = "";
+	}
 
-		/* Serializar JSON al buffer */
-		size_t json_len = serializeJson(jsonDoc, iface_buff, VAMP_IFACE_BUFF_SIZE - 1);
-		iface_buff[json_len] = '\0';
-		rec_len = json_len;
+	/* Serializar JSON al buffer */
+	size_t json_len = serializeJson(json_payload_doc, iface_buff, VAMP_IFACE_BUFF_SIZE - 1);
+	iface_buff[json_len] = '\0';
+	rec_len = json_len;
 
-		/* HAY QUE RESISAR ESTO!!! */
-		#endif /* ARDUINOJSON_AVAILABLE */
+	/* HAY QUE RESISAR ESTO!!! */
+	#endif /* ARDUINOJSON_AVAILABLE */
 
-		/** ---------------------- /Enviar al endpoint ---------------------- */
+	/** ---------------------- /Enviar al endpoint ---------------------- */
 
 
-		/* Enviar con el perfil completo (método/endpoint/params) */
+	/* Enviar con el perfil completo (método/endpoint/params) */
 		if (!profile->endpoint_resource || profile->endpoint_resource[0] == '\0') {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] empty endpoint resource, not sending to internet\n");
@@ -501,22 +527,22 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		printf("[GW] respuesta desde el endpoint\n");
 		#endif /* VAMP_DEBUG */
 
-			/* Liberar el buffer de datos anterior */
-			if (entry->data_buff) {
-				free(entry->data_buff);
-				entry->data_buff = NULL;
-			}
-
-			entry->data_buff = (char * )malloc(rec_iface_len + 1); // +1 para '\0'
+			/* Verificar que el buffer fue asignado en vamp_add_device() */
 			if (!entry->data_buff) {
 				#ifdef VAMP_DEBUG
-				printf("Error: No se pudo asignar memoria para el buffer de datos\n");
+				printf("[GW] Error: data_buff no inicializado\n");
 				#endif /* VAMP_DEBUG */
 				return false;
 			}
 
-			//hay que dejar fuera el '\0'
-			memcpy(entry->data_buff, iface_buff, rec_iface_len); // Copiar datos al buffer del dispositivo
+			/* Limitar al tamaño del buffer pre-asignado */
+			if (rec_iface_len > VAMP_MAX_PAYLOAD_SIZE) {
+				rec_iface_len = VAMP_MAX_PAYLOAD_SIZE;
+			}
+
+			/* Copiar datos al buffer pre-asignado */
+			memcpy(entry->data_buff, iface_buff, rec_iface_len);
+			entry->data_buff[rec_iface_len] = '\0'; // Asegurar terminación
 
 			#ifdef VAMP_DEBUG
 			printf("Datos recibidos del endpoint: %s\n", entry->data_buff);
