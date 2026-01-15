@@ -52,7 +52,6 @@ static gw_config_t * vamp_conf_local = NULL;
 
 /* Objetos globales para comunicación (reutilizables - punteros para control de construcción) */
 static WiFiClientSecure* tcp_secure_client = nullptr;
-static bool tls_ok = false;
 static WiFiClient* tcp_client = nullptr;
 static HTTPClient* https_http = nullptr;
 
@@ -73,47 +72,6 @@ static void esp8266_init_network_objects() {
 		printf("{MEM} AFTER NET OBJ: frag=%d%%, max=%d\n", 
 		       ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
 		#endif
-	}
-}
-
-/* Intentar reservar memoria TLS haciendo un handshake de prueba */
-static bool esp8266_tls_init() {
-	/* Verificar si hay suficiente memoria para el handshake
-	6K para TLS + 2K para overhead + 512 + 256 para buffers */
-	if (ESP.getFreeHeap() < (6000 + 2048 + 512 + 256)) {
-		#ifdef VAMP_DEBUG
-		printf("[TLS] Not enough heap for TLS init\n");
-		#endif
-		return false;
-	}
-
-	#ifdef VAMP_DEBUG
-	printf("[TLS] Attempting handshake to reserve memory...\n");
-	#endif
-
-	/* Asegurar que el objeto existe */
-	esp8266_init_network_objects();
-
-	tcp_secure_client->setInsecure();
-	/* utilizar tamaños de buffers mínimos para garantizar la conexión */
-	tcp_secure_client->setBufferSizes(512, 256);
-
-	/* Handshake de prueba para reservar memoria TLS */
-	bool handshake_ok = tcp_secure_client->connect("httpbin.org", 443);
-	/* E inmediatamente pase lo que pase cerrar la conexión */
-	tcp_secure_client->stop();
-
-	/* Evaluar resultado del handshake */
-	if(handshake_ok) {
-		#ifdef VAMP_DEBUG
-		printf("[TLS] Handshake OK\n");
-		#endif
-		return true;
-	} else {
-		#ifdef VAMP_DEBUG
-		printf("[TLS] Handshake failed\n");
-		#endif
-		return false;
 	}
 }
 
@@ -258,9 +216,6 @@ bool esp8266_conn() {
 		display.display();
 		//draw_wifi_signal_bar();
 		#endif	 /* OLED_DISPLAY */
-
-		/* Inicialización de la conexion TLS, aqui se reserva heap para BearSSL */
-		tls_ok = esp8266_tls_init();
 
 		return true;
 
@@ -462,29 +417,12 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	/* Discriminar entre HTTP y HTTPS */
 	if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
 
-		/* verificar si TLS está disponible, si no, intentar inicializarlo */
-		if (!tls_ok) {
-			#ifdef VAMP_DEBUG
-			printf("[HTTP] TLS not initialized, attempting to initialize...\n");
-			#endif /* VAMP_DEBUG */
-			tls_ok = esp8266_tls_init();
-			if (!tls_ok) {
-				#ifdef VAMP_DEBUG
-				printf("[HTTP] TLS initialization failed, cannot proceed with HTTPS request\n");
-				#endif /* VAMP_DEBUG */
-				return 0;
-			}
-		}
-
 		/* FORZAR liberación del cliente anterior para evitar acumulación */
 		tcp_secure_client->stop();
 
 		/* Logs de memoria ANTES de intentar TLS */
 		#ifdef VAMP_DEBUG
-		//printf("{MEM} memory status before TLS\n");
-		//printf("{MEM} free heap: %d B\n", ESP.getFreeHeap());
-		//printf("{MEM} frag: %d%%\n", ESP.getHeapFragmentation());
-		//printf("{MEM} max block: %d B\n", ESP.getMaxFreeBlockSize());
+		printf("{MEM} TLS: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
 		#endif
 
 		/* verificar cuanta memoria libre hay para TLS */

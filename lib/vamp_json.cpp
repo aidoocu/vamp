@@ -15,7 +15,10 @@
 
 #include "../vamp_gw.h"
 
-/* Crear buffer JSON */
+/* Buffer JSON para parsear respuesta de VREG sync
+ * Tamaño: 4096 bytes - soporta ~15 dispositivos por sync
+ * Cálculo: ~275 bytes/device (con profiles, options, params)
+ * ToDo: Si VREG envía más de 15 devices a la vez, aumentar a 8192 */
 static StaticJsonDocument<4096> doc;
 
  /** @brief Parsear JSON object y llenar store */
