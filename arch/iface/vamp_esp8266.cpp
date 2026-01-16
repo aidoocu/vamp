@@ -417,13 +417,18 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	/* Discriminar entre HTTP y HTTPS */
 	if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
 
-		/* FORZAR liberación del cliente anterior para evitar acumulación */
-		tcp_secure_client->stop();
-
 		/* Logs de memoria ANTES de intentar TLS */
 		#ifdef VAMP_DEBUG
-		printf("{MEM} TLS: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
+		printf("{MEM} BEFORE TLS: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
 		#endif
+
+		/* CRÍTICO: Cerrar y limpiar conexión anterior COMPLETAMENTE antes de nueva conexión TLS
+		 * Esto libera buffers internos de BearSSL que pueden quedar fragmentados */
+		if (tcp_secure_client->connected()) {
+			tcp_secure_client->flush();  // Asegurar que se envió todo
+		}
+		tcp_secure_client->stop();
+		yield();  // Dar tiempo al ESP para limpiar buffers
 
 		/* verificar cuanta memoria libre hay para TLS */
 		if (ESP.getMaxFreeBlockSize() < MIN_HEAP_FOR_TLS) {
@@ -433,26 +438,40 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 			return 0;
 		}
 
-		/* ToDo data_size tiene el tamano del buffer asi que el buffer para TLS puede ser ajustado en consecuencia 
-		evitando reservar mas de lo necesario. hay que verificar que pasa cuando el servidor envia un texto mas largo 
-		que el buffer ???? */
-
+		/* Configurar buffers TLS (setBufferSizes es idempotente, seguro llamar múltiples veces) */
 		tcp_secure_client->setBufferSizes(TLS_BUFFER_SIZE_RX, TLS_BUFFER_SIZE_TX);
-		
-		/* Configurar cliente HTTPS justo antes de usarlo */
 		tcp_secure_client->setInsecure(); // ToDo: usar certificados en producción
 		
 		#ifdef VAMP_DEBUG
-		printf("[HTTP] secured\n");
+		printf("[HTTP] Starting HTTPS connection...\n");
 		#endif /* VAMP_DEBUG */
-		https_http->begin(*tcp_secure_client, full_url);
+		
+		if (!https_http->begin(*tcp_secure_client, full_url)) {
+			#ifdef VAMP_DEBUG
+			printf("[HTTP] begin() failed for HTTPS\n");
+			#endif
+			tcp_secure_client->stop();
+			return 0;
+		}
 	} 
 	else if (profile_protocol == VAMP_PROTOCOL_HTTP) {
-		/* Configurar cliente HTTP normal (usando variable estática con persistencia) */
+		/* Limpiar cliente HTTP anterior */
+		if (tcp_client->connected()) {
+			tcp_client->flush();
+		}
+		tcp_client->stop();
+		
 		#ifdef VAMP_DEBUG
-		printf("[HTTP] plain\n");
+		printf("[HTTP] Starting HTTP connection...\n");
 		#endif /* VAMP_DEBUG */
-		https_http->begin(*tcp_client, full_url);
+		
+		if (!https_http->begin(*tcp_client, full_url)) {
+			#ifdef VAMP_DEBUG
+			printf("[HTTP] begin() failed for HTTP\n");
+			#endif
+			tcp_client->stop();
+			return 0;
+		}
 	}
 	/* rest of the protocols not implemented */
 
@@ -622,22 +641,28 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 
 	end_response:
 
-	/* Cerrar la conexión */
+	/* Cerrar la conexión HTTP/HTTPS */
 	https_http->end();
-
-	/* Liberar recursos del cliente TLS en caso de error */
-	switch (profile_protocol) {
-		case VAMP_PROTOCOL_HTTPS:
-			tcp_secure_client->stop();
-			break;
-		case VAMP_PROTOCOL_HTTP:
-			/* No hay recursos especiales que liberar */
-			tcp_client->stop();
-			break;
-		/* ToDo Aqui faltaria evaluar los otros protocolos cuando se implementen */
-		default:
-			break;
+	
+	/* Flush y stop para HTTPS */
+	if (tcp_secure_client->connected()) {
+		tcp_secure_client->flush();
 	}
+	tcp_secure_client->stop();
+	
+	/* Flush y stop para HTTP */
+	if (tcp_client->connected()) {
+		tcp_client->flush();
+	}
+	tcp_client->stop();
+	
+	/* Dar tiempo al ESP para liberar buffers internos */
+	yield();
+
+	#ifdef VAMP_DEBUG
+	printf("[HTTP] Connection closed, %s\n", fail ? "failed" : "success");
+	printf("{MEM} AFTER REQ: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
+	#endif
 	
 	if (fail) {
 		return 0;
