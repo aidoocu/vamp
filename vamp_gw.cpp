@@ -239,7 +239,7 @@ void vamp_gw_process_command(uint8_t * cmd, uint8_t len) {
 		} 
 		#ifdef VAMP_DEBUG
 		else {
-			printf("Dev in cache: ");
+			printf("[WSN] in cache: ");
 		}
 		#endif /* VAMP_DEBUG */
 		

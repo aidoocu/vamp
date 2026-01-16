@@ -659,9 +659,10 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	/* Dar tiempo al ESP para liberar buffers internos */
 	yield();
 
+	delay(10);  // Pequeño delay para evitar problemas de fragmentación
+
 	#ifdef VAMP_DEBUG
 	printf("[HTTP] Connection closed, %s\n", fail ? "failed" : "success");
-	printf("{MEM} AFTER REQ: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
 	#endif
 	
 	if (fail) {
