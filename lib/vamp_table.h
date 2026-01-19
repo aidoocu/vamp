@@ -39,9 +39,12 @@
 #define VAMP_PROTOCOL_OPTIONS_MAX_LEN 512
 #endif // VAMP_PROTOCOL_OPTIONS_MAX_LEN
 
-/* Máximo 32 dispositivos (5 bits) */
+/* Máximo del protocolo 32 dispositivos (5 bits) */
+/* ToDo aqui hay que identificar el hardware en concreto 
+que se esta utilizando, para saber realmente que memoria 
+se necesita, por lo tanto cuantos dispositivos utilizar */
 #ifndef VAMP_MAX_DEVICES
-#define VAMP_MAX_DEVICES 16
+#define VAMP_MAX_DEVICES 8
 #endif // VAMP_MAX_DEVICES
 
 /* Máximo 4 perfiles por dispositivo o dos bits */
@@ -127,6 +130,7 @@ bool vamp_is_table_initialized(void);
 
 /** @brief Obtener timestamp de la última sincronización */
 const char * vamp_get_last_sync_timestamp(void);
+uint32_t vamp_get_last_sync_millis(void);
 
 /** @brief Establecer el timestamp de la última sincronización */
 void vamp_set_last_sync_timestamp(const char * timestamp);

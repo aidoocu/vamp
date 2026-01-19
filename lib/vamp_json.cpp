@@ -16,10 +16,10 @@
 #include "../vamp_gw.h"
 
 /* Buffer JSON para parsear respuesta de VREG sync
- * Tamaño: 4096 bytes - soporta ~15 dispositivos por sync
- * Cálculo: ~275 bytes/device (con profiles, options, params)
- * ToDo: Si VREG envía más de 15 devices a la vez, aumentar a 8192 */
-static StaticJsonDocument<4096> doc;
+ * Tamaño: Igual a VAMP_IFACE_BUFF_SIZE (el JSON siempre viene de iface_buff)
+ * Con VAMP_IFACE_BUFF_SIZE=2048 y VAMP_MAX_DEVICES=8: ~250 bytes/device
+ * Esto es suficiente ya que el JSON nunca puede ser mayor que iface_buff */
+static StaticJsonDocument<VAMP_IFACE_BUFF_SIZE> doc;
 
  /** @brief Parsear JSON object y llenar store */
 bool vamp_kv_parse_json(vamp_key_value_store_t* store, JsonObject json_obj) {

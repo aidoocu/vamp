@@ -20,6 +20,7 @@
 #include "../../vamp_callbacks.h"
 
 #include "../../../hmi/display.h"
+#include "../../../http_server/web_server.h"
 
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
@@ -417,6 +418,15 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 	/* Discriminar entre HTTP y HTTPS */
 	if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
 
+		/* CRÍTICO: Pausar procesamiento de requests web durante TLS */
+		if (web_server_is_running()) {
+			#ifdef VAMP_DEBUG
+			printf("[HTTP] Pausing web server requests for HTTPS\n");
+			#endif
+			web_server_pause();
+			yield(); // Dar tiempo para que requests en progreso terminen
+		}
+
 		/* Logs de memoria ANTES de intentar TLS */
 		#ifdef VAMP_DEBUG
 		printf("{MEM} BEFORE TLS: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
@@ -431,9 +441,9 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 		yield();  // Dar tiempo al ESP para limpiar buffers
 
 		/* verificar cuanta memoria libre hay para TLS */
-		if (ESP.getMaxFreeBlockSize() < MIN_HEAP_FOR_TLS) {
+		if (ESP.getMaxFreeBlockSize() < (MIN_HEAP_FOR_TLS + MIN_HEAP_FOR_TCP_CLIENT)) {
 			#ifdef VAMP_DEBUG
-			printf("[HTTP] Not enough heap for TLS (need %d, have %d)\n", MIN_HEAP_FOR_TLS, ESP.getMaxFreeBlockSize());
+			printf("[HTTP] Not enough heap for TLS (need %d, have %d)\n", (MIN_HEAP_FOR_TLS + MIN_HEAP_FOR_TCP_CLIENT), ESP.getMaxFreeBlockSize());
 			#endif /* VAMP_DEBUG */
 			return 0;
 		}
@@ -663,7 +673,16 @@ size_t esp8266_http_request(const vamp_profile_t * profile, char * data, size_t 
 
 	#ifdef VAMP_DEBUG
 	printf("[HTTP] Connection closed, %s\n", fail ? "failed" : "success");
+	printf("{MEM} AFTER REQ: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
 	#endif
+
+	/* CRÍTICO: Reanudar procesamiento de requests web DESPUÉS de liberar recursos HTTPS */
+	if (profile_protocol == VAMP_PROTOCOL_HTTPS) {
+		#ifdef VAMP_DEBUG
+		printf("[HTTP] Resuming web server requests\n");
+		#endif
+		web_server_resume();
+	}
 	
 	if (fail) {
 		return 0;

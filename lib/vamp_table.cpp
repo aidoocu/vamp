@@ -19,6 +19,9 @@ static vamp_entry_t vamp_table[VAMP_MAX_DEVICES];
 /* Fecha de la última actualización de la tabla en UTC */
 static char last_table_update[] = VAMP_TABLE_INIT_TSMP;
 
+/* Timestamp en millis de la última sincronización (para calcular tiempo transcurrido) */
+static uint32_t last_sync_millis = 0;
+
 /* Sincronizar la tabla VAMP con VREG */
 void vamp_table_update(vamp_profile_t * vreg_profile) {
 
@@ -98,6 +101,10 @@ const char* vamp_get_last_sync_timestamp(void) {
     return last_table_update;
 }
 
+uint32_t vamp_get_last_sync_millis(void) {
+    return last_sync_millis;
+}
+
 void vamp_set_last_sync_timestamp(const char * timestamp) {
 
     /** @todo Validar el formato del timestamp */
@@ -108,6 +115,9 @@ void vamp_set_last_sync_timestamp(const char * timestamp) {
 
     strncpy(last_table_update, timestamp, sizeof(last_table_update) - 1);
     last_table_update[sizeof(last_table_update) - 1] = '\0'; // Asegurar terminación nula
+    
+    // Actualizar timestamp numérico
+    last_sync_millis = millis();
 }
 
 /* --------------------- Manejo de nodos (entradas) -------------------- */
