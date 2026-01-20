@@ -57,7 +57,7 @@
 #define VAMP_NET_STATIC     1
 
 /** @brief Comentar/descomentar para desablitar/habilitar debug */
-#define VAMP_DEBUG
+//#define VAMP_DEBUG
 
 /** Estructura para configuración de red (IP estática o DHCP) */
 typedef struct {

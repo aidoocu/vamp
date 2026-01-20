@@ -9,6 +9,9 @@
  * de pares clave-valor en el contexto de VAMP.
  */
 
+#ifndef VAMP_KV_H_
+#define VAMP_KV_H_
+
 #include <Arduino.h>
 
 /** @brief Configuración para pares key-value - Optimizado para ESP8266 */
@@ -65,5 +68,6 @@ void vamp_kv_clear(vamp_key_value_store_t* store);
 /** @brief Convertir store a string para HTTP headers */
 size_t vamp_kv_to_http_headers(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);
 
+#endif // VAMP_KV_H_
 /** @brief Convertir store a string para query parameters */
 size_t vamp_kv_to_query_string(const vamp_key_value_store_t* store, char* buffer, size_t buffer_size);

@@ -60,28 +60,29 @@ void vamp_table_update(vamp_profile_t * vreg_profile) {
 		/* Extraer los datos JSON de la respuesta */
 		#ifdef ARDUINOJSON_AVAILABLE
 
+    #ifdef VAMP_DEBUG
     printf("{MEM} memory status before table update\n");
-		//printf("{TLS} free heap: %d B\n", ESP.getFreeHeap());
 		printf("{MEM} frag: %d%%\n", ESP.getHeapFragmentation());
 		printf("{MEM} ---- max block: %d B\n", ESP.getMaxFreeBlockSize());
+    #endif /* VAMP_DEBUG */
 
     if (vamp_process_sync_json_response(iface_buff)) {
+
       #ifdef VAMP_DEBUG
 			printf("[VAMP] VREG Sync successful\n");
-      #endif /* VAMP_DEBUG */
-
       printf("{MEM} memory status after table update\n");
-      //printf("{TLS} free heap: %d B\n", ESP.getFreeHeap());
       printf("{MEM} frag: %d%%\n", ESP.getHeapFragmentation());
       printf("{MEM} ---- max block: %d B\n", ESP.getMaxFreeBlockSize());
+
+      #endif /* VAMP_DEBUG */
 
 		}
     #ifdef VAMP_DEBUG
     else {
       
 			printf("[VAMP] VREG Sync failed\n");
+    }
     #endif /* VAMP_DEBUG */
-		}
 		#endif /* ARDUINOJSON_AVAILABLE */
 
 		return;
