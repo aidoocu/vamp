@@ -470,7 +470,7 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		vamp_wsn_send_ticket(entry->rf_id, entry->ticket);
 
 
-		/** ---------------------- Enviar al endpoint ---------------------- * 
+		/** ---------------------- Preparar envío al endpoint ---------------------- * 
 		* ToDo!!!
 		* Esta parte queda como muy especifica de la aplicacion farm, pues se construye un json
 		* con datetime, gw_id y data que es lo que este endpoint en particular espera
@@ -478,41 +478,70 @@ bool vamp_gw_process_data(uint8_t * data, uint8_t len) {
 		*/
 		/* ToDo HAY QUE RESISAR ESTO!!! */
 		#ifdef ARDUINOJSON_AVAILABLE
-	/* Reutilizar documento JSON estático (NO crear en stack cada vez) */
-	json_payload_doc.clear();
-	
-	/* Obtener fecha/hora actual del RTC */
-	char datetime_buf[DATE_TIME_BUFF];
-	datetime_buf[0] = '\0';
-	rtc_get_utc_time(datetime_buf);
-	json_payload_doc["datetime"] = datetime_buf;
+		/* Reutilizar documento JSON estático (NO crear en stack cada vez) */
+		json_payload_doc.clear();
+		
+		/* Obtener fecha/hora actual del RTC */
+		char datetime_buf[DATE_TIME_BUFF];
+		datetime_buf[0] = '\0';
+		rtc_get_utc_time(datetime_buf);
+		json_payload_doc["datetime"] = datetime_buf;
 
-	/* Agregar gateway_id */
-	json_payload_doc["gw"] = gateway_conf->vamp.gw_id ? gateway_conf->vamp.gw_id : "";
+		/* Agregar gateway_id */
+		json_payload_doc["gw"] = gateway_conf->vamp.gw_id ? gateway_conf->vamp.gw_id : "";
+				
+		/* Agregar datos */
+		char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
+		to_send_data[0] = '\0';
+		if (rec_len > 0 && rec_len < VAMP_MAX_PAYLOAD_SIZE) {
+			memcpy(to_send_data, &data[data_offset], rec_len);
+			to_send_data[rec_len] = '\0';
+			json_payload_doc["data"] = to_send_data;
+		} else {
+			json_payload_doc["data"] = "";
+		}
+
+		/* Serializar JSON al buffer */
+		size_t json_len = serializeJson(json_payload_doc, iface_buff, VAMP_IFACE_BUFF_SIZE - 1);
+		iface_buff[json_len] = '\0';
+		rec_len = json_len;
+
+		/* HAY QUE RESISAR ESTO!!! */
+		#endif /* ARDUINOJSON_AVAILABLE */
+
+		/** ---------------------- /Preparar envío al endpoint ---------------------- */
+
+		/** ---------------------- Guarda en la SD ---------------------- */
+
+		#ifdef VAMP_SD
+		/* Construir nombre del archivo: /data_mote/{node_id}.json */
+		char filepath[32];
+		snprintf(filepath, sizeof(filepath), "/data_mote/%02X%02X%02X%02X%02X.json",
+				entry->rf_id[0], entry->rf_id[1], entry->rf_id[2], 
+				entry->rf_id[3], entry->rf_id[4]);
+		
+		/* Abrir archivo en modo append (crea si no existe) */
+		File dataFile = SD.open(filepath, FILE_WRITE);
+		if (dataFile) {
+			/* Escribir línea JSON al final del archivo */
+			dataFile.println(iface_buff);
+			dataFile.close();
 			
-	/* Agregar datos */
-	char to_send_data[VAMP_MAX_PAYLOAD_SIZE];
-	to_send_data[0] = '\0';
-	if (rec_len > 0 && rec_len < VAMP_MAX_PAYLOAD_SIZE) {
-		memcpy(to_send_data, &data[data_offset], rec_len);
-		to_send_data[rec_len] = '\0';
-		json_payload_doc["data"] = to_send_data;
-	} else {
-		json_payload_doc["data"] = "";
-	}
+			#ifdef VAMP_DEBUG
+			printf("[SD] Guardado en %s\n", filepath);
+			#endif
+		} else {
+			#ifdef VAMP_DEBUG
+			printf("[SD] Error: No se pudo abrir %s\n", filepath);
+			#endif
+		}
+		#endif /* VAMP_SD */
 
-	/* Serializar JSON al buffer */
-	size_t json_len = serializeJson(json_payload_doc, iface_buff, VAMP_IFACE_BUFF_SIZE - 1);
-	iface_buff[json_len] = '\0';
-	rec_len = json_len;
+		/** ---------------------- /Guarda en la SD ---------------------- */
 
-	/* HAY QUE RESISAR ESTO!!! */
-	#endif /* ARDUINOJSON_AVAILABLE */
+		/** ---------------------- Enviar al endpoint ---------------------- */
 
-	/** ---------------------- /Enviar al endpoint ---------------------- */
-
-
-	/* Enviar con el perfil completo (método/endpoint/params) */
+		/* Enviar con el perfil completo (método/endpoint/params) */
 		if (!profile->endpoint_resource || profile->endpoint_resource[0] == '\0') {
 			#ifdef VAMP_DEBUG
 			printf("[WSN] empty endpoint resource, not sending to internet\n");
