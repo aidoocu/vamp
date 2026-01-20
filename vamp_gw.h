@@ -64,7 +64,7 @@
 
 // Configuración de tablas y direccionamiento - Optimizado para ESP8266
 #define VAMP_PORT_BASE 8000          // Puerto base para NAT
-#define VAMP_DEVICE_TIMEOUT 600000   // Timeout de dispositivo (10 minutos)
+#define VAMP_DEVICE_TIMEOUT 1800000  // Timeout de dispositivo (30 minutos)
 
 
 /* Buffer global para comunicación con interfaces IP (HTTP/HTTPS) */
