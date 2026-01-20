@@ -59,11 +59,11 @@ void vamp_gw_init(const gw_config_t * gw_config) {
 	/* Inicializar la tabla VAMP */
     vamp_table_init();
 
+	#ifdef VAMP_DEBUG
 	printf("[TABLE]TABLE INIT AFTER\n");
-	//printf("{MEM} free heap: %d B\n", ESP.getFreeHeap());
-	printf("{MEM} frag. Heap: %d%%\n", ESP.getHeapFragmentation());
-	printf("{MEM} ---- max free block: %d B\n", ESP.getMaxFreeBlockSize());
-
+	printf("{MEM} SYNC: frag=%d%%, max=%d\n", ESP.getHeapFragmentation(), ESP.getMaxFreeBlockSize());
+	#endif /* VAMP_DEBUG */
+	
 	return;
 }
 
